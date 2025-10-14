@@ -1,0 +1,73 @@
+[project]
+name = "odoo-ninja"
+version = "0.1.0"
+description = "Modern Python CLI for Odoo helpdesk management with safety features"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Julian Rath", email = "julian.rath@Julian Rath.com" }
+]
+maintainers = [
+    { name = "Julian Rath GmbH", email = "info@Julian Rath.com" }
+]
+requires-python = ">=3.12"
+keywords = ["odoo", "helpdesk", "cli", "ticket", "management", "xmlrpc"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer[all]>=0.12.0",
+    "rich>=13.7.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.5.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Julian Rath/odoo-ninja"
+Repository = "https://github.com/Julian Rath/odoo-ninja"
+Issues = "https://github.com/Julian Rath/odoo-ninja/issues"
+
+[project.scripts]
+odoo-ninja = "odoo_ninja.main:app"
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11.0",
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "DTZ", "T10", "ICN", "PIE", "PT", "RET", "SIM", "ARG", "PTH", "PD", "PLE", "PLR", "PLW", "RUF"]
+ignore = ["PLR0913", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
