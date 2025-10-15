@@ -30,6 +30,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "python-dotenv>=1.0.0",
+    "markdown>=3.5.0",
 ]
 
 [project.urls]
@@ -44,6 +45,7 @@ odoo-ninja = "odoo_ninja.main:app"
 dev = [
     "mypy>=1.11.0",
     "ruff>=0.6.0",
+    "types-Markdown>=3.5.0",
 ]
 
 [tool.ruff]

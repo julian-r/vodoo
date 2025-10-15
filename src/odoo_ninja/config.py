@@ -14,6 +14,7 @@ class OdooConfig(BaseSettings):
         env_file_encoding="utf-8",
         env_prefix="ODOO_",
         case_sensitive=False,
+        extra="ignore",
     )
 
     url: str = Field(..., description="Odoo instance URL")
