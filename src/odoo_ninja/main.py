@@ -123,6 +123,10 @@ def helpdesk_show(
         list[str] | None,
         typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
     ] = None,
+    show_html: Annotated[
+        bool,
+        typer.Option("--html", help="Show raw HTML description instead of markdown"),
+    ] = False,
 ) -> None:
     """Show detailed ticket information."""
     client = get_client()
@@ -136,7 +140,7 @@ def helpdesk_show(
             for key, value in sorted(ticket.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
-            display_ticket_detail(ticket)
+            display_ticket_detail(ticket, show_html=show_html)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e

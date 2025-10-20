@@ -182,11 +182,12 @@ def set_ticket_fields(
     return client.write("helpdesk.ticket", [ticket_id], values)
 
 
-def display_ticket_detail(ticket: dict[str, Any]) -> None:
+def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed ticket information.
 
     Args:
         ticket: Ticket dictionary
+        show_html: If True, show raw HTML description, else convert to markdown
 
     """
     console = _get_console()
@@ -205,7 +206,13 @@ def display_ticket_detail(ticket: dict[str, Any]) -> None:
     console.print(f"[bold]Priority:[/bold] {ticket.get('priority', '0')}")
 
     if ticket.get("description"):
-        console.print(f"\n[bold]Description:[/bold]\n{ticket['description']}")
+        description = ticket["description"]
+        if show_html:
+            console.print(f"\n[bold]Description:[/bold]\n{description}")
+        else:
+            # Convert HTML to markdown for better readability
+            markdown_text = _html_to_markdown(description)
+            console.print(f"\n[bold]Description:[/bold]\n{markdown_text}")
 
     if ticket.get("tag_ids"):
         console.print(f"\n[bold]Tags:[/bold] {', '.join(map(str, ticket['tag_ids']))}")
@@ -293,6 +300,108 @@ def _convert_to_html(text: str, use_markdown: bool = False) -> str:
         )
     # Plain text - wrap in paragraph tags with newline support
     return f"<p>{text}</p>"
+
+
+def _html_to_markdown(html: str) -> str:
+    """Convert HTML to markdown for display.
+
+    Args:
+        html: HTML string
+
+    Returns:
+        Markdown-formatted text
+
+    """
+    from html import unescape
+    from html.parser import HTMLParser
+
+    class HTMLToMarkdown(HTMLParser):
+        """Simple HTML to Markdown converter."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.result: list[str] = []
+            self.in_bold = False
+            self.in_italic = False
+            self.in_code = False
+            self.in_pre = False
+            self.in_heading = 0
+            self.in_list_item = False
+            self.list_stack: list[str] = []  # Track ul/ol nesting
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag in ("b", "strong"):
+                self.in_bold = True
+                self.result.append("**")
+            elif tag in ("i", "em"):
+                self.in_italic = True
+                self.result.append("*")
+            elif tag == "code":
+                self.in_code = True
+                self.result.append("`")
+            elif tag == "pre":
+                self.in_pre = True
+                self.result.append("\n```\n")
+            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.in_heading = int(tag[1])
+                self.result.append("\n" + "#" * self.in_heading + " ")
+            elif tag == "br":
+                self.result.append("\n")
+            elif tag == "p":
+                self.result.append("\n\n")
+            elif tag == "a":
+                href = dict(attrs).get("href", "")
+                self.result.append("[")
+            elif tag == "ul":
+                self.list_stack.append("ul")
+                self.result.append("\n")
+            elif tag == "ol":
+                self.list_stack.append("ol")
+                self.result.append("\n")
+            elif tag == "li":
+                self.in_list_item = True
+                indent = "  " * (len(self.list_stack) - 1)
+                if self.list_stack and self.list_stack[-1] == "ul":
+                    self.result.append(f"{indent}- ")
+                else:
+                    self.result.append(f"{indent}1. ")
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag in ("b", "strong"):
+                self.in_bold = False
+                self.result.append("**")
+            elif tag in ("i", "em"):
+                self.in_italic = False
+                self.result.append("*")
+            elif tag == "code":
+                self.in_code = False
+                self.result.append("`")
+            elif tag == "pre":
+                self.in_pre = False
+                self.result.append("\n```\n")
+            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.in_heading = 0
+                self.result.append("\n")
+            elif tag == "a":
+                self.result.append("]")
+            elif tag in ("ul", "ol"):
+                if self.list_stack:
+                    self.list_stack.pop()
+                self.result.append("\n")
+            elif tag == "li":
+                self.in_list_item = False
+                self.result.append("\n")
+
+        def handle_data(self, data: str) -> None:
+            if data.strip() or self.in_pre:
+                self.result.append(data)
+
+        def get_markdown(self) -> str:
+            return "".join(self.result).strip()
+
+    parser = HTMLToMarkdown()
+    parser.feed(unescape(html))
+    return parser.get_markdown()
 
 
 def list_tags(client: OdooClient) -> list[dict[str, Any]]:
