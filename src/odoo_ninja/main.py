@@ -12,6 +12,7 @@ from odoo_ninja.helpdesk import (
     add_comment,
     add_note,
     add_tag_to_ticket,
+    create_attachment,
     display_attachments,
     display_messages,
     display_tags,
@@ -20,6 +21,7 @@ from odoo_ninja.helpdesk import (
     download_attachment,
     download_ticket_attachments,
     get_ticket,
+    get_ticket_url,
     list_attachments,
     list_messages,
     list_tags,
@@ -485,6 +487,48 @@ def helpdesk_set(
         else:
             console.print(f"[red]Failed to set fields on ticket {ticket_id}[/red]")
             raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@helpdesk_app.command("attach")
+def helpdesk_attach(
+    ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
+    file_path: Annotated[Path, typer.Argument(help="Path to file to attach")],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="Custom attachment name (defaults to filename)"),
+    ] = None,
+) -> None:
+    """Attach a file to a ticket."""
+    client = get_client()
+
+    try:
+        attachment_id = create_attachment(client, ticket_id, file_path, name=name)
+        console.print(
+            f"[green]Successfully attached {file_path.name} to ticket {ticket_id}[/green]"
+        )
+        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+
+        # Show ticket URL for verification
+        url = get_ticket_url(client, ticket_id)
+        console.print(f"\n[cyan]View ticket:[/cyan] {url}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@helpdesk_app.command("url")
+def helpdesk_url(
+    ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
+) -> None:
+    """Get the web URL for a ticket."""
+    client = get_client()
+
+    try:
+        url = get_ticket_url(client, ticket_id)
+        console.print(url)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e

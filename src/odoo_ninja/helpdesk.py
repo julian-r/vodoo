@@ -626,3 +626,76 @@ def download_ticket_attachments(
             continue
 
     return downloaded_files
+
+
+def create_attachment(
+    client: OdooClient,
+    ticket_id: int,
+    file_path: Path | str,
+    name: str | None = None,
+) -> int:
+    """Create an attachment for a ticket.
+
+    Args:
+        client: Odoo client
+        ticket_id: Ticket ID
+        file_path: Path to file to attach
+        name: Attachment name (defaults to filename)
+
+    Returns:
+        ID of created attachment
+
+    Raises:
+        ValueError: If file doesn't exist
+        FileNotFoundError: If file path is invalid
+
+    Examples:
+        >>> create_attachment(client, 42, "screenshot.png")
+        >>> create_attachment(client, 42, "/path/to/file.pdf", name="Report.pdf")
+
+    """
+    file_path = Path(file_path)
+
+    if not file_path.exists():
+        msg = f"File not found: {file_path}"
+        raise FileNotFoundError(msg)
+
+    if not file_path.is_file():
+        msg = f"Path is not a file: {file_path}"
+        raise ValueError(msg)
+
+    # Read file and encode to base64
+    file_data = file_path.read_bytes()
+    encoded_data = base64.b64encode(file_data).decode("utf-8")
+
+    # Use provided name or file name
+    attachment_name = name or file_path.name
+
+    # Create attachment
+    values = {
+        "name": attachment_name,
+        "datas": encoded_data,
+        "res_model": "helpdesk.ticket",
+        "res_id": ticket_id,
+    }
+
+    return client.create("ir.attachment", values)
+
+
+def get_ticket_url(client: OdooClient, ticket_id: int) -> str:
+    """Get the web URL for a ticket.
+
+    Args:
+        client: Odoo client
+        ticket_id: Ticket ID
+
+    Returns:
+        URL to view the ticket in Odoo web interface
+
+    Examples:
+        >>> get_ticket_url(client, 42)
+        'https://odoo.example.com/web#id=42&model=helpdesk.ticket&view_type=form'
+
+    """
+    base_url = client.config.url.rstrip("/")
+    return f"{base_url}/web#id={ticket_id}&model=helpdesk.ticket&view_type=form"
