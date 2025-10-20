@@ -1,7 +1,7 @@
 [project]
 name = "odoo-ninja"
-version = "0.2.1"
-description = "Modern Python CLI for Odoo helpdesk management with safety features"
+version = "0.3.0"
+description = "Modern Python CLI for Odoo with support for helpdesk, projects, and tasks"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
@@ -11,7 +11,7 @@ maintainers = [
     { name = "Julian Rath GmbH", email = "info@Julian Rath.com" }
 ]
 requires-python = ">=3.12"
-keywords = ["odoo", "helpdesk", "cli", "ticket", "management", "xmlrpc"]
+keywords = ["odoo", "helpdesk", "project", "task", "cli", "management", "xmlrpc"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

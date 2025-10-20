@@ -1,4 +1,4 @@
-"""Helpdesk operations for Odoo Ninja."""
+"""Project task operations for Odoo Ninja."""
 
 from typing import Any
 
@@ -12,51 +12,43 @@ from odoo_ninja.base import (
     add_tag_to_record,
     display_record_detail,
     display_records,
+    display_tags,
     download_record_attachments,
     get_record,
     get_record_url,
+    list_attachments,
     list_fields,
+    list_messages,
     list_records,
+    list_tags,
     set_record_fields,
 )
 from odoo_ninja.base import (
     create_attachment as base_create_attachment,
 )
-from odoo_ninja.base import (
-    display_tags as base_display_tags,
-)
-from odoo_ninja.base import (
-    list_attachments as base_list_attachments,
-)
-from odoo_ninja.base import (
-    list_messages as base_list_messages,
-)
-from odoo_ninja.base import (
-    list_tags as base_list_tags,
-)
 from odoo_ninja.client import OdooClient
 
 # Model name constant
-MODEL = "helpdesk.ticket"
-TAG_MODEL = "helpdesk.tag"
+MODEL = "project.task"
+TAG_MODEL = "project.tags"
 
 
-def list_tickets(
+def list_tasks(
     client: OdooClient,
     domain: list[Any] | None = None,
     limit: int | None = 50,
     fields: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """List helpdesk tickets.
+    """List project tasks.
 
     Args:
         client: Odoo client
         domain: Search domain filters
-        limit: Maximum number of tickets
+        limit: Maximum number of tasks
         fields: List of fields to fetch (None = default fields)
 
     Returns:
-        List of ticket dictionaries
+        List of task dictionaries
 
     """
     if fields is None:
@@ -64,8 +56,9 @@ def list_tickets(
             "id",
             "name",
             "partner_id",
+            "project_id",
             "stage_id",
-            "user_id",
+            "user_ids",
             "priority",
             "tag_ids",
             "create_date",
@@ -74,40 +67,40 @@ def list_tickets(
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 
-def display_tickets(tickets: list[dict[str, Any]]) -> None:
-    """Display tickets in a rich table.
+def display_tasks(tasks: list[dict[str, Any]]) -> None:
+    """Display tasks in a rich table.
 
     Args:
-        tickets: List of ticket dictionaries
+        tasks: List of task dictionaries
 
     """
-    display_records(tickets, title="Helpdesk Tickets")
+    display_records(tasks, title="Project Tasks")
 
 
-def get_ticket(
+def get_task(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     fields: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Get detailed ticket information.
+    """Get detailed task information.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         fields: List of field names to read (None = all fields)
 
     Returns:
-        Ticket dictionary
+        Task dictionary
 
     Raises:
-        ValueError: If ticket not found
+        ValueError: If task not found
 
     """
-    return get_record(client, MODEL, ticket_id, fields=fields)
+    return get_record(client, MODEL, task_id, fields=fields)
 
 
-def list_ticket_fields(client: OdooClient) -> dict[str, Any]:
-    """Get all available fields for helpdesk tickets.
+def list_task_fields(client: OdooClient) -> dict[str, Any]:
+    """Get all available fields for project tasks.
 
     Args:
         client: Odoo client
@@ -119,52 +112,52 @@ def list_ticket_fields(client: OdooClient) -> dict[str, Any]:
     return list_fields(client, MODEL)
 
 
-def set_ticket_fields(
+def set_task_fields(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     values: dict[str, Any],
 ) -> bool:
-    """Update fields on a ticket.
+    """Update fields on a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         values: Dictionary of field names and values to update
 
     Returns:
         True if successful
 
     Examples:
-        >>> set_ticket_fields(client, 42, {"name": "New title", "priority": "2"})
-        >>> set_ticket_fields(client, 42, {"user_id": 5, "stage_id": 3})
+        >>> set_task_fields(client, 42, {"name": "New title", "priority": "1"})
+        >>> set_task_fields(client, 42, {"user_ids": [(6, 0, [5])], "stage_id": 3})
 
     """
-    return set_record_fields(client, MODEL, ticket_id, values)
+    return set_record_fields(client, MODEL, task_id, values)
 
 
-def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed ticket information.
+def display_task_detail(task: dict[str, Any], show_html: bool = False) -> None:
+    """Display detailed task information.
 
     Args:
-        ticket: Ticket dictionary
+        task: Task dictionary
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(ticket, MODEL, show_html=show_html, record_type="Ticket")
+    display_record_detail(task, MODEL, show_html=show_html, record_type="Task")
 
 
 def add_comment(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     message: str,
     user_id: int | None = None,
     markdown: bool = False,
 ) -> bool:
-    """Add a comment to a ticket (visible to customers).
+    """Add a comment to a task (visible to followers).
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         message: Comment message (plain text or markdown)
         user_id: User ID to post as (uses default if None)
         markdown: If True, convert markdown to HTML
@@ -173,21 +166,21 @@ def add_comment(
         True if successful
 
     """
-    return base_add_comment(client, MODEL, ticket_id, message, user_id=user_id, markdown=markdown)
+    return base_add_comment(client, MODEL, task_id, message, user_id=user_id, markdown=markdown)
 
 
 def add_note(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     message: str,
     user_id: int | None = None,
     markdown: bool = False,
 ) -> bool:
-    """Add an internal note to a ticket (not visible to customers).
+    """Add an internal note to a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         message: Note message (plain text or markdown)
         user_id: User ID to post as (uses default if None)
         markdown: If True, convert markdown to HTML
@@ -196,11 +189,11 @@ def add_note(
         True if successful
 
     """
-    return base_add_note(client, MODEL, ticket_id, message, user_id=user_id, markdown=markdown)
+    return base_add_note(client, MODEL, task_id, message, user_id=user_id, markdown=markdown)
 
 
-def list_tags(client: OdooClient) -> list[dict[str, Any]]:
-    """List available helpdesk tags.
+def list_task_tags(client: OdooClient) -> list[dict[str, Any]]:
+    """List available project tags.
 
     Args:
         client: Odoo client
@@ -209,85 +202,85 @@ def list_tags(client: OdooClient) -> list[dict[str, Any]]:
         List of tag dictionaries
 
     """
-    return base_list_tags(client, TAG_MODEL)
+    return list_tags(client, TAG_MODEL)
 
 
-def display_tags(tags: list[dict[str, Any]]) -> None:
-    """Display tags in a rich table.
+def display_task_tags(tags: list[dict[str, Any]]) -> None:
+    """Display project tags in a rich table.
 
     Args:
         tags: List of tag dictionaries
 
     """
-    base_display_tags(tags, title="Helpdesk Tags")
+    display_tags(tags, title="Project Tags")
 
 
-def add_tag_to_ticket(
+def add_tag_to_task(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     tag_id: int,
 ) -> bool:
-    """Add a tag to a ticket.
+    """Add a tag to a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         tag_id: Tag ID
 
     Returns:
         True if successful
 
     """
-    return add_tag_to_record(client, MODEL, ticket_id, tag_id)
+    return add_tag_to_record(client, MODEL, task_id, tag_id)
 
 
-def list_messages(
+def list_task_messages(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    """List messages/chatter for a ticket.
+    """List messages/chatter for a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         limit: Maximum number of messages (None = all)
 
     Returns:
         List of message dictionaries
 
     """
-    return base_list_messages(client, MODEL, ticket_id, limit=limit)
+    return list_messages(client, MODEL, task_id, limit=limit)
 
 
-def list_attachments(
+def list_task_attachments(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
 ) -> list[dict[str, Any]]:
-    """List attachments for a ticket.
+    """List attachments for a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
 
     Returns:
         List of attachment dictionaries
 
     """
-    return base_list_attachments(client, MODEL, ticket_id)
+    return list_attachments(client, MODEL, task_id)
 
 
-def download_ticket_attachments(
+def download_task_attachments(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     output_dir: Any = None,
     extension: str | None = None,
 ) -> list[Any]:
-    """Download all attachments from a ticket.
+    """Download all attachments from a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         output_dir: Output directory (defaults to current directory)
         extension: File extension filter (e.g., 'pdf', 'jpg')
 
@@ -295,51 +288,39 @@ def download_ticket_attachments(
         List of paths to downloaded files
 
     """
-    return download_record_attachments(client, MODEL, ticket_id, output_dir, extension=extension)
+    return download_record_attachments(client, MODEL, task_id, output_dir, extension=extension)
 
 
-def create_attachment(
+def create_task_attachment(
     client: OdooClient,
-    ticket_id: int,
+    task_id: int,
     file_path: Any,
     name: str | None = None,
 ) -> int:
-    """Create an attachment for a ticket.
+    """Create an attachment for a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
         file_path: Path to file to attach
         name: Attachment name (defaults to filename)
 
     Returns:
         ID of created attachment
 
-    Raises:
-        ValueError: If file doesn't exist
-        FileNotFoundError: If file path is invalid
-
-    Examples:
-        >>> create_attachment(client, 42, "screenshot.png")
-        >>> create_attachment(client, 42, "/path/to/file.pdf", name="Report.pdf")
-
     """
-    return base_create_attachment(client, MODEL, ticket_id, file_path, name=name)
+    return base_create_attachment(client, MODEL, task_id, file_path, name=name)
 
 
-def get_ticket_url(client: OdooClient, ticket_id: int) -> str:
-    """Get the web URL for a ticket.
+def get_task_url(client: OdooClient, task_id: int) -> str:
+    """Get the web URL for a task.
 
     Args:
         client: Odoo client
-        ticket_id: Ticket ID
+        task_id: Task ID
 
     Returns:
-        URL to view the ticket in Odoo web interface
-
-    Examples:
-        >>> get_ticket_url(client, 42)
-        'https://odoo.example.com/web#id=42&model=helpdesk.ticket&view_type=form'
+        URL to view the task in Odoo web interface
 
     """
-    return get_record_url(client, MODEL, ticket_id)
+    return get_record_url(client, MODEL, task_id)
