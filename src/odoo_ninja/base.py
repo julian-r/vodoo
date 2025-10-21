@@ -836,3 +836,107 @@ def get_record_url(client: OdooClient, model: str, record_id: int) -> str:
     """
     base_url = client.config.url.rstrip("/")
     return f"{base_url}/web#id={record_id}&model={model}&view_type=form"
+
+
+def parse_field_assignment(
+    client: OdooClient,
+    model: str,
+    record_id: int,
+    field_assignment: str,
+) -> tuple[str, Any]:
+    """Parse a field assignment and return field name and computed value.
+
+    Supports operators: =, +=, -=, *=, /=
+
+    Args:
+        client: Odoo client
+        model: Model name
+        record_id: Record ID
+        field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
+
+    Returns:
+        Tuple of (field_name, value)
+
+    Raises:
+        ValueError: If assignment format is invalid
+
+    Examples:
+        >>> parse_field_assignment(client, "project.task", 42, "name=New Title")
+        ('name', 'New Title')
+        >>> parse_field_assignment(client, "project.task", 42, "priority+=1")
+        ('priority', 3)  # if current priority is 2
+
+    """
+    import contextlib
+    import json
+    import re
+
+    # Match assignment operators: =, +=, -=, *=, /=
+    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment)
+    if not match:
+        msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
+        raise ValueError(msg)
+
+    field = match.group(1).strip()
+    operator = match.group(2).strip()
+    value = match.group(3).strip()
+
+    # Parse the value
+    parsed_value: Any = value
+
+    # Check for JSON prefix
+    if value.startswith("json:"):
+        try:
+            parsed_value = json.loads(value[5:])
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON for field '{field}': {e}"
+            raise ValueError(msg) from e
+    # Try to parse as integer
+    elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+        parsed_value = int(value)
+    # Try to parse as float
+    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
+        with contextlib.suppress(ValueError):
+            parsed_value = float(value)
+    # Try to parse as boolean
+    elif value.lower() in ("true", "false"):
+        parsed_value = value.lower() == "true"
+    # Keep as string otherwise (remove surrounding quotes if present)
+    elif (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
+        parsed_value = value[1:-1]
+
+    # Handle operators that require current value
+    if operator in ("+=", "-=", "*=", "/="):
+        # Get current value
+        record = get_record(client, model, record_id, fields=[field])
+        current_value = record.get(field)
+
+        if current_value is None:
+            msg = f"Field '{field}' not found or is None"
+            raise ValueError(msg)
+
+        # Ensure both values are numeric
+        if not isinstance(current_value, (int, float)):
+            msg = f"Field '{field}' has non-numeric value: {current_value}"
+            raise ValueError(msg)
+
+        if not isinstance(parsed_value, (int, float)):
+            msg = f"Operator '{operator}' requires numeric value, got: {value}"
+            raise ValueError(msg)
+
+        # Perform operation
+        if operator == "+=":
+            parsed_value = current_value + parsed_value
+        elif operator == "-=":
+            parsed_value = current_value - parsed_value
+        elif operator == "*=":
+            parsed_value = current_value * parsed_value
+        elif operator == "/=":
+            if parsed_value == 0:
+                msg = "Division by zero"
+                raise ValueError(msg)
+            parsed_value = current_value / parsed_value
+
+    return field, parsed_value

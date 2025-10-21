@@ -1,6 +1,6 @@
 [project]
 name = "odoo-ninja"
-version = "0.3.0"
+version = "0.3.1"
 description = "Modern Python CLI for Odoo with support for helpdesk, projects, and tasks"
 readme = "README.md"
 license = { text = "MIT" }

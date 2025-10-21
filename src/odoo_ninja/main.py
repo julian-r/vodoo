@@ -6,7 +6,12 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
-from odoo_ninja.base import display_attachments, display_messages, download_attachment
+from odoo_ninja.base import (
+    display_attachments,
+    display_messages,
+    download_attachment,
+    parse_field_assignment,
+)
 from odoo_ninja.client import OdooClient
 from odoo_ninja.config import get_config
 from odoo_ninja.helpdesk import (
@@ -477,60 +482,33 @@ def helpdesk_set(
     ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
     fields: Annotated[
         list[str],
-        typer.Argument(help="Field assignments in format 'field=value' or 'field=json:value'"),
+        typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
 ) -> None:
     """Set field values on a ticket.
 
+    Supports operators: =, +=, -=, *=, /=
+
     Examples:
         odoo-ninja helpdesk set 42 priority=2 name="New Title"
         odoo-ninja helpdesk set 42 user_id=5 stage_id=3
+        odoo-ninja helpdesk set 42 priority+=1
         odoo-ninja helpdesk set 42 'tag_ids=json:[[6,0,[1,2,3]]]'
     """
     client = get_client()
 
-    # Parse field=value pairs
+    # Parse field assignments
     values: dict[str, Any] = {}
 
-    for field_assignment in fields:
-        if "=" not in field_assignment:
-            console.print(f"[red]Error:[/red] Invalid format '{field_assignment}'. Use field=value")
-            raise typer.Exit(1)
-
-        field, value = field_assignment.split("=", 1)
-        field = field.strip()
-        value = value.strip()
-
-        # Parse value - try to convert to appropriate type
-        parsed_value: Any = value
-
-        # Check for JSON prefix
-        if value.startswith("json:"):
-            import json
-            try:
-                parsed_value = json.loads(value[5:])
-            except json.JSONDecodeError as e:
-                console.print(f"[red]Error:[/red] Invalid JSON for field '{field}': {e}")
-                raise typer.Exit(1) from e
-        # Try to parse as integer
-        elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-            parsed_value = int(value)
-        # Try to parse as float
-        elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-            import contextlib
-
-            with contextlib.suppress(ValueError):
-                parsed_value = float(value)
-        # Try to parse as boolean
-        elif value.lower() in ("true", "false"):
-            parsed_value = value.lower() == "true"
-        # Keep as string otherwise (remove surrounding quotes if present)
-        elif (value.startswith('"') and value.endswith('"')) or (
-            value.startswith("'") and value.endswith("'")
-        ):
-            parsed_value = value[1:-1]
-
-        values[field] = parsed_value
+    try:
+        for field_assignment in fields:
+            field, value = parse_field_assignment(
+                client, "helpdesk.ticket", ticket_id, field_assignment
+            )
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
 
     try:
         success = set_ticket_fields(client, ticket_id, values)
@@ -931,61 +909,33 @@ def project_set(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     fields: Annotated[
         list[str],
-        typer.Argument(help="Field assignments in format 'field=value' or 'field=json:value'"),
+        typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
 ) -> None:
     """Set field values on a task.
+
+    Supports operators: =, +=, -=, *=, /=
 
     Examples:
         odoo-ninja project-task set 42 priority=1 name="New Task Title"
         odoo-ninja project-task set 42 'user_ids=json:[[6,0,[5]]]' stage_id=3
         odoo-ninja project-task set 42 project_id=10
+        odoo-ninja project-task set 42 priority+=1
     """
     client = get_client()
 
-    # Parse field=value pairs
+    # Parse field assignments
     values: dict[str, Any] = {}
 
-    for field_assignment in fields:
-        if "=" not in field_assignment:
-            console.print(f"[red]Error:[/red] Invalid format '{field_assignment}'. Use field=value")
-            raise typer.Exit(1)
-
-        field, value = field_assignment.split("=", 1)
-        field = field.strip()
-        value = value.strip()
-
-        # Parse value - try to convert to appropriate type
-        parsed_value: Any = value
-
-        # Check for JSON prefix
-        if value.startswith("json:"):
-            import json
-
-            try:
-                parsed_value = json.loads(value[5:])
-            except json.JSONDecodeError as e:
-                console.print(f"[red]Error:[/red] Invalid JSON for field '{field}': {e}")
-                raise typer.Exit(1) from e
-        # Try to parse as integer
-        elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-            parsed_value = int(value)
-        # Try to parse as float
-        elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-            import contextlib
-
-            with contextlib.suppress(ValueError):
-                parsed_value = float(value)
-        # Try to parse as boolean
-        elif value.lower() in ("true", "false"):
-            parsed_value = value.lower() == "true"
-        # Keep as string otherwise (remove surrounding quotes if present)
-        elif (value.startswith('"') and value.endswith('"')) or (
-            value.startswith("'") and value.endswith("'")
-        ):
-            parsed_value = value[1:-1]
-
-        values[field] = parsed_value
+    try:
+        for field_assignment in fields:
+            field, value = parse_field_assignment(
+                client, "project.task", task_id, field_assignment
+            )
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
 
     try:
         success = set_task_fields(client, task_id, values)
@@ -1283,10 +1233,12 @@ def project_project_set(
     project_id: Annotated[int, typer.Argument(help="Project ID")],
     fields: Annotated[
         list[str],
-        typer.Argument(help="Field assignments in format 'field=value' or 'field=json:value'"),
+        typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
 ) -> None:
     """Set field values on a project.
+
+    Supports operators: =, +=, -=, *=, /=
 
     Examples:
         odoo-ninja project set 42 name="New Project Name"
@@ -1294,49 +1246,18 @@ def project_project_set(
     """
     client = get_client()
 
-    # Parse field=value pairs
+    # Parse field assignments
     values: dict[str, Any] = {}
 
-    for field_assignment in fields:
-        if "=" not in field_assignment:
-            console.print(f"[red]Error:[/red] Invalid format '{field_assignment}'. Use field=value")
-            raise typer.Exit(1)
-
-        field, value = field_assignment.split("=", 1)
-        field = field.strip()
-        value = value.strip()
-
-        # Parse value - try to convert to appropriate type
-        parsed_value: Any = value
-
-        # Check for JSON prefix
-        if value.startswith("json:"):
-            import json
-
-            try:
-                parsed_value = json.loads(value[5:])
-            except json.JSONDecodeError as e:
-                console.print(f"[red]Error:[/red] Invalid JSON for field '{field}': {e}")
-                raise typer.Exit(1) from e
-        # Try to parse as integer
-        elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-            parsed_value = int(value)
-        # Try to parse as float
-        elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-            import contextlib
-
-            with contextlib.suppress(ValueError):
-                parsed_value = float(value)
-        # Try to parse as boolean
-        elif value.lower() in ("true", "false"):
-            parsed_value = value.lower() == "true"
-        # Keep as string otherwise (remove surrounding quotes if present)
-        elif (value.startswith('"') and value.endswith('"')) or (
-            value.startswith("'") and value.endswith("'")
-        ):
-            parsed_value = value[1:-1]
-
-        values[field] = parsed_value
+    try:
+        for field_assignment in fields:
+            field, value = parse_field_assignment(
+                client, "project.project", project_id, field_assignment
+            )
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
 
     try:
         success = set_project_fields(client, project_id, values)
