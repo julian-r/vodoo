@@ -117,11 +117,25 @@ def get_console() -> Console:
     return Console(force_terminal=not no_color, no_color=no_color)
 
 
+def version_callback(value: bool) -> None:
+    """Show version and exit."""
+    if value:
+        from importlib.metadata import version
+
+        app_version = version("odoo-ninja")
+        console.print(f"odoo-ninja version {app_version}")
+        raise typer.Exit()
+
+
 @app.callback()
 def main_callback(
     no_color: Annotated[
         bool,
         typer.Option("--no-color", help="Disable colored output for programmatic use"),
+    ] = False,
+    version: Annotated[
+        bool,
+        typer.Option("--version", "-v", help="Show version and exit", callback=version_callback, is_eager=True),
     ] = False,
 ) -> None:
     """Global options for odoo-ninja CLI."""
