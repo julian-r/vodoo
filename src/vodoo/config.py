@@ -35,10 +35,10 @@ class OdooConfig(BaseSettings):
 
         """
         if config_path is None:
-            # Try common config locations
+            # Try common config locations (XDG config first for security)
             possible_paths = [
-                Path.cwd() / ".vodoo.env",
                 Path.home() / ".config" / "vodoo" / "config.env",
+                Path.cwd() / ".vodoo.env",
                 Path.cwd() / ".env",
             ]
             for path in possible_paths:

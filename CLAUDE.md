@@ -59,10 +59,12 @@ def add_comment(client, ticket_id, message, ...):
 
 ### Configuration
 
-Loads from (in order): `.vodoo.env`, `~/.config/vodoo/config.env`, `.env`
+Loads from (in order): `~/.config/vodoo/config.env`, `.vodoo.env`, `.env`
 
 Required: `ODOO_URL`, `ODOO_DATABASE`, `ODOO_USERNAME`, `ODOO_PASSWORD`
 Optional: `ODOO_DEFAULT_USER_ID`
+
+Recommended: Use `~/.config/vodoo/config.env` for credentials (outside project dirs).
 
 ## Code Style
 
