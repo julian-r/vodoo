@@ -1,17 +1,17 @@
-"""Project (project.project) operations for Odoo Ninja."""
+"""Project (project.project) operations for Vodoo."""
 
 from typing import Any
 
-from odoo_ninja.base import (
+from vodoo.base import (
     add_comment as base_add_comment,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     add_note as base_add_note,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     create_attachment as base_create_attachment,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     display_record_detail,
     display_records,
     get_record,
@@ -22,7 +22,7 @@ from odoo_ninja.base import (
     list_records,
     set_record_fields,
 )
-from odoo_ninja.client import OdooClient
+from vodoo.client import OdooClient
 
 # Model name constant
 MODEL = "project.project"
@@ -145,7 +145,7 @@ def add_comment(
     project_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add a comment to a project (visible to followers).
 
@@ -168,7 +168,7 @@ def add_note(
     project_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add an internal note to a project.
 
@@ -255,3 +255,66 @@ def get_project_url(client: OdooClient, project_id: int) -> str:
 
     """
     return get_record_url(client, MODEL, project_id)
+
+
+def list_stages(
+    client: OdooClient,
+    project_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """List task stages, optionally filtered by project.
+
+    Args:
+        client: Odoo client
+        project_id: Project ID to filter stages (None = all stages)
+
+    Returns:
+        List of stage dictionaries with id, name, sequence, fold
+
+    """
+    domain: list[Any] = []
+    if project_id is not None:
+        domain.append(("project_ids", "in", [project_id]))
+
+    fields = ["id", "name", "sequence", "fold", "project_ids"]
+    return client.search_read(
+        "project.task.type",
+        domain=domain,
+        fields=fields,
+        order="sequence",
+    )
+
+
+def display_stages(stages: list[dict[str, Any]]) -> None:
+    """Display stages in a table or TSV format.
+
+    Args:
+        stages: List of stage dictionaries
+
+    """
+    from vodoo.base import _is_simple_output
+
+    if _is_simple_output():
+        print("id\tname\tsequence\tfold")
+        for stage in stages:
+            fold = "true" if stage.get("fold") else "false"
+            print(f"{stage['id']}\t{stage['name']}\t{stage.get('sequence', '')}\t{fold}")
+    else:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("ID", style="cyan", justify="right")
+        table.add_column("Name", style="green")
+        table.add_column("Sequence", justify="right")
+        table.add_column("Folded", justify="center")
+
+        for stage in stages:
+            table.add_row(
+                str(stage["id"]),
+                stage["name"],
+                str(stage.get("sequence", "")),
+                "✓" if stage.get("fold") else "",
+            )
+
+        console.print(table)

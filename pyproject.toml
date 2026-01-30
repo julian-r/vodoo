@@ -1,7 +1,7 @@
 [project]
-name = "odoo-ninja"
+name = "vodoo"
 version = "0.3.2"
-description = "Modern Python CLI for Odoo with support for helpdesk, projects, and tasks"
+description = "Modern Python CLI for Odoo with support for helpdesk, projects, tasks, CRM, and knowledge articles"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
@@ -11,7 +11,7 @@ maintainers = [
     { name = "Julian Rath GmbH", email = "info@Julian Rath.com" }
 ]
 requires-python = ">=3.12"
-keywords = ["odoo", "helpdesk", "project", "task", "cli", "management", "xmlrpc"]
+keywords = ["odoo", "helpdesk", "project", "task", "crm", "lead", "opportunity", "knowledge", "wiki", "cli", "management", "xmlrpc", "vodoo"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -34,12 +34,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Julian Rath/odoo-ninja"
-Repository = "https://github.com/Julian Rath/odoo-ninja"
-Issues = "https://github.com/Julian Rath/odoo-ninja/issues"
+Homepage = "https://github.com/julian-r/vodoo"
+Repository = "https://github.com/julian-r/vodoo"
+Issues = "https://github.com/julian-r/vodoo/issues"
 
 [project.scripts]
-odoo-ninja = "odoo_ninja.main:app"
+vodoo = "vodoo.main:app"
 
 [project.optional-dependencies]
 dev = [

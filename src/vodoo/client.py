@@ -3,7 +3,7 @@
 import xmlrpc.client
 from typing import Any
 
-from odoo_ninja.config import OdooConfig
+from vodoo.config import OdooConfig
 
 
 class OdooClient:
@@ -213,18 +213,32 @@ class OdooClient:
         self,
         model: str,
         values: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> int:
         """Create a new record.
 
         Args:
             model: Odoo model name
             values: Field values for the new record
+            context: Optional context dict (e.g., {'default_project_id': 10})
 
         Returns:
             ID of created record
 
         """
-        result: int = self.execute(model, "create", values)
+        if context:
+            raw_result = self.models.execute_kw(
+                self.db,
+                self.uid,
+                self.password,
+                model,
+                "create",
+                [values],
+                {"context": context},
+            )
+            result: int = int(raw_result)  # type: ignore[arg-type]
+        else:
+            result = self.execute(model, "create", values)
         return result
 
     def write(
@@ -245,4 +259,22 @@ class OdooClient:
 
         """
         result: bool = self.execute(model, "write", ids, values)
+        return result
+
+    def unlink(
+        self,
+        model: str,
+        ids: list[int],
+    ) -> bool:
+        """Delete records.
+
+        Args:
+            model: Odoo model name
+            ids: List of record IDs to delete
+
+        Returns:
+            True if successful
+
+        """
+        result: bool = self.execute(model, "unlink", ids)
         return result

@@ -1,8 +1,8 @@
-"""Authentication utilities for Odoo Ninja."""
+"""Authentication utilities for Vodoo."""
 
 from typing import Any
 
-from odoo_ninja.client import OdooClient
+from vodoo.client import OdooClient
 
 
 def get_default_user_id(client: OdooClient, username: str | None = None) -> int:
@@ -111,11 +111,16 @@ def message_post_sudo(
         "mail.message.subtype", domain=[("name", "=", subtype_name)], limit=1
     )
 
+    # For non-internal users (share users), internal notes require message_type='notification'
+    # because Odoo's mail.message._get_forbidden_access() blocks message_type='comment'
+    # with internal subtypes for non-internal users
+    effective_message_type = "notification" if is_note else message_type
+
     message_vals = {
         "model": model,
         "res_id": res_id,
         "body": body,
-        "message_type": message_type,
+        "message_type": effective_message_type,
         "subtype_id": subtype_ids[0] if subtype_ids else False,
         "author_id": partner_id,  # Use partner_id, not user_id
         **kwargs,
@@ -124,3 +129,4 @@ def message_post_sudo(
     # Create the message
     message_id = client.create("mail.message", message_vals)
     return bool(message_id)
+
