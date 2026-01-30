@@ -135,8 +135,11 @@ from vodoo.security import (
     GROUP_DEFINITIONS,
     assign_user_to_groups,
     create_security_groups,
+    create_user,
     get_group_ids,
+    get_user_info,
     resolve_user_id,
+    set_user_password,
 )
 
 app = typer.Typer(
@@ -1777,6 +1780,149 @@ def security_assign_bot(
             console.print("\n[yellow]Warnings:[/yellow]")
             for warning in warnings:
                 console.print(f"- {warning}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@security_app.command("create-user")
+def security_create_user(
+    name: Annotated[str, typer.Argument(help="User's display name")],
+    login: Annotated[str, typer.Argument(help="User's login (usually email)")],
+    password: Annotated[
+        str | None,
+        typer.Option("--password", "-p", help="User's password (generated if not provided)"),
+    ] = None,
+    email: Annotated[
+        str | None,
+        typer.Option("--email", "-e", help="User's email (defaults to login)"),
+    ] = None,
+    assign_groups: Annotated[
+        bool,
+        typer.Option(
+            "--assign-groups/--no-assign-groups",
+            help="Assign user to all Vodoo API security groups",
+        ),
+    ] = False,
+    create_groups: Annotated[
+        bool,
+        typer.Option(
+            "--create-groups/--no-create-groups",
+            help="Create Vodoo API groups if they don't exist (requires --assign-groups)",
+        ),
+    ] = True,
+) -> None:
+    """Create a new API service account user.
+
+    Creates a share user (not billed) with no default groups.
+    Optionally assigns to all Vodoo API security groups.
+
+    NOTE: Requires admin credentials (Access Rights group).
+
+    Examples:
+        vodoo security create-user "Bot User" bot@example.com
+        vodoo security create-user "Bot User" bot@example.com --password MySecretPass123
+        vodoo security create-user "Bot User" bot@example.com --assign-groups
+
+        # With admin credentials:
+        ODOO_USERNAME=admin@example.com ODOO_PASSWORD=... vodoo security create-user ...
+    """
+    client = get_client()
+
+    try:
+        user_id, generated_password = create_user(
+            client,
+            name=name,
+            login=login,
+            password=password,
+            email=email,
+        )
+
+        console.print(f"[green]Created user:[/green] {name} (id={user_id})")
+        console.print(f"[bold]Login:[/bold] {login}")
+        if password is None:
+            console.print(f"[bold]Password:[/bold] {generated_password}")
+            console.print("[yellow]⚠ Save this password - it cannot be retrieved later![/yellow]")
+
+        # Get user info to show share status
+        user_info = get_user_info(client, user_id)
+        console.print(f"[bold]Share (not billed):[/bold] {user_info['share']}")
+
+        if assign_groups:
+            group_names = [group.name for group in GROUP_DEFINITIONS]
+
+            if create_groups:
+                group_ids, warnings = create_security_groups(client)
+            else:
+                group_ids, warnings = get_group_ids(client, group_names)
+
+            missing_groups = [name for name in group_names if name not in group_ids]
+            if missing_groups:
+                missing_list = ", ".join(missing_groups)
+                console.print(f"[yellow]Missing groups (skipped):[/yellow] {missing_list}")
+
+            if group_ids:
+                assign_user_to_groups(
+                    client,
+                    user_id,
+                    list(group_ids.values()),
+                    remove_default_groups=True,
+                )
+                console.print(f"[green]Assigned to {len(group_ids)} groups:[/green]")
+                for group_name in group_ids:
+                    console.print(f"  - {group_name}")
+
+            if warnings:
+                console.print("\n[yellow]Warnings:[/yellow]")
+                for warning in warnings:
+                    console.print(f"  - {warning}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@security_app.command("set-password")
+def security_set_password(
+    user_id: Annotated[
+        int | None,
+        typer.Option("--user-id", "-u", help="User ID"),
+    ] = None,
+    login: Annotated[
+        str | None,
+        typer.Option("--login", "-l", help="User login/email"),
+    ] = None,
+    password: Annotated[
+        str | None,
+        typer.Option("--password", "-p", help="New password (generated if not provided)"),
+    ] = None,
+) -> None:
+    """Set or reset a user's password.
+
+    NOTE: Requires admin credentials (Access Rights group).
+
+    Examples:
+        vodoo security set-password --login bot@example.com
+        vodoo security set-password --user-id 42 --password MyNewPassword123
+    """
+    client = get_client()
+
+    try:
+        resolved_user_id = resolve_user_id(client, user_id=user_id, login=login)
+
+        new_password = set_user_password(client, resolved_user_id, password)
+
+        # Get user info for display
+        user_info = get_user_info(client, resolved_user_id)
+
+        console.print(f"[green]Password updated for:[/green] {user_info['name']} (id={resolved_user_id})")
+        console.print(f"[bold]Login:[/bold] {user_info['login']}")
+        if password is None:
+            console.print(f"[bold]New password:[/bold] {new_password}")
+            console.print("[yellow]⚠ Save this password - it cannot be retrieved later![/yellow]")
+        else:
+            console.print("[green]Password set to provided value.[/green]")
+
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e

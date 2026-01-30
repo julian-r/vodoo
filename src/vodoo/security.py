@@ -351,3 +351,100 @@ def _rule_name(group_name: str, model: str) -> str:
 
 def _slugify(value: str) -> str:
     return value.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def create_user(
+    client: OdooClient,
+    name: str,
+    login: str,
+    password: str | None = None,
+    email: str | None = None,
+) -> tuple[int, str]:
+    """Create a new user.
+
+    Args:
+        client: Odoo client
+        name: User's display name
+        login: User's login (usually email)
+        password: User's password (generated if not provided)
+        email: User's email (defaults to login if not provided)
+
+    Returns:
+        Tuple of (user_id, password)
+
+    """
+    import secrets
+    import string
+
+    # Generate password if not provided
+    if password is None:
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = "".join(secrets.choice(alphabet) for _ in range(24))
+
+    # Use login as email if not provided
+    if email is None:
+        email = login
+
+    # Create user with no groups (share user, not billed)
+    user_id = client.create(
+        "res.users",
+        {
+            "name": name,
+            "login": login,
+            "email": email,
+            "password": password,
+            "group_ids": [(6, 0, [])],  # Empty groups = share user
+        },
+    )
+
+    return user_id, password
+
+
+def set_user_password(
+    client: OdooClient,
+    user_id: int,
+    password: str | None = None,
+) -> str:
+    """Set a user's password.
+
+    Args:
+        client: Odoo client
+        user_id: User ID
+        password: New password (generated if not provided)
+
+    Returns:
+        The password that was set
+
+    """
+    import secrets
+    import string
+
+    # Generate password if not provided
+    if password is None:
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = "".join(secrets.choice(alphabet) for _ in range(24))
+
+    client.write("res.users", [user_id], {"password": password})
+    return password
+
+
+def get_user_info(client: OdooClient, user_id: int) -> dict:
+    """Get user information.
+
+    Args:
+        client: Odoo client
+        user_id: User ID
+
+    Returns:
+        User information dictionary
+
+    """
+    users = client.search_read(
+        "res.users",
+        domain=[("id", "=", user_id)],
+        fields=["name", "login", "email", "active", "share", "group_ids", "partner_id"],
+        limit=1,
+    )
+    if not users:
+        raise ValueError(f"User {user_id} not found")
+    return users[0]
