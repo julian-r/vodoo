@@ -1,14 +1,14 @@
-"""Project task operations for Odoo Ninja."""
+"""Project task operations for Vodoo."""
 
 from typing import Any
 
-from odoo_ninja.base import (
+from vodoo.base import (
     add_comment as base_add_comment,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     add_note as base_add_note,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     add_tag_to_record,
     display_record_detail,
     display_records,
@@ -23,14 +23,69 @@ from odoo_ninja.base import (
     list_tags,
     set_record_fields,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     create_attachment as base_create_attachment,
 )
-from odoo_ninja.client import OdooClient
+from vodoo.client import OdooClient
 
 # Model name constant
 MODEL = "project.task"
 TAG_MODEL = "project.tags"
+
+
+def create_task(
+    client: OdooClient,
+    name: str,
+    project_id: int,
+    description: str | None = None,
+    user_ids: list[int] | None = None,
+    tag_ids: list[int] | None = None,
+    parent_id: int | None = None,
+    **kwargs: Any,
+) -> int:
+    """Create a new project task.
+
+    Args:
+        client: Odoo client
+        name: Task name
+        project_id: Project ID (required)
+        description: Task description (HTML)
+        user_ids: List of assigned user IDs
+        tag_ids: List of tag IDs
+        parent_id: Parent task ID (for subtasks)
+        **kwargs: Additional field values
+
+    Returns:
+        ID of created task
+
+    Examples:
+        >>> create_task(client, "Fix bug", project_id=10)
+        42
+        >>> create_task(client, "Review PR", project_id=10, user_ids=[5], tag_ids=[1, 2])
+        43
+
+    """
+    values: dict[str, Any] = {
+        "name": name,
+        "project_id": project_id,
+    }
+
+    if description:
+        values["description"] = description
+    if user_ids:
+        values["user_ids"] = [(6, 0, user_ids)]
+    if tag_ids:
+        values["tag_ids"] = [(6, 0, tag_ids)]
+    if parent_id:
+        values["parent_id"] = parent_id
+
+    # Add any additional kwargs
+    values.update(kwargs)
+
+    # Pass context with default_project_id to ensure proper stage/company setup
+    context: dict[str, Any] = {"default_project_id": project_id}
+
+    return client.create(MODEL, values, context=context)
 
 
 def list_tasks(
@@ -151,7 +206,7 @@ def add_comment(
     task_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add a comment to a task (visible to followers).
 
@@ -174,7 +229,7 @@ def add_note(
     task_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add an internal note to a task.
 
@@ -232,6 +287,55 @@ def add_tag_to_task(
 
     """
     return add_tag_to_record(client, MODEL, task_id, tag_id)
+
+
+def create_tag(
+    client: OdooClient,
+    name: str,
+    color: int | None = None,
+) -> int:
+    """Create a new project tag.
+
+    Args:
+        client: Odoo client
+        name: Tag name
+        color: Tag color index (0-11, optional)
+
+    Returns:
+        ID of created tag
+
+    Examples:
+        >>> create_tag(client, "urgent")
+        42
+        >>> create_tag(client, "bug", color=1)
+        43
+
+    """
+    values: dict[str, Any] = {"name": name}
+    if color is not None:
+        values["color"] = color
+    return client.create(TAG_MODEL, values)
+
+
+def delete_tag(
+    client: OdooClient,
+    tag_id: int,
+) -> bool:
+    """Delete a project tag.
+
+    Args:
+        client: Odoo client
+        tag_id: Tag ID
+
+    Returns:
+        True if successful
+
+    Examples:
+        >>> delete_tag(client, 42)
+        True
+
+    """
+    return client.unlink(TAG_MODEL, [tag_id])
 
 
 def list_task_messages(

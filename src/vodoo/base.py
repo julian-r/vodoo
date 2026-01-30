@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from odoo_ninja.auth import message_post_sudo
-from odoo_ninja.client import OdooClient
+from vodoo.auth import message_post_sudo
+from vodoo.client import OdooClient
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -20,9 +20,16 @@ def _get_console() -> "Console":
         Console instance
 
     """
-    from odoo_ninja.main import console
+    from vodoo.main import console
 
     return console
+
+
+def _is_simple_output() -> bool:
+    """Check if simple (TSV) output is requested via --no-color flag."""
+    from vodoo.main import _console_config
+
+    return _console_config.get("no_color", False)
 
 
 def list_records(
@@ -56,62 +63,74 @@ def list_records(
     )
 
 
+def _format_field_value(value: Any) -> str:
+    """Format a field value for display.
+
+    Args:
+        value: Field value from Odoo
+
+    Returns:
+        Formatted string
+
+    """
+    if value is False or value is None:
+        return ""
+    if isinstance(value, list) and len(value) == 2 and isinstance(value[0], int):
+        # Many2one field [id, name]
+        return str(value[1])
+    if isinstance(value, list):
+        # Many2many or one2many field
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
 def display_records(records: list[dict[str, Any]], title: str = "Records") -> None:
-    """Display records in a rich table.
+    """Display records in a table or TSV format.
 
     Args:
         records: List of record dictionaries
         title: Table title
 
     """
-    console = _get_console()
     if not records:
-        console.print("[yellow]No records found[/yellow]")
+        if _is_simple_output():
+            print("No records found")
+        else:
+            _get_console().print("[yellow]No records found[/yellow]")
         return
 
-    table = Table(title=title)
-
-    # Get all field names from the first record
     field_names = list(records[0].keys())
 
-    # Add columns for each field with styling
-    field_styles = {
-        "id": "cyan",
-        "name": "green",
-        "partner_id": "yellow",
-        "stage_id": "blue",
-        "user_id": "magenta",
-        "priority": "red",
-        "project_id": "blue",
-    }
+    if _is_simple_output():
+        # Simple TSV output for LLMs
+        print("\t".join(field_names))
+        for record in records:
+            row = [_format_field_value(record.get(f)) for f in field_names]
+            print("\t".join(row))
+    else:
+        # Rich table output
+        console = _get_console()
+        table = Table(title=title)
 
-    for field_name in field_names:
-        style = field_styles.get(field_name, "white")
-        table.add_column(field_name, style=style)
+        field_styles = {
+            "id": "cyan",
+            "name": "green",
+            "partner_id": "yellow",
+            "stage_id": "blue",
+            "user_id": "magenta",
+            "priority": "red",
+            "project_id": "blue",
+        }
 
-    # Add rows
-    for record in records:
-        row_values = []
         for field_name in field_names:
-            value = record.get(field_name)
+            style = field_styles.get(field_name, "white")
+            table.add_column(field_name, style=style)
 
-            # Format the value
-            if value is False or value is None:
-                formatted_value = "N/A"
-            elif isinstance(value, list) and len(value) == 2 and isinstance(value[0], int):
-                # Many2one field [id, name]
-                formatted_value = value[1]
-            elif isinstance(value, list):
-                # Many2many or one2many field
-                formatted_value = str(value)
-            else:
-                formatted_value = str(value)
+        for record in records:
+            row_values = [_format_field_value(record.get(f)) or "N/A" for f in field_names]
+            table.add_row(*row_values)
 
-            row_values.append(formatted_value)
-
-        table.add_row(*row_values)
-
-    console.print(table)
+        console.print(table)
 
 
 def get_record(
@@ -182,7 +201,7 @@ def set_record_fields(
     return client.write(model, [record_id], values)
 
 
-def display_record_detail(
+def display_record_detail(  # noqa: PLR0912
     record: dict[str, Any],
     model: str,  # noqa: ARG001
     show_html: bool = False,
@@ -197,36 +216,57 @@ def display_record_detail(
         record_type: Human-readable record type (e.g., "Ticket", "Task")
 
     """
-    console = _get_console()
-    console.print(f"\n[bold cyan]{record_type} #{record['id']}[/bold cyan]")
-    console.print(f"[bold]Name:[/bold] {record['name']}")
+    if _is_simple_output():
+        # Simple key: value format
+        print(f"id: {record['id']}")
+        print(f"name: {record['name']}")
+        if record.get("partner_id"):
+            print(f"partner: {record['partner_id'][1]}")
+        if record.get("stage_id"):
+            print(f"stage: {record['stage_id'][1]}")
+        if record.get("user_id"):
+            print(f"assigned_to: {record['user_id'][1]}")
+        if record.get("project_id"):
+            print(f"project: {record['project_id'][1]}")
+        if "priority" in record:
+            print(f"priority: {record.get('priority', '0')}")
+        if record.get("description"):
+            desc = record["description"]
+            if not show_html:
+                desc = _html_to_markdown(desc)
+            print(f"description: {desc}")
+        if record.get("tag_ids"):
+            print(f"tags: {','.join(map(str, record['tag_ids']))}")
+    else:
+        console = _get_console()
+        console.print(f"\n[bold cyan]{record_type} #{record['id']}[/bold cyan]")
+        console.print(f"[bold]Name:[/bold] {record['name']}")
 
-    if record.get("partner_id"):
-        console.print(f"[bold]Partner:[/bold] {record['partner_id'][1]}")
+        if record.get("partner_id"):
+            console.print(f"[bold]Partner:[/bold] {record['partner_id'][1]}")
 
-    if record.get("stage_id"):
-        console.print(f"[bold]Stage:[/bold] {record['stage_id'][1]}")
+        if record.get("stage_id"):
+            console.print(f"[bold]Stage:[/bold] {record['stage_id'][1]}")
 
-    if record.get("user_id"):
-        console.print(f"[bold]Assigned To:[/bold] {record['user_id'][1]}")
+        if record.get("user_id"):
+            console.print(f"[bold]Assigned To:[/bold] {record['user_id'][1]}")
 
-    if record.get("project_id"):
-        console.print(f"[bold]Project:[/bold] {record['project_id'][1]}")
+        if record.get("project_id"):
+            console.print(f"[bold]Project:[/bold] {record['project_id'][1]}")
 
-    if "priority" in record:
-        console.print(f"[bold]Priority:[/bold] {record.get('priority', '0')}")
+        if "priority" in record:
+            console.print(f"[bold]Priority:[/bold] {record.get('priority', '0')}")
 
-    if record.get("description"):
-        description = record["description"]
-        if show_html:
-            console.print(f"\n[bold]Description:[/bold]\n{description}")
-        else:
-            # Convert HTML to markdown for better readability
-            markdown_text = _html_to_markdown(description)
-            console.print(f"\n[bold]Description:[/bold]\n{markdown_text}")
+        if record.get("description"):
+            description = record["description"]
+            if show_html:
+                console.print(f"\n[bold]Description:[/bold]\n{description}")
+            else:
+                markdown_text = _html_to_markdown(description)
+                console.print(f"\n[bold]Description:[/bold]\n{markdown_text}")
 
-    if record.get("tag_ids"):
-        console.print(f"\n[bold]Tags:[/bold] {', '.join(map(str, record['tag_ids']))}")
+        if record.get("tag_ids"):
+            console.print(f"\n[bold]Tags:[/bold] {', '.join(map(str, record['tag_ids']))}")
 
 
 def add_comment(
@@ -235,7 +275,7 @@ def add_comment(
     record_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add a comment to a record (visible to customers).
 
@@ -245,7 +285,7 @@ def add_comment(
         record_id: Record ID
         message: Comment message (plain text or markdown)
         user_id: User ID to post as (uses default if None)
-        markdown: If True, convert markdown to HTML
+        markdown: If True, convert markdown to HTML (default: True)
 
     Returns:
         True if successful
@@ -268,7 +308,7 @@ def add_note(
     record_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add an internal note to a record (not visible to customers).
 
@@ -278,7 +318,7 @@ def add_note(
         record_id: Record ID
         message: Note message (plain text or markdown)
         user_id: User ID to post as (uses default if None)
-        markdown: If True, convert markdown to HTML
+        markdown: If True, convert markdown to HTML (default: True)
 
     Returns:
         True if successful
@@ -345,7 +385,9 @@ def _html_to_markdown(html: str) -> str:
             self.list_stack: list[str] = []  # Track ul/ol nesting
 
         def handle_starttag(  # noqa: PLR0912
-            self, tag: str, attrs: list[tuple[str, str | None]]  # noqa: ARG002
+            self,
+            tag: str,
+            attrs: list[tuple[str, str | None]],  # noqa: ARG002
         ) -> None:
             if tag in ("b", "strong"):
                 self.in_bold = True
@@ -436,27 +478,32 @@ def list_tags(client: OdooClient, model: str) -> list[dict[str, Any]]:
 
 
 def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
-    """Display tags in a rich table.
+    """Display tags in a table or TSV format.
 
     Args:
         tags: List of tag dictionaries
         title: Table title
 
     """
-    console = _get_console()
-    table = Table(title=title)
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="green")
-    table.add_column("Color", style="yellow")
+    if _is_simple_output():
+        print("id\tname\tcolor")
+        for tag in tags:
+            print(f"{tag['id']}\t{tag['name']}\t{tag.get('color', '')}")
+    else:
+        console = _get_console()
+        table = Table(title=title)
+        table.add_column("ID", style="cyan")
+        table.add_column("Name", style="green")
+        table.add_column("Color", style="yellow")
 
-    for tag in tags:
-        table.add_row(
-            str(tag["id"]),
-            tag["name"],
-            str(tag.get("color", "N/A")),
-        )
+        for tag in tags:
+            table.add_row(
+                str(tag["id"]),
+                tag["name"],
+                str(tag.get("color", "N/A")),
+            )
 
-    console.print(table)
+        console.print(table)
 
 
 def add_tag_to_record(
@@ -535,8 +582,8 @@ def list_messages(
     )
 
 
-def display_messages(messages: list[dict[str, Any]], show_html: bool = False) -> None:
-    """Display messages in a formatted list.
+def display_messages(messages: list[dict[str, Any]], show_html: bool = False) -> None:  # noqa: PLR0912
+    """Display messages in a formatted list or simple format.
 
     Args:
         messages: List of message dictionaries
@@ -545,8 +592,6 @@ def display_messages(messages: list[dict[str, Any]], show_html: bool = False) ->
     """
     from html import unescape
     from html.parser import HTMLParser
-
-    console = _get_console()
 
     class HTMLToText(HTMLParser):
         """Simple HTML to text converter."""
@@ -561,46 +606,66 @@ def display_messages(messages: list[dict[str, Any]], show_html: bool = False) ->
         def get_text(self) -> str:
             return "".join(self.text).strip()
 
+    def get_body_text(body: str) -> str:
+        if show_html:
+            return body
+        parser = HTMLToText()
+        parser.feed(unescape(body))
+        return parser.get_text()
+
     if not messages:
-        console.print("[yellow]No messages found[/yellow]")
+        print("No messages found") if _is_simple_output() else _get_console().print(
+            "[yellow]No messages found[/yellow]"
+        )
         return
 
-    console.print(f"\n[bold cyan]Message History ({len(messages)} messages)[/bold cyan]\n")
-
-    for i, msg in enumerate(messages, 1):
-        # Message header
-        date = msg.get("date", "N/A")
-        author = msg.get("author_id")
-        author_name = (
-            author[1] if author and isinstance(author, list) else msg.get("email_from", "Unknown")
-        )
-
-        message_type = msg.get("message_type", "comment")
-        subtype = msg.get("subtype_id")
-        subtype_name = subtype[1] if subtype and isinstance(subtype, list) else message_type
-
-        console.print(f"[bold]Message #{i}[/bold] [dim]({date})[/dim]")
-        console.print(f"[cyan]From:[/cyan] {author_name}")
-        console.print(f"[cyan]Type:[/cyan] {subtype_name}")
-
-        if msg.get("subject"):
-            console.print(f"[cyan]Subject:[/cyan] {msg['subject']}")
-
-        # Message body
-        body = msg.get("body", "")
-        if body:
-            if show_html:
-                console.print(f"\n{body}\n")
+    if _is_simple_output():
+        # Simple format: date, author, type, body (one line per message)
+        print("date\tauthor\ttype\tbody")
+        for msg in messages:
+            date = msg.get("date", "")
+            author = msg.get("author_id")
+            author_name = (
+                author[1] if author and isinstance(author, list) else msg.get("email_from", "")
+            )
+            subtype = msg.get("subtype_id")
+            if subtype and isinstance(subtype, list):
+                subtype_name = subtype[1]
             else:
-                # Convert HTML to plain text
-                parser = HTMLToText()
-                parser.feed(unescape(body))
-                text = parser.get_text()
+                subtype_name = msg.get("message_type", "")
+            body = get_body_text(msg.get("body", "")).replace("\t", " ").replace("\n", " ")
+            print(f"{date}\t{author_name}\t{subtype_name}\t{body}")
+    else:
+        console = _get_console()
+        console.print(f"\n[bold cyan]Message History ({len(messages)} messages)[/bold cyan]\n")
+
+        for i, msg in enumerate(messages, 1):
+            date = msg.get("date", "N/A")
+            author = msg.get("author_id")
+            if author and isinstance(author, list):
+                author_name = author[1]
+            else:
+                author_name = msg.get("email_from", "Unknown")
+
+            message_type = msg.get("message_type", "comment")
+            subtype = msg.get("subtype_id")
+            subtype_name = subtype[1] if subtype and isinstance(subtype, list) else message_type
+
+            console.print(f"[bold]Message #{i}[/bold] [dim]({date})[/dim]")
+            console.print(f"[cyan]From:[/cyan] {author_name}")
+            console.print(f"[cyan]Type:[/cyan] {subtype_name}")
+
+            if msg.get("subject"):
+                console.print(f"[cyan]Subject:[/cyan] {msg['subject']}")
+
+            body = msg.get("body", "")
+            if body:
+                text = get_body_text(body)
                 if text:
                     console.print(f"\n{text}\n")
 
-        if i < len(messages):
-            console.print("[dim]" + "─" * 80 + "[/dim]\n")
+            if i < len(messages):
+                console.print("[dim]" + "─" * 80 + "[/dim]\n")
 
 
 def list_attachments(
@@ -629,33 +694,43 @@ def list_attachments(
 
 
 def display_attachments(attachments: list[dict[str, Any]]) -> None:
-    """Display attachments in a rich table.
+    """Display attachments in a table or TSV format.
 
     Args:
         attachments: List of attachment dictionaries
 
     """
-    console = _get_console()
-    table = Table(title="Attachments")
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="green")
-    table.add_column("Size", style="yellow")
-    table.add_column("Type", style="blue")
-    table.add_column("Created", style="magenta")
+    if _is_simple_output():
+        print("id\tname\tsize_kb\tmimetype\tcreate_date")
+        for att in attachments:
+            size = att.get("file_size", 0)
+            size_kb = f"{size / 1024:.1f}" if size else ""
+            name = att.get("name", "")
+            mime = att.get("mimetype", "")
+            created = att.get("create_date", "")
+            print(f"{att['id']}\t{name}\t{size_kb}\t{mime}\t{created}")
+    else:
+        console = _get_console()
+        table = Table(title="Attachments")
+        table.add_column("ID", style="cyan")
+        table.add_column("Name", style="green")
+        table.add_column("Size", style="yellow")
+        table.add_column("Type", style="blue")
+        table.add_column("Created", style="magenta")
 
-    for att in attachments:
-        size = att.get("file_size", 0)
-        size_str = f"{size / 1024:.1f} KB" if size else "N/A"
+        for att in attachments:
+            size = att.get("file_size", 0)
+            size_str = f"{size / 1024:.1f} KB" if size else "N/A"
 
-        table.add_row(
-            str(att["id"]),
-            att.get("name", "N/A"),
-            size_str,
-            att.get("mimetype", "N/A"),
-            str(att.get("create_date", "N/A")),
-        )
+            table.add_row(
+                str(att["id"]),
+                att.get("name", "N/A"),
+                size_str,
+                att.get("mimetype", "N/A"),
+                str(att.get("create_date", "N/A")),
+            )
 
-    console.print(table)
+        console.print(table)
 
 
 def download_attachment(
@@ -838,21 +913,24 @@ def get_record_url(client: OdooClient, model: str, record_id: int) -> str:
     return f"{base_url}/web#id={record_id}&model={model}&view_type=form"
 
 
-def parse_field_assignment(
+def parse_field_assignment(  # noqa: PLR0912, PLR0915
     client: OdooClient,
     model: str,
     record_id: int,
     field_assignment: str,
+    no_markdown: bool = False,
 ) -> tuple[str, Any]:
     """Parse a field assignment and return field name and computed value.
 
     Supports operators: =, +=, -=, *=, /=
+    HTML fields automatically get markdown conversion unless no_markdown=True.
 
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
+        no_markdown: If True, disable automatic markdown conversion for HTML fields
 
     Returns:
         Tuple of (field_name, value)
@@ -872,7 +950,7 @@ def parse_field_assignment(
     import re
 
     # Match assignment operators: =, +=, -=, *=, /=
-    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment)
+    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
     if not match:
         msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
         raise ValueError(msg)
@@ -906,6 +984,12 @@ def parse_field_assignment(
         value.startswith("'") and value.endswith("'")
     ):
         parsed_value = value[1:-1]
+
+    # Auto-convert markdown to HTML for HTML fields
+    if isinstance(parsed_value, str) and not no_markdown:
+        fields_info = list_fields(client, model)
+        if field in fields_info and fields_info[field].get("type") == "html":
+            parsed_value = _convert_to_html(parsed_value, use_markdown=True)
 
     # Handle operators that require current value
     if operator in ("+=", "-=", "*=", "/="):

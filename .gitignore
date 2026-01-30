@@ -17,7 +17,7 @@ wheels/
 
 # Environment and config
 .env
-.odoo-ninja.env
+.vodoo.env
 *.local.env
 
 # mypy

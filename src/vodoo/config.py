@@ -1,4 +1,4 @@
-"""Configuration management for Odoo Ninja."""
+"""Configuration management for Vodoo."""
 
 from pathlib import Path
 
@@ -22,10 +22,6 @@ class OdooConfig(BaseSettings):
     username: str = Field(..., description="Odoo username")
     password: str = Field(..., description="Odoo password or API key")
     default_user_id: int | None = Field(None, description="Default user ID for sudo operations")
-    allow_harmful_operations: bool = Field(
-        False,
-        description="Allow harmful operations like posting public comments (visible to customers)",
-    )
 
     @classmethod
     def from_file(cls, config_path: Path | None = None) -> "OdooConfig":
@@ -41,8 +37,8 @@ class OdooConfig(BaseSettings):
         if config_path is None:
             # Try common config locations
             possible_paths = [
-                Path.cwd() / ".odoo-ninja.env",
-                Path.home() / ".config" / "odoo-ninja" / "config.env",
+                Path.cwd() / ".vodoo.env",
+                Path.home() / ".config" / "vodoo" / "config.env",
                 Path.cwd() / ".env",
             ]
             for path in possible_paths:

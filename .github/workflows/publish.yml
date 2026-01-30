@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/odoo-ninja
+      url: https://pypi.org/p/vodoo
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/odoo-ninja
+      url: https://test.pypi.org/p/vodoo
     permissions:
       id-token: write
 

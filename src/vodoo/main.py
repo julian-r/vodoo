@@ -1,4 +1,4 @@
-"""Main CLI application for Odoo Ninja."""
+"""Main CLI application for Vodoo."""
 
 from pathlib import Path
 from typing import Annotated, Any
@@ -6,15 +6,50 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
-from odoo_ninja.base import (
+from vodoo.base import (
     display_attachments,
     display_messages,
+    display_records,
     download_attachment,
+    get_record,
     parse_field_assignment,
 )
-from odoo_ninja.client import OdooClient
-from odoo_ninja.config import get_config
-from odoo_ninja.helpdesk import (
+from vodoo.client import OdooClient
+from vodoo.config import get_config
+from vodoo.crm import (
+    add_comment as add_lead_comment,
+)
+from vodoo.crm import (
+    add_note as add_lead_note,
+)
+from vodoo.crm import (
+    add_tag_to_lead,
+    create_lead_attachment,
+    display_lead_detail,
+    display_leads,
+    download_lead_attachments,
+    get_lead,
+    get_lead_url,
+    list_lead_attachments,
+    list_lead_fields,
+    list_lead_messages,
+    list_leads,
+    set_lead_fields,
+)
+from vodoo.crm import (
+    display_tags as display_lead_tags,
+)
+from vodoo.crm import (
+    list_tags as list_lead_tags,
+)
+from vodoo.generic import (
+    call_method,
+    create_record,
+    delete_record,
+    search_records,
+    update_record,
+)
+from vodoo.helpdesk import (
     add_comment,
     add_note,
     add_tag_to_ticket,
@@ -32,14 +67,30 @@ from odoo_ninja.helpdesk import (
     list_tickets,
     set_ticket_fields,
 )
-from odoo_ninja.project import (
+from vodoo.knowledge import (
+    add_comment as add_article_comment,
+)
+from vodoo.knowledge import (
+    add_note as add_article_note,
+)
+from vodoo.knowledge import (
+    display_article_detail,
+    display_articles,
+    get_article,
+    get_article_url,
+    list_article_attachments,
+    list_article_messages,
+    list_articles,
+)
+from vodoo.project import (
     add_comment as add_task_comment,
 )
-from odoo_ninja.project import (
+from vodoo.project import (
     add_note as add_task_note,
 )
-from odoo_ninja.project import (
+from vodoo.project import (
     add_tag_to_task,
+    create_task,
     create_task_attachment,
     display_task_detail,
     display_task_tags,
@@ -54,28 +105,36 @@ from odoo_ninja.project import (
     list_tasks,
     set_task_fields,
 )
-from odoo_ninja.project_project import (
+from vodoo.project import (
+    create_tag as create_project_tag,
+)
+from vodoo.project import (
+    delete_tag as delete_project_tag,
+)
+from vodoo.project_project import (
     add_comment as add_project_comment,
 )
-from odoo_ninja.project_project import (
+from vodoo.project_project import (
     add_note as add_project_note,
 )
-from odoo_ninja.project_project import (
+from vodoo.project_project import (
     create_project_attachment,
     display_project_detail,
     display_projects,
+    display_stages,
     get_project,
     get_project_url,
     list_project_attachments,
     list_project_fields,
     list_project_messages,
     list_projects,
+    list_stages,
     set_project_fields,
 )
 
 app = typer.Typer(
-    name="odoo-ninja",
-    help="CLI tool for accessing Odoo helpdesk tickets",
+    name="vodoo",
+    help="CLI tool for Odoo: helpdesk, projects, tasks, and CRM",
     no_args_is_help=True,
 )
 
@@ -100,6 +159,27 @@ project_project_app = typer.Typer(
 )
 app.add_typer(project_project_app, name="project")
 
+knowledge_app = typer.Typer(
+    name="knowledge",
+    help="Knowledge article operations",
+    no_args_is_help=True,
+)
+app.add_typer(knowledge_app, name="knowledge")
+
+model_app = typer.Typer(
+    name="model",
+    help="Generic model operations (create, read, update, delete)",
+    no_args_is_help=True,
+)
+app.add_typer(model_app, name="model")
+
+crm_app = typer.Typer(
+    name="crm",
+    help="CRM lead/opportunity operations",
+    no_args_is_help=True,
+)
+app.add_typer(crm_app, name="crm")
+
 # Global state for console configuration
 _console_config = {"no_color": False}
 
@@ -122,8 +202,8 @@ def version_callback(value: bool) -> None:
     if value:
         from importlib.metadata import version
 
-        app_version = version("odoo-ninja")
-        console.print(f"odoo-ninja version {app_version}")
+        app_version = version("vodoo")
+        console.print(f"vodoo version {app_version}")
         raise typer.Exit()
 
 
@@ -133,12 +213,18 @@ def main_callback(
         bool,
         typer.Option("--no-color", help="Disable colored output for programmatic use"),
     ] = False,
-    version: Annotated[
+    version: Annotated[  # noqa: ARG001
         bool,
-        typer.Option("--version", "-v", help="Show version and exit", callback=version_callback, is_eager=True),
+        typer.Option(
+            "--version",
+            "-v",
+            help="Show version and exit",
+            callback=version_callback,
+            is_eager=True,
+        ),
     ] = False,
 ) -> None:
-    """Global options for odoo-ninja CLI."""
+    """Global options for vodoo CLI."""
     _console_config["no_color"] = no_color
     global console  # noqa: PLW0603
     console = get_console()
@@ -221,29 +307,21 @@ def helpdesk_show(
 def helpdesk_comment(
     ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add a comment to a ticket (visible to customers)."""
     client = get_client()
 
-    # Check if harmful operations are allowed
-    if not client.config.allow_harmful_operations:
-        console.print(
-            "[red]Error:[/red] Posting public comments is disabled. "
-            "This is a harmful operation (visible to customers).\n"
-            "To enable, set ODOO_ALLOW_HARMFUL_OPERATIONS=true in your .env file.\n"
-            "For internal notes (safe), use: [cyan]odoo-ninja helpdesk note[/cyan]"
-        )
-        raise typer.Exit(1)
-
     try:
-        success = add_comment(client, ticket_id, message, user_id=user_id, markdown=markdown)
+        success = add_comment(
+            client, ticket_id, message, user_id=author_id, markdown=not no_markdown
+        )
         if success:
             console.print(f"[green]Successfully added comment to ticket {ticket_id}[/green]")
         else:
@@ -258,19 +336,19 @@ def helpdesk_comment(
 def helpdesk_note(
     ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add an internal note to a ticket (not visible to customers)."""
     client = get_client()
 
     try:
-        success = add_note(client, ticket_id, message, user_id=user_id, markdown=markdown)
+        success = add_note(client, ticket_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
             console.print(f"[green]Successfully added note to ticket {ticket_id}[/green]")
         else:
@@ -401,13 +479,10 @@ def helpdesk_download_all(
         if extension:
             ext = extension.lower().lstrip(".")
             filtered_attachments = [
-                att for att in attachments
-                if att.get("name", "").lower().endswith(f".{ext}")
+                att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")
             ]
             if not filtered_attachments:
-                console.print(
-                    f"[yellow]No {ext} attachments found for ticket {ticket_id}[/yellow]"
-                )
+                console.print(f"[yellow]No {ext} attachments found for ticket {ticket_id}[/yellow]")
                 return
             console.print(
                 f"[cyan]Downloading {len(filtered_attachments)} .{ext} attachments...[/cyan]"
@@ -473,7 +548,7 @@ def helpdesk_fields(  # noqa: PLR0912
                     console.print(f"  String: {field_def.get('string', 'N/A')}")
                     console.print(f"  Required: {field_def.get('required', False)}")
                     console.print(f"  Readonly: {field_def.get('readonly', False)}")
-                    if field_def.get('help'):
+                    if field_def.get("help"):
                         console.print(f"  Help: {field_def['help']}")
                 else:
                     console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
@@ -498,16 +573,22 @@ def helpdesk_set(
         list[str],
         typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
+    no_markdown: Annotated[
+        bool,
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
+    ] = False,
 ) -> None:
     """Set field values on a ticket.
 
     Supports operators: =, +=, -=, *=, /=
+    HTML fields (like description) automatically convert markdown to HTML.
 
     Examples:
-        odoo-ninja helpdesk set 42 priority=2 name="New Title"
-        odoo-ninja helpdesk set 42 user_id=5 stage_id=3
-        odoo-ninja helpdesk set 42 priority+=1
-        odoo-ninja helpdesk set 42 'tag_ids=json:[[6,0,[1,2,3]]]'
+        vodoo helpdesk set 42 priority=2 name="New Title"
+        vodoo helpdesk set 42 user_id=5 stage_id=3
+        vodoo helpdesk set 42 priority+=1
+        vodoo helpdesk set 42 'tag_ids=json:[[6,0,[1,2,3]]]'
+        vodoo helpdesk set 42 'description=# Heading\n\nParagraph text'
     """
     client = get_client()
 
@@ -517,7 +598,7 @@ def helpdesk_set(
     try:
         for field_assignment in fields:
             field, value = parse_field_assignment(
-                client, "helpdesk.ticket", ticket_id, field_assignment
+                client, "helpdesk.ticket", ticket_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
     except ValueError as e:
@@ -527,9 +608,7 @@ def helpdesk_set(
     try:
         success = set_ticket_fields(client, ticket_id, values)
         if success:
-            console.print(
-                f"[green]Successfully updated ticket {ticket_id}[/green]"
-            )
+            console.print(f"[green]Successfully updated ticket {ticket_id}[/green]")
             for field, value in values.items():
                 console.print(f"  {field} = {value}")
         else:
@@ -617,6 +696,52 @@ def project_list(
         raise typer.Exit(1) from e
 
 
+@project_task_app.command("create")
+def project_task_create(
+    name: Annotated[str, typer.Argument(help="Task name")],
+    project_id: Annotated[int, typer.Option("--project", "-p", help="Project ID (required)")],
+    description: Annotated[
+        str | None, typer.Option("--desc", "-d", help="Task description")
+    ] = None,
+    user_id: Annotated[
+        list[int] | None, typer.Option("--user", "-u", help="Assigned user ID (can repeat)")
+    ] = None,
+    tag_id: Annotated[
+        list[int] | None, typer.Option("--tag", "-t", help="Tag ID (can repeat)")
+    ] = None,
+    parent_id: Annotated[
+        int | None, typer.Option("--parent", help="Parent task ID for subtask")
+    ] = None,
+) -> None:
+    """Create a new project task.
+
+    Examples:
+        vodoo project-task create "Fix login bug" --project 10
+        vodoo project-task create "Review PR" -p 10 --user 5 --tag 1 --tag 2
+        vodoo project-task create "Subtask" -p 10 --parent 42
+    """
+    client = get_client()
+
+    try:
+        task_id = create_task(
+            client,
+            name=name,
+            project_id=project_id,
+            description=description,
+            user_ids=user_id,
+            tag_ids=tag_id,
+            parent_id=parent_id,
+        )
+        console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
+
+        # Show the URL
+        url = get_task_url(client, task_id)
+        console.print(f"\n[cyan]View task:[/cyan] {url}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
 @project_task_app.command("show")
 def project_show(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
@@ -651,29 +776,21 @@ def project_show(
 def project_comment(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add a comment to a task (visible to followers)."""
     client = get_client()
 
-    # Check if harmful operations are allowed
-    if not client.config.allow_harmful_operations:
-        console.print(
-            "[red]Error:[/red] Posting public comments is disabled. "
-            "This is a harmful operation (visible to followers).\n"
-            "To enable, set ODOO_ALLOW_HARMFUL_OPERATIONS=true in your .env file.\n"
-            "For internal notes (safe), use: [cyan]odoo-ninja project-task note[/cyan]"
-        )
-        raise typer.Exit(1)
-
     try:
-        success = add_task_comment(client, task_id, message, user_id=user_id, markdown=markdown)
+        success = add_task_comment(
+            client, task_id, message, user_id=author_id, markdown=not no_markdown
+        )
         if success:
             console.print(f"[green]Successfully added comment to task {task_id}[/green]")
         else:
@@ -688,19 +805,21 @@ def project_comment(
 def project_note(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add an internal note to a task."""
     client = get_client()
 
     try:
-        success = add_task_note(client, task_id, message, user_id=user_id, markdown=markdown)
+        success = add_task_note(
+            client, task_id, message, user_id=author_id, markdown=not no_markdown
+        )
         if success:
             console.print(f"[green]Successfully added note to task {task_id}[/green]")
         else:
@@ -736,6 +855,47 @@ def project_tag(
     try:
         add_tag_to_task(client, task_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@project_task_app.command("tag-create")
+def project_tag_create(
+    name: Annotated[str, typer.Argument(help="Tag name")],
+    color: Annotated[int | None, typer.Option(help="Tag color index (0-11)")] = None,
+) -> None:
+    """Create a new project tag."""
+    client = get_client()
+
+    try:
+        tag_id = create_project_tag(client, name, color=color)
+        console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@project_task_app.command("tag-delete")
+def project_tag_delete(
+    tag_id: Annotated[int, typer.Argument(help="Tag ID to delete")],
+    confirm: Annotated[bool, typer.Option("--confirm", help="Confirm deletion")] = False,
+) -> None:
+    """Delete a project tag."""
+    client = get_client()
+
+    if not confirm:
+        console.print("[red]Error:[/red] Deletion requires --confirm flag")
+        console.print("[yellow]Use: vodoo project-task tag-delete <id> --confirm[/yellow]")
+        raise typer.Exit(1)
+
+    try:
+        success = delete_project_tag(client, tag_id)
+        if success:
+            console.print(f"[green]Successfully deleted tag {tag_id}[/green]")
+        else:
+            console.print(f"[red]Failed to delete tag {tag_id}[/red]")
+            raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
@@ -925,16 +1085,22 @@ def project_set(
         list[str],
         typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
+    no_markdown: Annotated[
+        bool,
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
+    ] = False,
 ) -> None:
     """Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
+    HTML fields (like description) automatically convert markdown to HTML.
 
     Examples:
-        odoo-ninja project-task set 42 priority=1 name="New Task Title"
-        odoo-ninja project-task set 42 'user_ids=json:[[6,0,[5]]]' stage_id=3
-        odoo-ninja project-task set 42 project_id=10
-        odoo-ninja project-task set 42 priority+=1
+        vodoo project-task set 42 priority=1 name="New Task Title"
+        vodoo project-task set 42 'user_ids=json:[[6,0,[5]]]' stage_id=3
+        vodoo project-task set 42 project_id=10
+        vodoo project-task set 42 priority+=1
+        vodoo project-task set 42 'description=# Task Details\n\n- Item 1\n- Item 2'
     """
     client = get_client()
 
@@ -944,7 +1110,7 @@ def project_set(
     try:
         for field_assignment in fields:
             field, value = parse_field_assignment(
-                client, "project.task", task_id, field_assignment
+                client, "project.task", task_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
     except ValueError as e:
@@ -979,9 +1145,7 @@ def project_attach(
 
     try:
         attachment_id = create_task_attachment(client, task_id, file_path, name=name)
-        console.print(
-            f"[green]Successfully attached {file_path.name} to task {task_id}[/green]"
-        )
+        console.print(f"[green]Successfully attached {file_path.name} to task {task_id}[/green]")
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show task URL for verification
@@ -1076,30 +1240,20 @@ def project_project_show(
 def project_project_comment(
     project_id: Annotated[int, typer.Argument(help="Project ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add a comment to a project (visible to followers)."""
     client = get_client()
 
-    # Check if harmful operations are allowed
-    if not client.config.allow_harmful_operations:
-        console.print(
-            "[red]Error:[/red] Posting public comments is disabled. "
-            "This is a harmful operation (visible to followers).\n"
-            "To enable, set ODOO_ALLOW_HARMFUL_OPERATIONS=true in your .env file.\n"
-            "For internal notes (safe), use: [cyan]odoo-ninja project note[/cyan]"
-        )
-        raise typer.Exit(1)
-
     try:
         success = add_project_comment(
-            client, project_id, message, user_id=user_id, markdown=markdown
+            client, project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added comment to project {project_id}[/green]")
@@ -1115,19 +1269,21 @@ def project_project_comment(
 def project_project_note(
     project_id: Annotated[int, typer.Argument(help="Project ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
-    user_id: Annotated[
-        int | None, typer.Option(help="User ID to post as (uses default if not set)")
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
     ] = None,
-    markdown: Annotated[
+    no_markdown: Annotated[
         bool,
-        typer.Option("--markdown", "-m", help="Treat message as markdown and convert to HTML"),
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion"),
     ] = False,
 ) -> None:
     """Add an internal note to a project."""
     client = get_client()
 
     try:
-        success = add_project_note(client, project_id, message, user_id=user_id, markdown=markdown)
+        success = add_project_note(
+            client, project_id, message, user_id=author_id, markdown=not no_markdown
+        )
         if success:
             console.print(f"[green]Successfully added note to project {project_id}[/green]")
         else:
@@ -1249,14 +1405,19 @@ def project_project_set(
         list[str],
         typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
     ],
+    no_markdown: Annotated[
+        bool,
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
+    ] = False,
 ) -> None:
     """Set field values on a project.
 
     Supports operators: =, +=, -=, *=, /=
+    HTML fields automatically convert markdown to HTML.
 
     Examples:
-        odoo-ninja project set 42 name="New Project Name"
-        odoo-ninja project set 42 user_id=5
+        vodoo project set 42 name="New Project Name"
+        vodoo project set 42 user_id=5
     """
     client = get_client()
 
@@ -1266,7 +1427,7 @@ def project_project_set(
     try:
         for field_assignment in fields:
             field, value = parse_field_assignment(
-                client, "project.project", project_id, field_assignment
+                client, "project.project", project_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
     except ValueError as e:
@@ -1323,6 +1484,798 @@ def project_project_url(
 
     try:
         url = get_project_url(client, project_id)
+        console.print(url)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@project_project_app.command("stages")
+def project_project_stages(
+    project_id: Annotated[
+        int | None,
+        typer.Option("--project", "-p", help="Filter stages by project ID"),
+    ] = None,
+) -> None:
+    """List task stages for projects.
+
+    Shows all stages or only stages available for a specific project.
+
+    Examples:
+        vodoo project stages              # All stages
+        vodoo project stages --project 10 # Stages for project ID 10
+    """
+    client = get_client()
+
+    try:
+        stages = list_stages(client, project_id=project_id)
+        if stages:
+            display_stages(stages)
+            console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
+        elif project_id:
+            console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
+        else:
+            console.print("[yellow]No stages found[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+# Knowledge commands
+
+
+@knowledge_app.command("list")
+def knowledge_list(
+    name: Annotated[str | None, typer.Option(help="Filter by article name")] = None,
+    parent: Annotated[str | None, typer.Option(help="Filter by parent article name")] = None,
+    category: Annotated[
+        str | None, typer.Option(help="Filter by category (workspace, private, shared)")
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of articles")] = 50,
+) -> None:
+    """List knowledge articles."""
+    client = get_client()
+
+    domain: list[Any] = []
+    if name:
+        domain.append(("name", "ilike", name))
+    if parent:
+        domain.append(("parent_id.name", "ilike", parent))
+    if category:
+        domain.append(("category", "=", category))
+
+    try:
+        articles = list_articles(client, domain=domain, limit=limit)
+        display_articles(articles)
+        console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("show")
+def knowledge_show(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+    show_html: Annotated[
+        bool, typer.Option("--html", help="Show raw HTML content instead of markdown")
+    ] = False,
+) -> None:
+    """Show detailed article information."""
+    client = get_client()
+
+    try:
+        article = get_article(client, article_id)
+        display_article_detail(article, show_html=show_html)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("comment")
+def knowledge_comment(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+    message: Annotated[str, typer.Argument(help="Comment message")],
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
+    ] = False,
+) -> None:
+    """Add a comment to an article (visible to followers)."""
+    client = get_client()
+
+    try:
+        success = add_article_comment(
+            client, article_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if success:
+            console.print(f"[green]Successfully added comment to article {article_id}[/green]")
+        else:
+            console.print(f"[red]Failed to add comment to article {article_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("note")
+def knowledge_note(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+    message: Annotated[str, typer.Argument(help="Note message")],
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
+    ] = False,
+) -> None:
+    """Add an internal note to an article."""
+    client = get_client()
+
+    try:
+        success = add_article_note(
+            client, article_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if success:
+            console.print(f"[green]Successfully added note to article {article_id}[/green]")
+        else:
+            console.print(f"[red]Failed to add note to article {article_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("chatter")
+def knowledge_chatter(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+    limit: Annotated[int | None, typer.Option(help="Maximum number of messages")] = None,
+    show_html: Annotated[
+        bool, typer.Option("--html", help="Show raw HTML body instead of plain text")
+    ] = False,
+) -> None:
+    """Show message history/chatter for an article."""
+    client = get_client()
+
+    try:
+        messages = list_article_messages(client, article_id, limit=limit)
+        if messages:
+            display_messages(messages, show_html=show_html)
+        else:
+            console.print(f"[yellow]No messages found for article {article_id}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("attachments")
+def knowledge_attachments(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+) -> None:
+    """List attachments for an article."""
+    client = get_client()
+
+    try:
+        attachments = list_article_attachments(client, article_id)
+        if attachments:
+            display_attachments(attachments)
+            console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
+        else:
+            console.print(f"[yellow]No attachments found for article {article_id}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@knowledge_app.command("url")
+def knowledge_url(
+    article_id: Annotated[int, typer.Argument(help="Article ID")],
+) -> None:
+    """Get the web URL for an article."""
+    client = get_client()
+
+    try:
+        url = get_article_url(client, article_id)
+        console.print(url)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+# Generic model commands
+
+
+@model_app.command("create")
+def model_create(
+    model: Annotated[str, typer.Argument(help="Model name (e.g., semadox.template.registry)")],
+    fields: Annotated[
+        list[str],
+        typer.Argument(help="Field assignments in format 'field=value'"),
+    ],
+) -> None:
+    """Create a new record in any model.
+
+    Examples:
+        vodoo model create semadox.template.registry name=my_template category=invoice
+
+        vodoo model create res.partner name="John Doe" email=john@example.com
+
+        vodoo model create project.task name="New Task" project_id=10
+    """
+    client = get_client()
+
+    # Parse field assignments
+    values: dict[str, Any] = {}
+    try:
+        for field_assignment in fields:
+            # Parse using existing helper
+            field, value = parse_field_assignment(client, model, 0, field_assignment)
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    try:
+        record_id = create_record(client, model, values)
+        console.print(f"[green]Successfully created record with ID {record_id}[/green]")
+        console.print(f"Model: {model}")
+        for field, value in values.items():
+            console.print(f"  {field} = {value}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@model_app.command("read")
+def model_read(
+    model: Annotated[str, typer.Argument(help="Model name")],
+    record_id: Annotated[int | None, typer.Argument(help="Record ID (optional)")] = None,
+    domain: Annotated[
+        str | None,
+        typer.Option(help="Search domain as JSON string"),
+    ] = None,
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Fields to fetch"),
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of records")] = 50,
+) -> None:
+    """Read record(s) from any model.
+
+    Examples:
+        # Read specific record
+        vodoo model read semadox.template.registry 42
+
+        # Search records
+        vodoo model read semadox.template.registry --domain='[["category","=","invoice"]]'
+
+        # With specific fields
+        vodoo model read res.partner --field name --field email --limit 10
+    """
+    client = get_client()
+
+    try:
+        if record_id:
+            # Read specific record
+            record = get_record(client, model, record_id, fields=fields)
+            console.print(f"\n[bold cyan]Record #{record_id} from {model}[/bold cyan]\n")
+            for key, value in sorted(record.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+        else:
+            # Search records
+            import json
+
+            parsed_domain = json.loads(domain) if domain else []
+
+            records = search_records(
+                client,
+                model,
+                domain=parsed_domain,
+                fields=fields,
+                limit=limit,
+            )
+
+            if records:
+                display_records(records, title=f"{model} Records")
+                console.print(f"\n[dim]Found {len(records)} records[/dim]")
+            else:
+                console.print("[yellow]No records found[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@model_app.command("update")
+def model_update(
+    model: Annotated[str, typer.Argument(help="Model name")],
+    record_id: Annotated[int, typer.Argument(help="Record ID")],
+    fields: Annotated[
+        list[str],
+        typer.Argument(help="Field assignments in format 'field=value'"),
+    ],
+    no_markdown: Annotated[
+        bool,
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
+    ] = False,
+) -> None:
+    """Update a record in any model.
+
+    HTML fields automatically convert markdown to HTML.
+
+    Examples:
+        vodoo model update semadox.template.registry 42 version=2.0.0 active=true
+
+        vodoo model update res.partner 123 name="Jane Doe" phone="+1234567890"
+    """
+    client = get_client()
+
+    # Parse field assignments
+    values: dict[str, Any] = {}
+    try:
+        for field_assignment in fields:
+            field, value = parse_field_assignment(
+                client, model, record_id, field_assignment, no_markdown=no_markdown
+            )
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    try:
+        success = update_record(client, model, record_id, values)
+        if success:
+            console.print(f"[green]Successfully updated record {record_id}[/green]")
+            console.print(f"Model: {model}")
+            for field, value in values.items():
+                console.print(f"  {field} = {value}")
+        else:
+            console.print(f"[red]Failed to update record {record_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@model_app.command("delete")
+def model_delete(
+    model: Annotated[str, typer.Argument(help="Model name")],
+    record_id: Annotated[int, typer.Argument(help="Record ID")],
+) -> None:
+    """Delete a record from any model.
+
+    Examples:
+        vodoo model delete semadox.template.registry 42
+    """
+    client = get_client()
+
+    try:
+        success = delete_record(client, model, record_id)
+        if success:
+            console.print(f"[green]Successfully deleted record {record_id} from {model}[/green]")
+        else:
+            console.print(f"[red]Failed to delete record {record_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@model_app.command("call")
+def model_call(
+    model: Annotated[str, typer.Argument(help="Model name")],
+    method: Annotated[str, typer.Argument(help="Method to call")],
+    args_json: Annotated[str, typer.Option("--args", help="JSON array of arguments")] = "[]",
+    kwargs_json: Annotated[str, typer.Option("--kwargs", help="JSON object of kwargs")] = "{}",
+) -> None:
+    """Call a method on a model.
+
+    Examples:
+        vodoo model call res.partner name_search --args '["John"]'
+        vodoo model call res.partner search --kwargs '{"domain": [["name", "ilike", "acme"]]}'
+    """
+    client = get_client()
+    import json
+
+    try:
+        args = json.loads(args_json)
+        kwargs = json.loads(kwargs_json)
+
+        result = call_method(
+            client,
+            model,
+            method,
+            args=args,
+            kwargs=kwargs,
+        )
+
+        console.print("[green]Method executed successfully[/green]")
+        console.print(f"Result: {result}")
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON: {e}[/red]")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error executing method: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+# CRM commands
+
+
+@crm_app.command("list")
+def crm_list(
+    search: Annotated[
+        str | None,
+        typer.Option("--search", "-s", help="Search in name, email, phone, description"),
+    ] = None,
+    stage: Annotated[str | None, typer.Option(help="Filter by stage name")] = None,
+    team: Annotated[str | None, typer.Option(help="Filter by sales team name")] = None,
+    user: Annotated[str | None, typer.Option(help="Filter by salesperson name")] = None,
+    partner: Annotated[str | None, typer.Option(help="Filter by partner/customer name")] = None,
+    lead_type: Annotated[
+        str | None,
+        typer.Option("--type", help="Filter by type: 'lead' or 'opportunity'"),
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of leads")] = 50,
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch"),
+    ] = None,
+) -> None:
+    """List CRM leads/opportunities."""
+    client = get_client()
+
+    domain: list[Any] = []
+
+    # Text search across multiple fields using OR domain
+    if search:
+        search_fields = ["name", "email_from", "phone", "contact_name", "description"]
+        # Build OR domain: ['|', '|', '|', '|', (f1, ilike, x), (f2, ilike, x), ...]
+        # Need n-1 OR operators for n conditions
+        for _ in range(len(search_fields) - 1):
+            domain.append("|")
+        for field in search_fields:
+            domain.append((field, "ilike", search))
+
+    if stage:
+        domain.append(("stage_id.name", "ilike", stage))
+    if team:
+        domain.append(("team_id.name", "ilike", team))
+    if user:
+        domain.append(("user_id.name", "ilike", user))
+    if partner:
+        domain.append(("partner_id.name", "ilike", partner))
+    if lead_type:
+        domain.append(("type", "=", lead_type))
+
+    try:
+        leads = list_leads(client, domain=domain, limit=limit, fields=fields)
+        display_leads(leads)
+        console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("show")
+def crm_show(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch"),
+    ] = None,
+    show_html: Annotated[
+        bool,
+        typer.Option("--html", help="Show raw HTML description"),
+    ] = False,
+) -> None:
+    """Show detailed lead/opportunity information."""
+    client = get_client()
+
+    try:
+        lead = get_lead(client, lead_id, fields=fields)
+        if fields:
+            console.print(f"\n[bold cyan]Lead #{lead_id}[/bold cyan]\n")
+            for key, value in sorted(lead.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+        else:
+            display_lead_detail(lead, show_html=show_html)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("comment")
+def crm_comment(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    message: Annotated[str, typer.Argument(help="Comment message")],
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Disable markdown conversion")
+    ] = False,
+) -> None:
+    """Add a comment to a lead (visible to followers)."""
+    client = get_client()
+
+    try:
+        success = add_lead_comment(
+            client, lead_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if success:
+            console.print(f"[green]Successfully added comment to lead {lead_id}[/green]")
+        else:
+            console.print(f"[red]Failed to add comment to lead {lead_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("note")
+def crm_note(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    message: Annotated[str, typer.Argument(help="Note message")],
+    author_id: Annotated[
+        int | None, typer.Option("--author", "-a", help="User ID to post as")
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Disable markdown conversion")
+    ] = False,
+) -> None:
+    """Add an internal note to a lead (not visible to followers)."""
+    client = get_client()
+
+    try:
+        success = add_lead_note(
+            client, lead_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if success:
+            console.print(f"[green]Successfully added note to lead {lead_id}[/green]")
+        else:
+            console.print(f"[red]Failed to add note to lead {lead_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("tags")
+def crm_tags() -> None:
+    """List available CRM tags."""
+    client = get_client()
+
+    try:
+        tags = list_lead_tags(client)
+        display_lead_tags(tags)
+        console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("tag")
+def crm_tag(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    tag_id: Annotated[int, typer.Argument(help="Tag ID")],
+) -> None:
+    """Add a tag to a lead."""
+    client = get_client()
+
+    try:
+        add_tag_to_lead(client, lead_id, tag_id)
+        console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("chatter")
+def crm_chatter(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    limit: Annotated[int | None, typer.Option(help="Max messages to show")] = None,
+    show_html: Annotated[bool, typer.Option("--html", help="Show raw HTML")] = False,
+) -> None:
+    """Show message history/chatter for a lead."""
+    client = get_client()
+
+    try:
+        messages = list_lead_messages(client, lead_id, limit=limit)
+        if messages:
+            display_messages(messages, show_html=show_html)
+        else:
+            console.print(f"[yellow]No messages found for lead {lead_id}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("attachments")
+def crm_attachments(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+) -> None:
+    """List attachments for a lead."""
+    client = get_client()
+
+    try:
+        attachments = list_lead_attachments(client, lead_id)
+        if attachments:
+            display_attachments(attachments)
+            console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
+        else:
+            console.print(f"[yellow]No attachments found for lead {lead_id}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("download")
+def crm_download(
+    attachment_id: Annotated[int, typer.Argument(help="Attachment ID")],
+    output: Annotated[Path | None, typer.Option(help="Output file path")] = None,
+) -> None:
+    """Download a single attachment by ID."""
+    client = get_client()
+
+    try:
+        output_path = download_attachment(client, attachment_id, output)
+        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("download-all")
+def crm_download_all(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    output_dir: Annotated[Path | None, typer.Option("--output", "-o", help="Output dir")] = None,
+    extension: Annotated[str | None, typer.Option("--ext", help="Filter by extension")] = None,
+) -> None:
+    """Download all attachments from a lead."""
+    client = get_client()
+
+    try:
+        attachments = list_lead_attachments(client, lead_id)
+        if not attachments:
+            console.print(f"[yellow]No attachments found for lead {lead_id}[/yellow]")
+            return
+
+        if extension:
+            ext = extension.lower().lstrip(".")
+            attachments = [a for a in attachments if a.get("name", "").lower().endswith(f".{ext}")]
+            if not attachments:
+                console.print(f"[yellow]No {ext} attachments found for lead {lead_id}[/yellow]")
+                return
+
+        console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
+        downloaded = download_lead_attachments(client, lead_id, output_dir, extension=extension)
+
+        if downloaded:
+            console.print(f"\n[green]Downloaded {len(downloaded)} files:[/green]")
+            for f in downloaded:
+                console.print(f"  - {f}")
+        else:
+            console.print("[yellow]No files were downloaded[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("fields")
+def crm_fields(
+    lead_id: Annotated[int | None, typer.Argument(help="Lead ID (optional)")] = None,
+    field_name: Annotated[str | None, typer.Option(help="Show specific field")] = None,
+) -> None:
+    """List available fields or show field values for a specific lead."""
+    client = get_client()
+
+    try:
+        if lead_id:
+            lead = get_lead(client, lead_id)
+            console.print(f"\n[bold cyan]Fields for Lead #{lead_id}[/bold cyan]\n")
+            if field_name:
+                if field_name in lead:
+                    console.print(f"[bold]{field_name}:[/bold] {lead[field_name]}")
+                else:
+                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
+            else:
+                for key, value in sorted(lead.items()):
+                    console.print(f"[bold]{key}:[/bold] {value}")
+        else:
+            fields = list_lead_fields(client)
+            console.print("\n[bold cyan]Available CRM Lead Fields[/bold cyan]\n")
+            if field_name:
+                if field_name in fields:
+                    fd = fields[field_name]
+                    console.print(f"[bold]{field_name}[/bold]")
+                    console.print(f"  Type: {fd.get('type', 'N/A')}")
+                    console.print(f"  String: {fd.get('string', 'N/A')}")
+                    console.print(f"  Required: {fd.get('required', False)}")
+                    console.print(f"  Readonly: {fd.get('readonly', False)}")
+                else:
+                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
+            else:
+                for name, defn in sorted(fields.items()):
+                    console.print(
+                        f"[cyan]{name}[/cyan] ({defn.get('type')}) - {defn.get('string')}"
+                    )
+                console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("set")
+def crm_set(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    fields: Annotated[list[str], typer.Argument(help="Field assignments (field=value)")],
+    no_markdown: Annotated[
+        bool,
+        typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
+    ] = False,
+) -> None:
+    """Set field values on a lead.
+
+    HTML fields automatically convert markdown to HTML.
+    """
+    client = get_client()
+
+    values: dict[str, Any] = {}
+    try:
+        for fa in fields:
+            field, value = parse_field_assignment(
+                client, "crm.lead", lead_id, fa, no_markdown=no_markdown
+            )
+            values[field] = value
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    try:
+        success = set_lead_fields(client, lead_id, values)
+        if success:
+            console.print(f"[green]Successfully updated lead {lead_id}[/green]")
+            for field, value in values.items():
+                console.print(f"  {field} = {value}")
+        else:
+            console.print(f"[red]Failed to update lead {lead_id}[/red]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("attach")
+def crm_attach(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+    file_path: Annotated[Path, typer.Argument(help="Path to file to attach")],
+    name: Annotated[str | None, typer.Option("--name", "-n", help="Custom name")] = None,
+) -> None:
+    """Attach a file to a lead."""
+    client = get_client()
+
+    try:
+        attachment_id = create_lead_attachment(client, lead_id, file_path, name=name)
+        console.print(f"[green]Successfully attached {file_path.name} to lead {lead_id}[/green]")
+        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+        url = get_lead_url(client, lead_id)
+        console.print(f"\n[cyan]View lead:[/cyan] {url}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@crm_app.command("url")
+def crm_url(
+    lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
+) -> None:
+    """Get the web URL for a lead."""
+    client = get_client()
+
+    try:
+        url = get_lead_url(client, lead_id)
         console.print(url)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")

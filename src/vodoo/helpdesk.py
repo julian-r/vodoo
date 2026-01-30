@@ -1,14 +1,14 @@
-"""Helpdesk operations for Odoo Ninja."""
+"""Helpdesk operations for Vodoo."""
 
 from typing import Any
 
-from odoo_ninja.base import (
+from vodoo.base import (
     add_comment as base_add_comment,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     add_note as base_add_note,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     add_tag_to_record,
     display_record_detail,
     display_records,
@@ -19,22 +19,22 @@ from odoo_ninja.base import (
     list_records,
     set_record_fields,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     create_attachment as base_create_attachment,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     display_tags as base_display_tags,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     list_attachments as base_list_attachments,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     list_messages as base_list_messages,
 )
-from odoo_ninja.base import (
+from vodoo.base import (
     list_tags as base_list_tags,
 )
-from odoo_ninja.client import OdooClient
+from vodoo.client import OdooClient
 
 # Model name constant
 MODEL = "helpdesk.ticket"
@@ -158,7 +158,7 @@ def add_comment(
     ticket_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add a comment to a ticket (visible to customers).
 
@@ -181,7 +181,7 @@ def add_note(
     ticket_id: int,
     message: str,
     user_id: int | None = None,
-    markdown: bool = False,
+    markdown: bool = True,
 ) -> bool:
     """Add an internal note to a ticket (not visible to customers).
 
