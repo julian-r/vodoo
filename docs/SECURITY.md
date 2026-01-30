@@ -179,6 +179,44 @@ The bot must be a **follower** of projects to access them.
 
 Vodoo handles this automatically when using `comment` and `note` commands.
 
+### mail.message Creation Requirements
+
+Creating messages directly via XML-RPC requires:
+
+1. **Access rights**: User must be in a group with `mail.message` create permission (API Base provides this)
+2. **Document access**: User must have access to the related document (e.g., be a follower for projects)
+3. **Subtype**: The `subtype_id` field must be provided (e.g., `1` for "Discussions")
+
+Without `subtype_id`, Odoo's security checks will reject the create operation.
+
+### Author Impersonation (author_id)
+
+Share users **cannot** set `author_id` to a different partner when creating messages. Odoo's SaaS platform enforces this restriction.
+
+| User Type | Can create messages | Can set author_id to others |
+|-----------|--------------------|-----------------------------|
+| Share user | ✅ (with subtype_id) | ❌ Forced to own partner |
+| Internal user | ✅ | ✅ |
+
+**To enable author impersonation**, the bot must be an internal user:
+
+```bash
+# Add bot to base.group_user (makes it internal)
+vodoo model call res.users write --args='[[USER_ID], {"group_ids": [[4, 1]]}]'
+
+# Verify (share should be False)
+vodoo model read res.users USER_ID --field share
+```
+
+**Trade-off:** Internal users count as paid seats on Odoo.com.
+
+**To revert to share user:**
+
+```bash
+# Remove base.group_user
+vodoo model call res.users write --args='[[USER_ID], {"group_ids": [[3, 1]]}]'
+```
+
 ### User Creation
 
 Creating users requires the **Access Rights** group (admin only). Service accounts cannot create other users.
@@ -212,17 +250,6 @@ vodoo model update res.users 42 active=false
 
 This instantly disables password and API key authentication.
 
-## Checklist
-
-- [ ] Created dedicated service account (`vodoo security create-user`)
-- [ ] Assigned appropriate API groups (`--assign-groups` or manual)
-- [ ] Removed `base.group_user` and `base.group_portal` (automatic)
-- [ ] Added bot as follower to relevant projects
-- [ ] Stored credentials securely (not in git)
-- [ ] Documented rotation schedule
-- [ ] Tested all required operations
-
 ## Further Reading
 
-- [RPC_ROBOT_USER.md](../RPC_ROBOT_USER.md) - Deep dive into Odoo security internals
 - [Odoo Security Documentation](https://www.odoo.com/documentation/17.0/developer/reference/backend/security.html)
