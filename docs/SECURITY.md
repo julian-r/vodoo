@@ -10,6 +10,23 @@ Vodoo is designed to run with a dedicated service account that has only the acce
 4. **Add record rules** to scope what the service account can access (e.g., only followed projects).
 5. **Authenticate with a strong password or API key**, and rotate credentials on a schedule.
 
+## CLI Utilities
+
+Vodoo ships with helpers to bootstrap groups and assign a bot user:
+
+```bash
+# Create or reuse the standard Vodoo API groups
+vodoo security create-groups
+
+# Assign a bot user (by login) to all Vodoo API groups
+vodoo security assign-bot --login service-vodoo@company.com
+
+# Or by user ID
+vodoo security assign-bot --user-id 42
+```
+
+By default, `assign-bot` removes `base.group_user` and `base.group_portal` before adding the API groups. Use `--keep-default-groups` if you want to preserve existing group memberships.
+
 ## Minimal Access Checklist
 
 - ✅ `res.users`, `res.partner`, `res.company` (read-only) for lookups

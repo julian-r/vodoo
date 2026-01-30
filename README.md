@@ -93,6 +93,14 @@ For production use, run Vodoo with a dedicated least-privilege service account i
 
 See [docs/SECURITY.md](docs/SECURITY.md) for a concise setup checklist and recommended access rules.
 
+```bash
+# Create standard API groups
+vodoo security create-groups
+
+# Assign a bot user to all groups
+vodoo security assign-bot --login service-vodoo@company.com
+```
+
 ## Usage
 
 ### Using with Claude Code or AI Assistants

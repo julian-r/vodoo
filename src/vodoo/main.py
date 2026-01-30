@@ -131,6 +131,13 @@ from vodoo.project_project import (
     list_stages,
     set_project_fields,
 )
+from vodoo.security import (
+    GROUP_DEFINITIONS,
+    assign_user_to_groups,
+    create_security_groups,
+    get_group_ids,
+    resolve_user_id,
+)
 
 app = typer.Typer(
     name="vodoo",
@@ -179,6 +186,13 @@ crm_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(crm_app, name="crm")
+
+security_app = typer.Typer(
+    name="security",
+    help="Security group utilities",
+    no_args_is_help=True,
+)
+app.add_typer(security_app, name="security")
 
 # Global state for console configuration
 _console_config = {"no_color": False}
@@ -1678,6 +1692,91 @@ def knowledge_url(
     try:
         url = get_article_url(client, article_id)
         console.print(url)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+# Security commands
+
+
+@security_app.command("create-groups")
+def security_create_groups() -> None:
+    """Create or reuse the standard Vodoo security groups."""
+    client = get_client()
+
+    try:
+        group_ids, warnings = create_security_groups(client)
+        console.print("[green]Security groups ready:[/green]")
+        for name, group_id in group_ids.items():
+            console.print(f"- {name}: {group_id}")
+
+        if warnings:
+            console.print("\n[yellow]Warnings:[/yellow]")
+            for warning in warnings:
+                console.print(f"- {warning}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@security_app.command("assign-bot")
+def security_assign_bot(
+    user_id: Annotated[
+        int | None,
+        typer.Option("--user-id", "-u", help="User ID of the bot account"),
+    ] = None,
+    login: Annotated[
+        str | None,
+        typer.Option("--login", help="User login/email for the bot account"),
+    ] = None,
+    create_groups: Annotated[
+        bool,
+        typer.Option(
+            "--create-groups/--no-create-groups",
+            help="Ensure Vodoo API groups exist before assigning",
+        ),
+    ] = True,
+    keep_default_groups: Annotated[
+        bool,
+        typer.Option(
+            "--keep-default-groups",
+            help="Do not remove base.group_user or base.group_portal",
+        ),
+    ] = False,
+) -> None:
+    """Assign a bot user to all Vodoo API security groups."""
+    client = get_client()
+
+    try:
+        resolved_user_id = resolve_user_id(client, user_id=user_id, login=login)
+        group_names = [group.name for group in GROUP_DEFINITIONS]
+
+        if create_groups:
+            group_ids, warnings = create_security_groups(client)
+        else:
+            group_ids, warnings = get_group_ids(client, group_names)
+
+        missing_groups = [name for name in group_names if name not in group_ids]
+        if missing_groups:
+            missing_list = ", ".join(missing_groups)
+            console.print(f"[red]Missing groups:[/red] {missing_list}")
+            raise typer.Exit(1)
+
+        assign_user_to_groups(
+            client,
+            resolved_user_id,
+            list(group_ids.values()),
+            remove_default_groups=not keep_default_groups,
+        )
+
+        console.print(
+            f"[green]Assigned user {resolved_user_id} to {len(group_ids)} groups.[/green]"
+        )
+        if warnings:
+            console.print("\n[yellow]Warnings:[/yellow]")
+            for warning in warnings:
+                console.print(f"- {warning}")
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e

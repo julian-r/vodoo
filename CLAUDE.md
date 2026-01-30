@@ -45,7 +45,8 @@ uv build
 - **project_project.py** - Project operations (model: `project.project`)
 - **crm.py** - CRM lead/opportunity operations (model: `crm.lead`)
 - **generic.py** - Generic CRUD operations for any Odoo model
-- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `model`
+- **security.py** - Security group utilities and service-account helpers
+- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `model`, `security`
 
 ### Design Pattern
 
