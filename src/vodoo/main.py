@@ -1570,6 +1570,32 @@ def knowledge_list(
         raise typer.Exit(1) from e
 
 
+@knowledge_app.command("search")
+def knowledge_search(
+    query: Annotated[str, typer.Argument(help="Search query")],
+    mode: Annotated[
+        str, typer.Option("--mode", "-m", help="Search mode: keyword or semantic")
+    ] = "keyword",
+    limit: Annotated[int, typer.Option(help="Maximum number of results")] = 20,
+) -> None:
+    """Search knowledge articles by name and body content."""
+    client = get_client()
+
+    if mode == "semantic":
+        console.print("[yellow]Semantic search not yet implemented. Using keyword search.[/yellow]")
+
+    # OR domain: search in name OR body
+    domain: list[Any] = ["|", ("name", "ilike", query), ("body", "ilike", query)]
+
+    try:
+        articles = list_articles(client, domain=domain, limit=limit)
+        display_articles(articles)
+        console.print(f"\n[dim]Found {len(articles)} articles matching '{query}'[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
 @knowledge_app.command("show")
 def knowledge_show(
     article_id: Annotated[int, typer.Argument(help="Article ID")],
