@@ -1,13 +1,32 @@
-"""Odoo XML-RPC client wrapper."""
+"""Odoo JSON-RPC client wrapper."""
 
-import xmlrpc.client
+import json
+import urllib.request
 from typing import Any
 
 from vodoo.config import OdooConfig
 
 
+class OdooRPCError(Exception):
+    """Exception raised for Odoo JSON-RPC errors."""
+
+    def __init__(self, code: int, message: str, data: dict[str, Any] | None = None) -> None:
+        """Initialize RPC error.
+
+        Args:
+            code: Error code from JSON-RPC response
+            message: Error message
+            data: Additional error data (debug info, traceback, etc.)
+
+        """
+        self.code = code
+        self.message = message
+        self.data = data or {}
+        super().__init__(f"[{code}] {message}")
+
+
 class OdooClient:
-    """Odoo XML-RPC client for external API access."""
+    """Odoo JSON-RPC client for external API access."""
 
     def __init__(self, config: OdooConfig) -> None:
         """Initialize Odoo client.
@@ -22,12 +41,62 @@ class OdooClient:
         self.username = config.username
         self.password = config.password
 
-        # XML-RPC endpoints
-        self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")
-        self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
+        # JSON-RPC endpoint
+        self._endpoint = f"{self.url}/jsonrpc"
 
         # Authenticate and get uid
         self._uid: int | None = None
+
+    def _jsonrpc_call(
+        self,
+        service: str,
+        method: str,
+        args: list[Any],
+    ) -> Any:
+        """Make a JSON-RPC 2.0 call to Odoo.
+
+        Args:
+            service: Service name ('common', 'object', 'db')
+            method: Method name
+            args: Arguments for the method
+
+        Returns:
+            Result from the JSON-RPC call
+
+        Raises:
+            OdooRPCError: If the RPC call returns an error
+
+        """
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+                "service": service,
+                "method": method,
+                "args": args,
+            },
+            "id": None,
+        }
+
+        data = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            self._endpoint,
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+
+        with urllib.request.urlopen(request) as response:
+            result = json.loads(response.read().decode("utf-8"))
+
+        if "error" in result:
+            error = result["error"]
+            raise OdooRPCError(
+                code=error.get("code", -1),
+                message=error.get("message", "Unknown error"),
+                data=error.get("data"),
+            )
+
+        return result.get("result")
 
     @property
     def uid(self) -> int:
@@ -41,7 +110,11 @@ class OdooClient:
 
         """
         if self._uid is None:
-            result = self.common.authenticate(self.db, self.username, self.password, {})
+            result = self._jsonrpc_call(
+                "common",
+                "authenticate",
+                [self.db, self.username, self.password, {}],
+            )
             if not isinstance(result, int) or result <= 0:
                 msg = "Authentication failed"
                 raise RuntimeError(msg)
@@ -67,14 +140,10 @@ class OdooClient:
             Method result
 
         """
-        return self.models.execute_kw(
-            self.db,
-            self.uid,
-            self.password,
-            model,
-            method,
-            args,
-            kwargs,
+        return self._jsonrpc_call(
+            "object",
+            "execute_kw",
+            [self.db, self.uid, self.password, model, method, list(args), kwargs],
         )
 
     def execute_sudo(
@@ -184,8 +253,6 @@ class OdooClient:
             List of record dictionaries
 
         """
-        # For search_read, we need to pass domain as positional arg and
-        # fields/limit/offset/order as kwargs with specific names
         kwargs: dict[str, Any] = {}
         if fields is not None:
             kwargs["fields"] = fields
@@ -196,17 +263,11 @@ class OdooClient:
         if order is not None:
             kwargs["order"] = order
 
-        # Use execute_kw which properly handles search_read parameters
-        raw_result = self.models.execute_kw(
-            self.db,
-            self.uid,
-            self.password,
-            model,
-            "search_read",
-            [domain or []],  # domain as positional argument
-            kwargs,  # fields, limit, offset, order as kwargs
+        result: list[dict[str, Any]] = self._jsonrpc_call(
+            "object",
+            "execute_kw",
+            [self.db, self.uid, self.password, model, "search_read", [domain or []], kwargs],
         )
-        result: list[dict[str, Any]] = raw_result  # type: ignore[assignment]
         return result
 
     def create(
@@ -226,19 +287,15 @@ class OdooClient:
             ID of created record
 
         """
+        kwargs: dict[str, Any] = {}
         if context:
-            raw_result = self.models.execute_kw(
-                self.db,
-                self.uid,
-                self.password,
-                model,
-                "create",
-                [values],
-                {"context": context},
-            )
-            result: int = int(raw_result)  # type: ignore[arg-type]
-        else:
-            result = self.execute(model, "create", values)
+            kwargs["context"] = context
+
+        result: int = self._jsonrpc_call(
+            "object",
+            "execute_kw",
+            [self.db, self.uid, self.password, model, "create", [values], kwargs],
+        )
         return result
 
     def write(
