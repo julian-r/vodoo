@@ -11,7 +11,7 @@ maintainers = [
     { name = "Semadox GmbH", email = "info@semadox.com" }
 ]
 requires-python = ">=3.12"
-keywords = ["odoo", "helpdesk", "project", "task", "crm", "lead", "opportunity", "knowledge", "wiki", "cli", "management", "xmlrpc", "vodoo"]
+keywords = ["odoo", "helpdesk", "project", "task", "crm", "lead", "opportunity", "knowledge", "wiki", "cli", "management", "jsonrpc", "vodoo"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
