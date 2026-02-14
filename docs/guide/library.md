@@ -120,16 +120,16 @@ add_comment(client, task_id=7, message="Deployed to staging")
 ### Timers
 
 ```python
-from vodoo.timer import start_timer, stop_timers, get_today_timesheets
+from vodoo.timer import start_timer_on_task, stop_active_timers, fetch_today_timesheets
 
 # Start a timer on a task
-start_timer(client, task_id=42)
+start_timer_on_task(client, task_id=42)
 
 # Get today's timesheets
-timesheets = get_today_timesheets(client)
+timesheets = fetch_today_timesheets(client)
 
 # Stop all running timers
-stop_timers(client)
+stop_active_timers(client)
 ```
 
 ## Transport Layer
@@ -138,7 +138,7 @@ Vodoo auto-detects the Odoo version and selects the right transport:
 
 ```python
 # Check which transport is in use
-print(client.is_json2)  # True for Odoo 19+, False for 14-18
+print(client.is_json2)  # True for Odoo 19+, False for 17-18
 
 # Access the underlying transport
 transport = client.transport

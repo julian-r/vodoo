@@ -54,7 +54,7 @@ vodoo/
 │   ├── __init__.py           # Public API exports
 │   ├── main.py               # CLI entry point (Typer)
 │   ├── client.py             # OdooClient (sync)
-│   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, stdlib urllib)
+│   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, httpx)
 │   ├── config.py             # Pydantic configuration
 │   ├── exceptions.py         # Exception hierarchy (incl. Odoo server errors)
 │   ├── auth.py               # Authentication / sudo

@@ -10,13 +10,13 @@
 
 ---
 
-Vodoo is a typed Python library and CLI for interacting with Odoo instances via JSON-RPC (Odoo 14–18) and JSON-2 (Odoo 19+). It covers helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
+Vodoo is a typed Python library and CLI for interacting with Odoo instances via JSON-RPC (Odoo 17–18) and JSON-2 (Odoo 19+). It covers helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
 
 ## :rocket: Highlights
 
 - **Dual-use** — works as a CLI tool *and* as an importable Python library
 - **Sync + Async** — full async API under `vodoo.aio` with httpx
-- **Auto-detecting transport** — JSON-2 for Odoo 19+ (~3-4× faster), legacy JSON-RPC for 14–18
+- **Auto-detecting transport** — JSON-2 for Odoo 19+ (~3-4× faster), legacy JSON-RPC for 17–18
 - **AI-first design** — clear command structure for Claude Code and similar assistants
 - **Fully typed** — strict mypy, Pydantic models, rich terminal output
 - **Comprehensive** — CRUD, comments, notes, tags, attachments, timers, security groups
@@ -42,7 +42,7 @@ Vodoo is a typed Python library and CLI for interacting with Odoo instances via 
     vodoo crm comment 42 "Following up on the proposal"
 
     # Start a timer on a task
-    vodoo timer start --task 15
+    vodoo timer start 15
     ```
 
 === "Python Library"

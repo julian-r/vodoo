@@ -50,7 +50,7 @@ You should see the list of available subcommands: `helpdesk`, `project-task`, `p
 ## Requirements
 
 - **Python 3.12+**
-- Access to an Odoo instance (14–19) with JSON-RPC or JSON-2 API enabled
+- Access to an Odoo instance (17–19) with JSON-RPC or JSON-2 API enabled
 - Valid Odoo credentials (username/password or API key)
 
 ## Optional Dependencies

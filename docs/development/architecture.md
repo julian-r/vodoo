@@ -20,7 +20,7 @@ Vodoo follows a layered architecture where domain modules delegate shared operat
 │  OdooClient (sync) │ AsyncOdooClient (async)         │
 ├──────────────────────────────────────────────────────┤
 │              Transport                               │
-│  Sync: LegacyTransport / JSON2Transport (urllib)     │
+│  Sync: LegacyTransport / JSON2Transport (httpx)      │
 │  Async: AsyncLegacyTransport / AsyncJSON2Transport   │
 │         (httpx)                                      │
 ├──────────────────────────────────────────────────────┤
@@ -60,9 +60,9 @@ The `OdooTransport` ABC defines the interface. Four implementations exist:
 
 | Transport | Odoo Versions | Protocol | HTTP Library |
 |-----------|---------------|----------|--------------|
-| `LegacyTransport` | 14–18 | `POST /jsonrpc` | `urllib` (stdlib) |
-| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `urllib` (stdlib) |
-| `AsyncLegacyTransport` | 14–18 | `POST /jsonrpc` | `httpx` |
+| `LegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx` |
+| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx` |
+| `AsyncLegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx` |
 | `AsyncJSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx` |
 
 Auto-detection happens on client init: it tries JSON-2 first, falls back to legacy.
@@ -100,7 +100,7 @@ The version is derived from git tags via `hatch-vcs` — no hardcoded version st
 | `main.py` | CLI commands via Typer, output formatting |
 | `client.py` | Sync client, transport auto-detection |
 | `aio/client.py` | Async client, lazy transport init, context manager |
-| `transport.py` | Sync HTTP (stdlib `urllib`) |
+| `transport.py` | Sync HTTP (`httpx`) |
 | `aio/transport.py` | Async HTTP (`httpx`) |
 | `config.py` | Configuration loading and validation |
 | `exceptions.py` | Exception hierarchy + Odoo error mapping |
@@ -110,7 +110,7 @@ The version is derived from git tags via `hatch-vcs` — no hardcoded version st
 
 ## Transport Protocol Details
 
-### Legacy JSON-RPC (Odoo 14–18)
+### Legacy JSON-RPC (Odoo 17–18)
 
 ```
 POST /jsonrpc
@@ -142,5 +142,5 @@ JSON-2 is ~3-4× faster due to reduced envelope overhead and direct model routin
 
 ## HTTP Dependencies
 
-- **Sync** — uses only `urllib.request` from the Python standard library (zero external deps for HTTP)
+- **Sync** — uses [httpx](https://www.python-httpx.org/) for HTTP
 - **Async** — uses [httpx](https://www.python-httpx.org/) for non-blocking HTTP

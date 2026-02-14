@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Vodoo is a Python CLI tool for interacting with Odoo via JSON-RPC (Odoo 14-18) and JSON-2 (Odoo 19+). It supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
+Vodoo is a Python CLI tool for interacting with Odoo via JSON-RPC (Odoo 17-18) and JSON-2 (Odoo 19+). It supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
 
 ## Commands
 
@@ -55,16 +55,21 @@ uv run mike serve            # serve versioned docs locally
 ### Module Structure
 
 - **client.py** - High-level client delegating to the transport layer
+- **transport.py** - Transport abstraction (JSON-2 + legacy JSON-RPC)
 - **config.py** - Pydantic-based configuration from environment variables/.env files
+- **exceptions.py** - Exception hierarchy (VodooError and subclasses)
 - **auth.py** - Authentication utilities and sudo operations
 - **base.py** - Shared operations (CRUD, display, attachments, messages) used by all domain modules
 - **helpdesk.py** - Helpdesk ticket operations (model: `helpdesk.ticket`)
 - **project.py** - Project task operations (model: `project.task`)
 - **project_project.py** - Project operations (model: `project.project`)
 - **crm.py** - CRM lead/opportunity operations (model: `crm.lead`)
+- **knowledge.py** - Knowledge article operations (model: `knowledge.article`)
+- **timer.py** - Timer/timesheet operations (start, stop, status)
 - **generic.py** - Generic CRUD operations for any Odoo model
 - **security.py** - Security group utilities and service-account helpers
-- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `model`, `security`
+- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `knowledge`, `model`, `security`, `timer`
+- **aio/** - Async versions of all modules above (AsyncOdooClient, async domain helpers)
 
 ### Design Pattern
 

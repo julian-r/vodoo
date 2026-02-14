@@ -51,7 +51,7 @@ uvx vodoo crm list --search "acme"
 pip install vodoo
 vodoo helpdesk list --stage "In Progress"
 vodoo project-task show 42
-vodoo timer start --task 42
+vodoo timer start 42
 ```
 
 Works well with AI assistants like Claude Code — natural language in, structured Odoo operations out.
@@ -87,7 +87,7 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 
 ### Shared
 
-- 🔀 Auto-detecting transport layer (JSON-2 for Odoo 19+, legacy JSON-RPC for 14–18)
+- 🔀 Auto-detecting transport layer (JSON-2 for Odoo 19+, legacy JSON-RPC for 17–18)
 - ⚙️ Configuration via environment variables, `.env`, or `OdooConfig`
 - 🔐 HTTPS enforcement warnings for production safety
 
@@ -127,6 +127,7 @@ All exceptions inherit from `VodooError` so you can catch broadly or narrowly:
 ```
 VodooError
 ├── ConfigurationError
+│   └── InsecureURLError
 ├── AuthenticationError
 ├── RecordNotFoundError          ← .model, .record_id attributes
 ├── RecordOperationError
@@ -164,9 +165,9 @@ task = get_task(client, 42)
 add_comment(client, 42, "Deployed to staging")
 
 # CRM leads
-from vodoo.crm import list_leads, set_fields
-leads = list_leads(client, search="acme", type_filter="opportunity")
-set_fields(client, 123, {"expected_revenue": 50000, "probability": 75})
+from vodoo.crm import list_leads, set_lead_fields
+leads = list_leads(client, domain=[("type", "=", "opportunity")], limit=20)
+set_lead_fields(client, 123, {"expected_revenue": 50000, "probability": 75})
 
 # Helpdesk (enterprise)
 from vodoo.helpdesk import list_tickets
@@ -280,7 +281,7 @@ vodoo helpdesk download 456 --output ./attachments/
 ### Knowledge Articles (Enterprise)
 
 ```bash
-vodoo knowledge list --category workspace --favorite
+vodoo knowledge list --category workspace
 vodoo knowledge show 123
 vodoo knowledge note 123 "Updated installation section"
 ```
@@ -288,7 +289,7 @@ vodoo knowledge note 123 "Updated installation section"
 ### Timers / Timesheets
 
 ```bash
-vodoo timer start --task 42
+vodoo timer start 42
 vodoo timer status
 vodoo timer stop
 ```
@@ -299,7 +300,7 @@ vodoo timer stop
 vodoo model read res.partner --domain='[["is_company","=",true]]' --field name --field email
 vodoo model create res.partner name="Acme" email=info@acme.com
 vodoo model update res.partner 123 phone="+123456789"
-vodoo model delete res.partner 123 --confirm
+vodoo model delete res.partner 123
 vodoo model call res.partner name_search --args='["Acme"]'
 ```
 

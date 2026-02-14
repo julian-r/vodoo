@@ -67,7 +67,7 @@ vodoo helpdesk comment 42 "We've identified the issue and are working on a fix"
 
 ```bash
 # Start a timer on a task
-vodoo timer start --task 42
+vodoo timer start 42
 
 # Check running timers
 vodoo timer active
