@@ -877,11 +877,59 @@ def download_record_attachments(
     return downloaded_files
 
 
+def _prepare_attachment_upload(
+    file_path: Path | str | None,
+    data: bytes | None,
+    name: str | None,
+    model: str,
+    record_id: int,
+) -> dict[str, Any]:
+    """Validate inputs and build the ir.attachment values dict."""
+    if file_path is not None and data is not None:
+        msg = "Cannot specify both 'file_path' and 'data'"
+        raise ValueError(msg)
+
+    if file_path is None and data is None:
+        msg = "Must specify either 'file_path' or 'data'"
+        raise ValueError(msg)
+
+    if data is not None and not name:
+        msg = "'name' is required when using 'data'"
+        raise ValueError(msg)
+
+    if data is not None:
+        encoded_data = base64.b64encode(data).decode("utf-8")
+        attachment_name = name
+    else:
+        file_path = Path(file_path)  # type: ignore[arg-type]
+
+        if not file_path.exists():
+            msg = f"File not found: {file_path}"
+            raise FileNotFoundError(msg)
+
+        if not file_path.is_file():
+            msg = f"Path is not a file: {file_path}"
+            raise ValueError(msg)
+
+        file_data = file_path.read_bytes()
+        encoded_data = base64.b64encode(file_data).decode("utf-8")
+        attachment_name = name or file_path.name
+
+    return {
+        "name": attachment_name,
+        "datas": encoded_data,
+        "res_model": model,
+        "res_id": record_id,
+    }
+
+
 def create_attachment(
     client: OdooClient,
     model: str,
     record_id: int,
-    file_path: Path | str,
+    file_path: Path | str | None = None,
+    *,
+    data: bytes | None = None,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a record.
@@ -890,46 +938,24 @@ def create_attachment(
         client: Odoo client
         model: Model name
         record_id: Record ID
-        file_path: Path to file to attach
-        name: Attachment name (defaults to filename)
+        file_path: Path to file to attach (mutually exclusive with data)
+        data: Raw bytes to attach (mutually exclusive with file_path)
+        name: Attachment name (defaults to filename; required when using data)
 
     Returns:
         ID of created attachment
 
     Raises:
-        ValueError: If file doesn't exist
+        ValueError: If arguments are invalid
         FileNotFoundError: If file path is invalid
 
     Examples:
         >>> create_attachment(client, "project.task", 42, "screenshot.png")
         >>> create_attachment(client, "helpdesk.ticket", 42, "/path/to/file.pdf", name="Report.pdf")
+        >>> create_attachment(client, "project.task", 42, data=b"content", name="doc.txt")
 
     """
-    file_path = Path(file_path)
-
-    if not file_path.exists():
-        msg = f"File not found: {file_path}"
-        raise FileNotFoundError(msg)
-
-    if not file_path.is_file():
-        msg = f"Path is not a file: {file_path}"
-        raise ValueError(msg)
-
-    # Read file and encode to base64
-    file_data = file_path.read_bytes()
-    encoded_data = base64.b64encode(file_data).decode("utf-8")
-
-    # Use provided name or file name
-    attachment_name = name or file_path.name
-
-    # Create attachment
-    values = {
-        "name": attachment_name,
-        "datas": encoded_data,
-        "res_model": model,
-        "res_id": record_id,
-    }
-
+    values = _prepare_attachment_upload(file_path, data, name, model, record_id)
     return client.create("ir.attachment", values)
 
 

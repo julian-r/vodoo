@@ -300,6 +300,34 @@ class TestProjectTask:
         finally:
             tmp_path.unlink(missing_ok=True)
 
+    def test_create_attachment_from_bytes(self, client: OdooClient) -> None:
+        from vodoo.base import create_attachment, download_attachment, list_attachments
+
+        content = b"bytes upload integration test content"
+        att_id = create_attachment(
+            client,
+            "project.task",
+            self.task_id,
+            data=content,
+            name="bytes_test.txt",
+        )
+        try:
+            assert isinstance(att_id, int)
+            assert att_id > 0
+
+            attachments = list_attachments(client, "project.task", self.task_id)
+            assert any(a["id"] == att_id for a in attachments)
+
+            with tempfile.TemporaryDirectory() as outdir:
+                out = download_attachment(client, att_id, Path(outdir) / "bytes_test.txt")
+                assert out.exists()
+                assert out.read_bytes() == content
+        finally:
+            with contextlib.suppress(Exception):
+                from vodoo.generic import delete_record
+
+                delete_record(client, "ir.attachment", att_id)
+
     def test_create_task_with_options(self, client: OdooClient) -> None:
         from vodoo.generic import delete_record
         from vodoo.project import create_task, get_task
@@ -679,6 +707,18 @@ class TestHelpdesk:
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
+
+    def test_ticket_attachment_from_bytes(self, client: OdooClient) -> None:
+        from vodoo.helpdesk import create_attachment, list_attachments
+
+        att_id = create_attachment(
+            client, self.ticket_id, data=b"bytes upload test", name="test.txt"
+        )
+        assert isinstance(att_id, int)
+        assert att_id > 0
+
+        attachments = list_attachments(client, self.ticket_id)
+        assert any(a["id"] == att_id for a in attachments)
 
     def test_ticket_tags(self, client: OdooClient) -> None:
         from vodoo.generic import create_record, delete_record
