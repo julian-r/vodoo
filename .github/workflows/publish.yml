@@ -90,7 +90,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # needed for hatch-vcs version detection
+        fetch-depth: 0  # needed for hatch-vcs and mike
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -105,5 +105,19 @@ jobs:
     - name: Install dependencies
       run: uv sync --extra docs
 
-    - name: Build and deploy docs
-      run: uv run mkdocs gh-deploy --force
+    - name: Configure git for mike
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Deploy versioned docs
+      run: |
+        # Extract version from tag (v1.2.3 -> 1.2.3) or fall back to git describe
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+        else
+          VERSION=$(uv run python -c "from importlib.metadata import version; print(version('vodoo'))")
+        fi
+        echo "Deploying docs for version: $VERSION"
+        uv run mike deploy --push --update-aliases "$VERSION" latest
+        uv run mike set-default --push latest

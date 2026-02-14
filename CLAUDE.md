@@ -31,11 +31,12 @@ uv run mypy src/vodoo
 # Build package
 uv build
 
-# Documentation (MkDocs Material)
+# Documentation (MkDocs Material + mike versioning)
 uv sync --extra docs
 uv run mkdocs serve          # local dev server at http://127.0.0.1:8000
 uv run mkdocs build          # build static site to site/
 uv run mkdocs build --strict # strict mode (fail on warnings)
+uv run mike serve            # serve versioned docs locally
 ```
 
 ## Architecture
