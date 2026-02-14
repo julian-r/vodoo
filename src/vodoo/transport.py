@@ -8,15 +8,13 @@ Provides two implementations:
 import json
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
 
-# Retry settings for transient network errors
-_RETRY_COUNT = 2
-_RETRY_BACKOFF = 0.5  # seconds
 _RETRYABLE_METHODS = frozenset(
     {
         "search",
@@ -26,6 +24,32 @@ _RETRYABLE_METHODS = frozenset(
         "name_search",
     }
 )
+
+
+@dataclass(frozen=True)
+class RetryConfig:
+    """Configuration for transient-error retry behaviour.
+
+    Retries use exponential backoff: ``backoff_base * 2 ** attempt`` seconds,
+    capped at *backoff_max*.
+
+    Attributes:
+        max_retries: Maximum number of retry attempts (0 to disable retries).
+        backoff_base: Initial backoff delay in seconds.
+        backoff_max: Upper bound on the backoff delay in seconds.
+    """
+
+    max_retries: int = 2
+    backoff_base: float = 0.5
+    backoff_max: float = 30.0
+
+    def delay(self, attempt: int) -> float:
+        """Return the backoff delay for the given zero-based *attempt*."""
+        return float(min(self.backoff_base * 2**attempt, self.backoff_max))
+
+
+#: Default retry configuration used when none is supplied.
+DEFAULT_RETRY = RetryConfig()
 
 
 class OdooTransport(ABC):
@@ -44,12 +68,14 @@ class OdooTransport(ABC):
         password: str,
         *,
         timeout: int = 30,
+        retry: RetryConfig | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.database = database.strip()
         self.username = username.strip()
         self.password = password.strip()
         self.timeout = timeout
+        self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
         self._http = httpx.Client(timeout=timeout)
 
@@ -260,13 +286,13 @@ class LegacyTransport(OdooTransport):
         uid = self.uid
         call_args = [self.database, uid, self.password, model, method, args, kwargs or {}]
         last_exc: Exception | None = None
-        for attempt in range(_RETRY_COUNT + 1):
+        for attempt in range(self.retry.max_retries + 1):
             try:
                 return self.call_service("object", "execute_kw", call_args)
             except Exception as exc:
                 last_exc = exc
-                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
-                    time.sleep(_RETRY_BACKOFF * (attempt + 1))
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    time.sleep(self.retry.delay(attempt))
                     continue
                 raise
         raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
@@ -350,13 +376,13 @@ class JSON2Transport(OdooTransport):
     ) -> Any:
         body = _build_json2_body(method, args, kwargs)
         last_exc: Exception | None = None
-        for attempt in range(_RETRY_COUNT + 1):
+        for attempt in range(self.retry.max_retries + 1):
             try:
                 return self._request(model, method, body)
             except Exception as exc:
                 last_exc = exc
-                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
-                    time.sleep(_RETRY_BACKOFF * (attempt + 1))
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    time.sleep(self.retry.delay(attempt))
                     continue
                 raise
         raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
