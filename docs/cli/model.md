@@ -11,7 +11,7 @@ Generic CRUD operations for any Odoo model. Useful for ad-hoc queries and models
 Create a new record in any model.
 
 Examples:
-    vodoo model create semadox.template.registry name=my_template category=invoice
+    vodoo model create product.template name="My Product" list_price=29.99
 
     vodoo model create res.partner name="John Doe" email=john@example.com
 
@@ -21,7 +21,7 @@ Examples:
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `model` | TEXT | Model name (e.g., semadox.template.registry) |
+| `model` | TEXT | Model name (e.g., product.template) |
 | `fields` | TEXT | Field assignments in format 'field=value' |
 
 ### read
@@ -30,10 +30,10 @@ Read record(s) from any model.
 
 Examples:
     # Read specific record
-    vodoo model read semadox.template.registry 42
+    vodoo model read product.template 42
 
     # Search records
-    vodoo model read semadox.template.registry --domain='[["category","=","invoice"]]'
+    vodoo model read product.template --domain='[["list_price",">","20.00"]]'
 
     # With specific fields
     vodoo model read res.partner --field name --field email --limit 10
@@ -60,7 +60,7 @@ Update a record in any model.
 HTML fields automatically convert markdown to HTML.
 
 Examples:
-    vodoo model update semadox.template.registry 42 version=2.0.0 active=true
+    vodoo model update product.template 42 list_price=39.99 active=true
 
     vodoo model update res.partner 123 name="Jane Doe" phone="+1234567890"
 
@@ -83,7 +83,7 @@ Examples:
 Delete a record from any model.
 
 Examples:
-    vodoo model delete semadox.template.registry 42
+    vodoo model delete product.template 42
 
 **Arguments:**
 

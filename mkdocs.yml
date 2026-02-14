@@ -1,12 +1,12 @@
 site_name: Vodoo
 site_url: https://julian-r.github.io/vodoo
 site_description: Modern Python library and CLI for Odoo — JSON-RPC & JSON-2
-site_author: Semadox GmbH
+site_author: Julian Rath
 repo_url: https://github.com/julian-r/vodoo
 repo_name: julian-r/vodoo
 edit_uri: edit/main/docs/
 
-copyright: Copyright &copy; 2025 Semadox GmbH
+copyright: Copyright &copy; 2025 Julian Rath
 
 theme:
   name: material

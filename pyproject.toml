@@ -5,10 +5,10 @@ description = "Modern Python CLI for Odoo with support for helpdesk, projects, t
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Julian Rath", email = "julian.rath@semadox.com" }
+    { name = "Julian Rath", email = "julian.rath@gmail.com" }
 ]
 maintainers = [
-    { name = "Semadox GmbH", email = "info@semadox.com" }
+    { name = "Julian Rath", email = "julian.rath@gmail.com" }
 ]
 requires-python = ">=3.12"
 keywords = ["odoo", "helpdesk", "project", "task", "crm", "lead", "opportunity", "knowledge", "wiki", "cli", "management", "jsonrpc", "vodoo"]

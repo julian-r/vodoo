@@ -379,6 +379,6 @@ GitHub Actions builds and publishes to PyPI automatically.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Copyright (c) 2025 Semadox GmbH.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2025 Julian Rath.
 
 Built with [Typer](https://typer.tiangolo.com/), [Rich](https://rich.readthedocs.io/), [Pydantic](https://docs.pydantic.dev/), [uv](https://github.com/astral-sh/uv), [Ruff](https://github.com/astral-sh/ruff), and [mypy](http://mypy-lang.org/).

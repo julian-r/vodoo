@@ -14,7 +14,7 @@ def create_record(
 
     Args:
         client: Odoo client
-        model: Model name (e.g., 'semadox.template.registry')
+        model: Model name (e.g., 'product.template')
         values: Dictionary of field values
 
     Returns:
