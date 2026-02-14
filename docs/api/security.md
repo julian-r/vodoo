@@ -1,6 +1,6 @@
 # Security
 
-Security group management and service account utilities.
+`SecurityNamespace` for security group management and service account utilities, accessed as `client.security`.
 
 ::: vodoo.security
     options:

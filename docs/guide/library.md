@@ -59,77 +59,53 @@ results = client.name_search("res.partner", "Acme", limit=5)
 # Returns: [(42, "Acme Corp"), (43, "Acme Inc")]
 ```
 
-## Domain Helpers
+## Domain Namespaces
 
-Each domain module provides high-level functions:
+Each domain module provides a namespace on the client with high-level methods:
 
 ### Helpdesk
-
 ```python
-from vodoo.helpdesk import (
-    list_tickets,
-    get_ticket,
-    add_comment,
-    add_note,
-    create_attachment,
-    list_attachments,
-)
-
 # List tickets
-tickets = list_tickets(client, domain=[["stage_id.name", "=", "In Progress"]], limit=10)
-
+tickets = client.helpdesk.list(domain=[["stage_id.name", "=", "In Progress"]], limit=10)
 # Get a single ticket with all fields
-ticket = get_ticket(client, ticket_id=42)
-
+ticket = client.helpdesk.get(42)
 # Add a comment (visible to customer)
-add_comment(client, ticket_id=42, message="We're looking into this")
-
+client.helpdesk.comment(42, message="We're looking into this")
 # Add an internal note
-add_note(client, ticket_id=42, message="Root cause: config mismatch")
-
+client.helpdesk.note(42, message="Root cause: config mismatch")
 # Upload an attachment
-attachment_id = create_attachment(client, ticket_id=42, file_path="logs.txt")
+attachment_id = client.helpdesk.attach(42, file_path="logs.txt")
 ```
 
 ### CRM
 
 ```python
-from vodoo.crm import list_leads, add_note, set_lead_fields
-
 # List opportunities
-opps = list_leads(
-    client,
+opps = client.crm.list(
     domain=[["type", "=", "opportunity"]],
     limit=20,
 )
-
 # Update fields
-set_lead_fields(client, lead_id=15, values={"expected_revenue": 50000})
+client.crm.set(15, values={"expected_revenue": 50000})
 ```
 
 ### Project Tasks
 
 ```python
-from vodoo.project import list_tasks, get_task, add_comment
-
-tasks = list_tasks(client, domain=[["project_id.name", "=", "Website"]], limit=10)
-task = get_task(client, task_id=7)
-add_comment(client, task_id=7, message="Deployed to staging")
+tasks = client.tasks.list(domain=[["project_id.name", "=", "Website"]], limit=10)
+task = client.tasks.get(7)
+client.tasks.comment(7, message="Deployed to staging")
 ```
 
 ### Timers
 
 ```python
-from vodoo.timer import start_timer_on_task, stop_active_timers, fetch_today_timesheets
-
 # Start a timer on a task
-start_timer_on_task(client, task_id=42)
-
+client.timer.start_task(42)
 # Get today's timesheets
-timesheets = fetch_today_timesheets(client)
-
+timesheets = client.timer.today()
 # Stop all running timers
-stop_active_timers(client)
+client.timer.stop()
 ```
 
 ## Transport Layer
@@ -161,33 +137,24 @@ client = OdooClient(config, transport=transport)
 ```
 
 ## Async API
-
-Vodoo provides a full async API under `vodoo.aio` using [httpx](https://www.python-httpx.org/) for non-blocking HTTP. Every sync module has an async counterpart with identical function signatures.
-
+Vodoo provides a full async API under `vodoo.aio` using [httpx](https://www.python-httpx.org/) for non-blocking HTTP. The `AsyncOdooClient` has the same namespace properties, but methods return awaitables.
 ```python
 import asyncio
 from vodoo import AsyncOdooClient, OdooConfig
-from vodoo.aio.helpdesk import list_tickets
-from vodoo.aio.crm import list_leads
-
-config = OdooConfig(
     url="https://my.odoo.com",
     database="mydb",
     username="bot@example.com",
     password="api-key",
 )
-
 async def main():
     async with AsyncOdooClient(config) as client:
         # Same API, just awaited
-        tickets = await list_tickets(client, limit=5)
-
+        tickets = await client.helpdesk.list(limit=5)
         # Concurrent requests with asyncio.gather
         tickets, leads = await asyncio.gather(
-            list_tickets(client, limit=10),
-            list_leads(client, limit=10),
+            client.helpdesk.list(limit=10),
+            client.crm.list(limit=10),
         )
-
 asyncio.run(main())
 ```
 
@@ -254,7 +221,7 @@ Vodoo is fully typed with strict mypy. All functions have type annotations, so y
 
 ```python
 # Your IDE knows these types:
-tickets: list[dict[str, Any]] = list_tickets(client, limit=5)
+tickets: list[dict[str, Any]] = client.helpdesk.list(limit=5)
 ticket_id: int = client.create("helpdesk.ticket", {"name": "New ticket"})
 success: bool = client.write("helpdesk.ticket", [ticket_id], {"priority": "2"})
 ```

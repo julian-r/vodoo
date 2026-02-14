@@ -1,6 +1,6 @@
 # Async CRM
 
-Async operations for the `crm.lead` model (leads and opportunities).
+`AsyncCRMNamespace` for the `crm.lead` model (leads and opportunities), accessed as `client.crm` on `AsyncOdooClient`.
 
 ::: vodoo.aio.crm
     options:

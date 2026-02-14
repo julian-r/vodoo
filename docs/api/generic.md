@@ -1,6 +1,6 @@
 # Generic CRUD
 
-Generic model operations that work with any Odoo model.
+`GenericNamespace` for generic model operations that work with any Odoo model, accessed as `client.generic`.
 
 ::: vodoo.generic
     options:

@@ -1,6 +1,6 @@
 # CRM
 
-Operations for the `crm.lead` model (leads and opportunities).
+`CRMNamespace` for the `crm.lead` model (leads and opportunities), accessed as `client.crm`.
 
 ::: vodoo.crm
     options:
