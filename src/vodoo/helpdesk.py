@@ -1,4 +1,12 @@
-"""Helpdesk operations for Vodoo."""
+"""Helpdesk operations for Vodoo.
+
+Each domain module (helpdesk, crm, project, etc.) deliberately uses explicit
+one-liner delegates to :mod:`vodoo.base` rather than a generic registry or
+class-based dispatch.  This is verbose (~15 functions per module, duplicated
+for async) but keeps every function independently discoverable in IDE
+autocomplete, grep, and generated docs, and makes stack traces trivial to
+follow.  The maintenance cost of these thin wrappers is near-zero.
+"""
 
 from typing import Any
 
