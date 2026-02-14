@@ -138,6 +138,18 @@ nav:
       - Security: api/security.md
       - Base Operations: api/base.md
       - Auth: api/auth.md
+      - Async API:
+          - Overview: api/async.md
+          - Helpdesk: api/aio/helpdesk.md
+          - Project Tasks: api/aio/project.md
+          - Projects: api/aio/project_project.md
+          - CRM: api/aio/crm.md
+          - Knowledge: api/aio/knowledge.md
+          - Timers: api/aio/timer.md
+          - Generic CRUD: api/aio/generic.md
+          - Security: api/aio/security.md
+          - Base Operations: api/aio/base.md
+          - Auth: api/aio/auth.md
   - Development:
       - Contributing: development/contributing.md
       - Architecture: development/architecture.md

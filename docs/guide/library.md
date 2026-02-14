@@ -160,15 +160,65 @@ transport = LegacyTransport(
 client = OdooClient(config, transport=transport)
 ```
 
-## Error Handling
+## Async API
 
-All Vodoo exceptions inherit from `VodooError`:
+Vodoo provides a full async API under `vodoo.aio` using [httpx](https://www.python-httpx.org/) for non-blocking HTTP. Every sync module has an async counterpart with identical function signatures.
 
 ```python
-from vodoo import VodooError, AuthenticationError, RecordNotFoundError, TransportError
+import asyncio
+from vodoo import AsyncOdooClient, OdooConfig
+from vodoo.aio.helpdesk import list_tickets
+from vodoo.aio.crm import list_leads
+
+config = OdooConfig(
+    url="https://my.odoo.com",
+    database="mydb",
+    username="bot@example.com",
+    password="api-key",
+)
+
+async def main():
+    async with AsyncOdooClient(config) as client:
+        # Same API, just awaited
+        tickets = await list_tickets(client, limit=5)
+
+        # Concurrent requests with asyncio.gather
+        tickets, leads = await asyncio.gather(
+            list_tickets(client, limit=10),
+            list_leads(client, limit=10),
+        )
+
+asyncio.run(main())
+```
+
+See the [Async API reference](../api/async.md) for all available modules.
+
+## Error Handling
+
+All Vodoo exceptions inherit from `VodooError`. The Odoo server-side exceptions (`OdooUserError` and subclasses) are automatically mapped from the server's error response, so you can handle specific failure modes:
+
+```python
+from vodoo import (
+    VodooError,
+    AuthenticationError,
+    RecordNotFoundError,
+    TransportError,
+)
+from vodoo.exceptions import (
+    OdooAccessError,
+    OdooAccessDeniedError,
+    OdooValidationError,
+    OdooMissingError,
+)
 
 try:
-    ticket = get_ticket(client, ticket_id=99999)
+    client.write("res.partner", [42], {"email": "invalid"})
+except OdooAccessError:
+    print("You don't have permission for this operation")
+except OdooValidationError as e:
+    print(f"Constraint violated: {e}")
+except OdooMissingError:
+    print("Record no longer exists")
 except RecordNotFoundError as e:
     print(f"Not found: {e.model} #{e.record_id}")
 except AuthenticationError:
@@ -179,7 +229,25 @@ except VodooError as e:
     print(f"Vodoo error: {e}")
 ```
 
-See the [Exceptions API reference](../api/exceptions.md) for the full hierarchy.
+The full hierarchy:
+
+```
+VodooError
+├── ConfigurationError
+│   └── InsecureURLError
+├── AuthenticationError
+├── RecordNotFoundError
+├── RecordOperationError
+├── TransportError
+│   └── OdooUserError              ← odoo.exceptions.UserError
+│       ├── OdooAccessDeniedError  ← odoo.exceptions.AccessDenied
+│       ├── OdooAccessError        ← odoo.exceptions.AccessError
+│       ├── OdooMissingError       ← odoo.exceptions.MissingError
+│       └── OdooValidationError    ← odoo.exceptions.ValidationError
+└── FieldParsingError
+```
+
+See the [Exceptions API reference](../api/exceptions.md) for details.
 
 ## Type Safety
 
