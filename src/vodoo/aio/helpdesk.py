@@ -161,11 +161,13 @@ async def download_ticket_attachments(
 async def create_attachment(
     client: AsyncOdooClient,
     ticket_id: int,
-    file_path: Path | str,
+    file_path: Path | str | None = None,
+    *,
+    data: bytes | None = None,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a ticket."""
-    return await base_create_attachment(client, MODEL, ticket_id, file_path, name=name)
+    return await base_create_attachment(client, MODEL, ticket_id, file_path, data=data, name=name)
 
 
 def get_ticket_url(client: AsyncOdooClient, ticket_id: int) -> str:

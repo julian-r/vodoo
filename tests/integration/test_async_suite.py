@@ -341,6 +341,36 @@ class TestAsyncProjectTask:
         finally:
             tmp_path.unlink(missing_ok=True)
 
+    async def test_create_attachment_from_bytes(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.base import create_attachment, download_attachment, list_attachments
+
+        content = b"bytes upload integration test content"
+        att_id = await create_attachment(
+            async_client,
+            "project.task",
+            self.task_id,
+            data=content,
+            name="bytes_test.txt",
+        )
+        try:
+            assert isinstance(att_id, int)
+            assert att_id > 0
+
+            attachments = await list_attachments(async_client, "project.task", self.task_id)
+            assert any(a["id"] == att_id for a in attachments)
+
+            with tempfile.TemporaryDirectory() as outdir:
+                out = await download_attachment(
+                    async_client, att_id, Path(outdir) / "bytes_test.txt"
+                )
+                assert out.exists()
+                assert out.read_bytes() == content
+        finally:
+            with contextlib.suppress(Exception):
+                from vodoo.aio.generic import delete_record
+
+                await delete_record(async_client, "ir.attachment", att_id)
+
     async def test_create_task_with_options(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.generic import delete_record
         from vodoo.aio.project import create_task, get_task
@@ -723,6 +753,18 @@ class TestAsyncHelpdesk:
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
+
+    async def test_ticket_attachment_from_bytes(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.helpdesk import create_attachment, list_attachments
+
+        att_id = await create_attachment(
+            async_client, self.ticket_id, data=b"bytes upload test", name="test.txt"
+        )
+        assert isinstance(att_id, int)
+        assert att_id > 0
+
+        attachments = await list_attachments(async_client, self.ticket_id)
+        assert any(a["id"] == att_id for a in attachments)
 
     async def test_ticket_tags(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.generic import create_record, delete_record

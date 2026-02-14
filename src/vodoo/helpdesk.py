@@ -313,30 +313,28 @@ def download_ticket_attachments(
 def create_attachment(
     client: OdooClient,
     ticket_id: int,
-    file_path: Path | str,
+    file_path: Path | str | None = None,
+    *,
+    data: bytes | None = None,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a ticket.
-
     Args:
         client: Odoo client
         ticket_id: Ticket ID
-        file_path: Path to file to attach
-        name: Attachment name (defaults to filename)
-
-    Returns:
+        file_path: Path to file to attach (mutually exclusive with data)
+        data: Raw bytes to attach (mutually exclusive with file_path)
+        name: Attachment name (defaults to filename; required when using data)
         ID of created attachment
-
     Raises:
-        ValueError: If file doesn't exist
+        ValueError: If arguments are invalid
         FileNotFoundError: If file path is invalid
-
     Examples:
         >>> create_attachment(client, 42, "screenshot.png")
         >>> create_attachment(client, 42, "/path/to/file.pdf", name="Report.pdf")
-
+        >>> create_attachment(client, 42, data=b"content", name="doc.txt")
     """
-    return base_create_attachment(client, MODEL, ticket_id, file_path, name=name)
+    return base_create_attachment(client, MODEL, ticket_id, file_path, data=data, name=name)
 
 
 def get_ticket_url(client: OdooClient, ticket_id: int) -> str:
