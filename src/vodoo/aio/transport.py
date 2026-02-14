@@ -1,10 +1,11 @@
 """Async Odoo JSON-RPC transport abstraction.
-
-Provides two async implementations:
 - AsyncLegacyTransport: Odoo 14-18 using POST /jsonrpc with service/method/args envelope
 - AsyncJSON2Transport: Odoo 19+ using POST /json/2/<model>/<method> with bearer token auth
-
-Mirrors :mod:`vodoo.transport` but uses ``httpx.AsyncClient`` for non-blocking I/O.
+The convenience methods on the base class and the concrete transport implementations
+intentionally duplicate their sync counterparts.  This is a deliberate trade-off:
+every alternative (``unasync``, code generation, runtime indirection) adds build or
+type-system complexity that outweighs the cost of ~260 lines of mechanical duplication
+in a library of this size.
 """
 
 import asyncio
@@ -15,9 +16,9 @@ import httpx
 
 from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
 from vodoo.transport import (
-    _RETRY_BACKOFF,
-    _RETRY_COUNT,
     _RETRYABLE_METHODS,
+    DEFAULT_RETRY,
+    RetryConfig,
     _build_json2_body,
     _parse_json2_response,
     _parse_name_search,
@@ -38,12 +39,14 @@ class AsyncOdooTransport(ABC):
         password: str,
         *,
         timeout: int = 30,
+        retry: RetryConfig | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.database = database.strip()
         self.username = username.strip()
         self.password = password.strip()
         self.timeout = timeout
+        self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
         self._http = httpx.AsyncClient(timeout=timeout)
 
@@ -232,13 +235,13 @@ class AsyncLegacyTransport(AsyncOdooTransport):
         uid = await self.get_uid()
         call_args = [self.database, uid, self.password, model, method, args, kwargs or {}]
         last_exc: Exception | None = None
-        for attempt in range(_RETRY_COUNT + 1):
+        for attempt in range(self.retry.max_retries + 1):
             try:
                 return await self.call_service("object", "execute_kw", call_args)
             except Exception as exc:
                 last_exc = exc
-                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
-                    await asyncio.sleep(_RETRY_BACKOFF * (attempt + 1))
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    await asyncio.sleep(self.retry.delay(attempt))
                     continue
                 raise
         raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
@@ -317,13 +320,13 @@ class AsyncJSON2Transport(AsyncOdooTransport):
     ) -> Any:
         body = _build_json2_body(method, args, kwargs)
         last_exc: Exception | None = None
-        for attempt in range(_RETRY_COUNT + 1):
+        for attempt in range(self.retry.max_retries + 1):
             try:
                 return await self._request(model, method, body)
             except Exception as exc:
                 last_exc = exc
-                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
-                    await asyncio.sleep(_RETRY_BACKOFF * (attempt + 1))
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    await asyncio.sleep(self.retry.delay(attempt))
                     continue
                 raise
         raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
