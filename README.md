@@ -5,18 +5,30 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 
-A modern Python CLI tool for Odoo with support for helpdesk tickets, project tasks, projects, and CRM leads/opportunities. Features include comments, notes, tags, attachments, and more.
+A modern Python CLI tool for Odoo with support for helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets. Features include comments, notes, tags, attachments, timers, and more.
 
 **🤖 AI-First Design**: Designed to be used with Claude Code or similar AI coding assistants to streamline Odoo workflows through natural language commands.
+
+## Odoo Version Support
+
+| Version | Protocol | Status |
+|---------|----------|--------|
+| Odoo 17 | Legacy JSON-RPC | ✅ Fully tested |
+| Odoo 18 | Legacy JSON-RPC | ✅ Fully tested |
+| Odoo 19 | JSON-2 (bearer auth) | ✅ Fully tested |
+
+Vodoo auto-detects the Odoo version and selects the appropriate transport layer. Odoo 19's JSON-2 API is ~3-4x faster than legacy JSON-RPC.
 
 ## Features
 
 - 📋 Helpdesk tickets, project tasks, projects, CRM leads, and knowledge articles
-- 💬 Add comments and internal notes
+- ⏱️ Timer / timesheet management (start, stop, status)
+- 💬 Add comments and internal notes (with markdown-to-HTML conversion)
 - 🏷️ Create, manage, and assign tags
 - 📎 Upload, list, and download attachments
 - 🔍 Search across text fields (name, email, phone, description)
 - 🧰 Generic CRUD operations for any Odoo model
+- 🔀 Auto-detecting transport layer (JSON-2 for Odoo 19+, legacy JSON-RPC for 14-18)
 - 🎨 Rich terminal output with tables
 - ⚙️ Flexible configuration via environment variables or config files
 - 🔒 Type-safe with mypy strict mode
@@ -190,6 +202,31 @@ vodoo crm attach 123 proposal.pdf
 vodoo crm url 123
 ```
 
+### Timers / Timesheets
+
+```bash
+# Show today's timesheets with running state
+vodoo timer status
+
+# Start a timer on a task
+vodoo timer start --task 42
+
+# Start a timer on a helpdesk ticket (enterprise)
+vodoo timer start --ticket 99
+
+# Resume a stopped timesheet
+vodoo timer start --timesheet 15
+
+# Show only running timers
+vodoo timer active
+
+# Stop all running timers
+vodoo timer stop
+
+# Stop a specific timesheet timer
+vodoo timer stop --timesheet 15
+```
+
 ### Generic Model Operations
 
 ```bash
@@ -305,29 +342,41 @@ uv run mypy src/vodoo
 
 ```
 vodoo/
-├── src/
-│   └── vodoo/
-│       ├── __init__.py
-│       ├── main.py       # CLI entry point with Typer commands
-│       ├── client.py     # Odoo XML-RPC client wrapper
-│       ├── config.py     # Configuration management
-│       ├── auth.py       # Authentication and sudo utilities
-│       └── helpdesk.py   # Helpdesk operations and display logic
-├── pyproject.toml        # Project configuration and dependencies
-├── README.md
-└── .gitignore
+├── src/vodoo/
+│   ├── __init__.py
+│   ├── main.py              # CLI entry point (Typer subcommands)
+│   ├── client.py            # OdooClient — delegates to transport layer
+│   ├── transport.py         # Transport abstraction (JSON-2 + legacy JSON-RPC)
+│   ├── config.py            # Pydantic configuration from env/.env files
+│   ├── auth.py              # Authentication and sudo utilities
+│   ├── base.py              # Shared CRUD, messaging, attachment helpers
+│   ├── helpdesk.py          # Helpdesk ticket operations (enterprise)
+│   ├── project.py           # Project task operations
+│   ├── project_project.py   # Project operations
+│   ├── crm.py               # CRM lead/opportunity operations
+│   ├── knowledge.py         # Knowledge article operations (enterprise)
+│   ├── generic.py           # Generic model CRUD
+│   ├── security.py          # Security groups, user management
+│   └── timer.py             # Timer/timesheet start, stop, status
+├── tests/
+│   └── integration/         # Docker-based integration tests (see docs/)
+├── docs/
+│   ├── SECURITY.md          # Service account setup guide
+│   └── INTEGRATION_TESTS.md # Integration test documentation
+├── pyproject.toml
+└── README.md
 ```
 
 ## How It Works
 
-### Odoo XML-RPC API
+### Transport Layer
 
-This tool uses Odoo's external XML-RPC API to interact with the Odoo instance. The API provides:
+Vodoo auto-detects the Odoo version and uses the appropriate transport:
 
-- Authentication via username/password or API keys
-- Full CRUD operations on Odoo models
-- Search and filtering capabilities
-- Support for sudo operations
+- **JSON-2 (Odoo 19+)**: Bearer token auth, model-specific endpoints (`/json/2/<model>/<method>`), ~3-4x faster
+- **Legacy JSON-RPC (Odoo 14-18)**: Generic `/jsonrpc` endpoint with `service/method/args` envelope
+
+The detection happens automatically on first connection — no configuration needed.
 
 ### Sudo Operations for Comments
 
@@ -337,10 +386,24 @@ Comments are posted using Odoo's `message_post` method with sudo context, allowi
 
 Attachments are stored in Odoo's `ir.attachment` model with base64-encoded data. The CLI automatically decodes and saves files when downloading.
 
+## Integration Tests
+
+Automated tests run against real Odoo instances (17, 18, 19) in Docker — both Community and Enterprise editions. 60 tests per instance, 354 total.
+
+```bash
+# Run all community tests
+./tests/integration/run.sh
+
+# Run specific version with enterprise
+ENTERPRISE=1 ./tests/integration/run.sh 19
+```
+
+See [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md) for details.
+
 ## Requirements
 
 - Python 3.12+
-- Access to an Odoo instance with XML-RPC enabled
+- Access to an Odoo instance with the JSON-RPC or JSON-2 API enabled
 - Valid Odoo credentials (username/password or API key)
 
 ## Contributing
