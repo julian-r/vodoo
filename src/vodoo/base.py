@@ -29,8 +29,14 @@ if TYPE_CHECKING:
 # Field lists shared with aio.base
 _TAG_FIELDS: list[str] = ["id", "name", "color"]
 _MESSAGE_FIELDS: list[str] = [
-    "id", "date", "author_id", "body", "subject",
-    "message_type", "subtype_id", "email_from",
+    "id",
+    "date",
+    "author_id",
+    "body",
+    "subject",
+    "message_type",
+    "subtype_id",
+    "email_from",
 ]
 _ATTACHMENT_LIST_FIELDS: list[str] = ["id", "name", "file_size", "mimetype", "create_date"]
 _ATTACHMENT_READ_FIELDS: list[str] = ["name", "datas"]

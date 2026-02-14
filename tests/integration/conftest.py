@@ -65,8 +65,8 @@ def odoo_config() -> OdooConfig:
     if not env_file or not Path(env_file).exists():
         pytest.skip(f"VODOO_TEST_ENV not set or file missing: {env_file!r}")
     # Force test values into os.environ so they beat any existing ODOO_* vars
-    for line in Path(env_file).read_text().splitlines():
-        line = line.strip()
+    for raw_line in Path(env_file).read_text().splitlines():
+        line = raw_line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
             os.environ[key] = value

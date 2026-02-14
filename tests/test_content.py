@@ -1,9 +1,6 @@
 """Unit tests for vodoo.content — pure functions, no Odoo instance needed."""
 
-import pytest
-
 from vodoo.content import HTML, Markdown, process_values
-
 
 # ── type identity ─────────────────────────────────────────────────────────────
 

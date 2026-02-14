@@ -3,12 +3,9 @@
 No Odoo instance required — only pure function logic is tested.
 """
 
-from typing import Any
-
 import pytest
 
 from vodoo.transport import _build_json2_body, _parse_json2_response, _parse_name_search
-
 
 # ── _build_json2_body ─────────────────────────────────────────────────────────
 

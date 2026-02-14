@@ -10,7 +10,6 @@ import pytest
 from vodoo.exceptions import FieldParsingError
 from vodoo.fields import _apply_operator, _match_field_assignment, _parse_raw_value
 
-
 # ── _match_field_assignment ──────────────────────────────────────────────────
 
 
@@ -55,7 +54,7 @@ class TestMatchFieldAssignment:
             _match_field_assignment("field=")
 
     def test_whitespace_stripped_from_field(self) -> None:
-        field, op, val = _match_field_assignment("  name  =value")
+        field, _op, _val = _match_field_assignment("  name  =value")
         assert field == "name"
 
 

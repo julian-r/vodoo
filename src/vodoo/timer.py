@@ -9,7 +9,7 @@ Handles version-specific differences:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from vodoo.client import OdooClient
@@ -26,7 +26,7 @@ BASE_FIELDS = [
 ]
 
 
-class TimerState(str, Enum):
+class TimerState(StrEnum):
     """Timer state."""
 
     RUNNING = "running"

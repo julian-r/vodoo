@@ -303,7 +303,9 @@ async def download_record_attachments(
     for attachment in attachments:
         filename = attachment.get("name", f"attachment_{attachment['id']}")
         try:
-            att_data = await client.read("ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS)
+            att_data = await client.read(
+                "ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS
+            )
             if not att_data:
                 continue
 
