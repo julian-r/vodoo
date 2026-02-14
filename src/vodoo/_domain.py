@@ -19,6 +19,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from vodoo.auth import message_post_sudo
+from vodoo.base import (
+    _ATTACHMENT_LIST_FIELDS,
+    _ATTACHMENT_READ_FIELDS,
+    _MESSAGE_FIELDS,
+    _TAG_FIELDS,
+)
 from vodoo.exceptions import RecordNotFoundError
 
 if TYPE_CHECKING:
@@ -37,26 +43,10 @@ class DomainNamespace:
     _default_detail_fields: ClassVar[list[str] | None] = None
     _record_type: ClassVar[str] = "Record"
 
-    # Shared field lists (match base.py constants)
-    _TAG_FIELDS: ClassVar[list[str]] = ["id", "name", "color"]
-    _MESSAGE_FIELDS: ClassVar[list[str]] = [
-        "id",
-        "date",
-        "author_id",
-        "body",
-        "subject",
-        "message_type",
-        "subtype_id",
-        "email_from",
-    ]
-    _ATTACHMENT_LIST_FIELDS: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "file_size",
-        "mimetype",
-        "create_date",
-    ]
-    _ATTACHMENT_READ_FIELDS: ClassVar[list[str]] = ["name", "datas"]
+    _TAG_FIELDS: ClassVar[list[str]] = _TAG_FIELDS
+    _MESSAGE_FIELDS: ClassVar[list[str]] = _MESSAGE_FIELDS
+    _ATTACHMENT_LIST_FIELDS: ClassVar[list[str]] = _ATTACHMENT_LIST_FIELDS
+    _ATTACHMENT_READ_FIELDS: ClassVar[list[str]] = _ATTACHMENT_READ_FIELDS
 
     def __init__(self, client: OdooClient) -> None:
         self._client = client
