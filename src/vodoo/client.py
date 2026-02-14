@@ -7,6 +7,7 @@ The transport is auto-detected based on the Odoo version unless explicitly speci
 from typing import Any
 
 from vodoo.config import OdooConfig
+from vodoo.content import process_values
 from vodoo.transport import (
     JSON2Transport,
     LegacyTransport,
@@ -183,7 +184,7 @@ class OdooClient:
         context: dict[str, Any] | None = None,
     ) -> int:
         """Create a new record."""
-        return self._transport.create(model, values, context)
+        return self._transport.create(model, process_values(values), context)
 
     def write(
         self,
@@ -192,7 +193,7 @@ class OdooClient:
         values: dict[str, Any],
     ) -> bool:
         """Update records."""
-        return self._transport.write(model, ids, values)
+        return self._transport.write(model, ids, process_values(values))
 
     def unlink(
         self,

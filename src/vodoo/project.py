@@ -27,6 +27,7 @@ from vodoo.base import (
     create_attachment as base_create_attachment,
 )
 from vodoo.client import OdooClient
+from vodoo.content import Markdown
 
 # Model name constant
 MODEL = "project.task"
@@ -66,7 +67,7 @@ def _build_task_values(
     }
 
     if description:
-        values["description"] = description
+        values["description"] = Markdown(description)
     if user_ids:
         values["user_ids"] = [(6, 0, user_ids)]
     if tag_ids:

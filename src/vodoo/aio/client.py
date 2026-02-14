@@ -11,6 +11,7 @@ from vodoo.aio.transport import (
     AsyncOdooTransport,
 )
 from vodoo.config import OdooConfig
+from vodoo.content import process_values
 
 
 class AsyncOdooClient:
@@ -197,7 +198,7 @@ class AsyncOdooClient:
     ) -> int:
         """Create a new record."""
         transport = await self._ensure_transport()
-        return await transport.create(model, values, context)
+        return await transport.create(model, process_values(values), context)
 
     async def write(
         self,
@@ -207,7 +208,7 @@ class AsyncOdooClient:
     ) -> bool:
         """Update records."""
         transport = await self._ensure_transport()
-        return await transport.write(model, ids, values)
+        return await transport.write(model, ids, process_values(values))
 
     async def unlink(
         self,

@@ -380,12 +380,9 @@ def _convert_to_html(text: str, use_markdown: bool = False) -> str:
 
     """
     if use_markdown:
-        import markdown
+        from vodoo.content import _markdown_to_html
 
-        return markdown.markdown(
-            text,
-            extensions=["extra", "nl2br", "sane_lists"],
-        )
+        return _markdown_to_html(text)
     # Plain text - wrap in paragraph tags with newline support
     return f"<p>{text}</p>"
 
