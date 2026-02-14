@@ -76,6 +76,7 @@ class OdooClient:
             json2.authenticate()
             return json2
         except Exception:
+            json2.close()
             return LegacyTransport(
                 url=self.url,
                 database=self.db,

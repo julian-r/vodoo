@@ -95,6 +95,7 @@ class AsyncOdooClient:
             await json2.authenticate()
             return json2
         except Exception:
+            await json2.close()
             return AsyncLegacyTransport(
                 url=self.url,
                 database=self.db,

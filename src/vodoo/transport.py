@@ -405,6 +405,7 @@ def make_transport(
         json2.authenticate()
         return json2
     except Exception:
+        json2.close()
         return LegacyTransport(
             url=url,
             database=database,

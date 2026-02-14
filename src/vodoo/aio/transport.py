@@ -363,6 +363,7 @@ async def make_async_transport(
         await json2.authenticate()
         return json2
     except Exception:
+        await json2.close()
         return AsyncLegacyTransport(
             url=url,
             database=database,

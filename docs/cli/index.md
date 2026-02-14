@@ -20,7 +20,7 @@ Vodoo provides a Typer-based CLI with the following subcommands:
 | Option | Description |
 |--------|-------------|
 | `--version` / `-v` | Show version and exit |
-| `--no-color` | Disable colored output (plain TSV for piping) |
+| `--simple` | Plain TSV output instead of rich tables (for piping) |
 | `--help` | Show help and exit |
 
 ```
@@ -30,10 +30,10 @@ vodoo <command> --help
 
 ## Output Modes
 
-By default, Vodoo uses Rich tables for colorful terminal output. Use `--no-color` for plain TSV output suitable for piping:
+By default, Vodoo uses Rich tables for colorful terminal output. Use `--simple` for plain TSV output suitable for piping:
 
 ```bash
-vodoo --no-color helpdesk list | cut -f1,2
+vodoo --simple helpdesk list | cut -f1,2
 ```
 
 ## Common Patterns

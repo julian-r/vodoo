@@ -216,7 +216,7 @@ timer_app = typer.Typer(
 app.add_typer(timer_app, name="timer")
 
 # Global state for console configuration
-_console_config: dict[str, bool] = {"no_color": False}
+_console_config: dict[str, bool] = {"simple": False}
 
 console = Console()
 
@@ -228,8 +228,8 @@ def get_console() -> Console:
         Console instance
 
     """
-    no_color = _console_config["no_color"]
-    return Console(force_terminal=not no_color, no_color=no_color)
+    simple = _console_config["simple"]
+    return Console(force_terminal=not simple, no_color=simple)
 
 
 def version_callback(value: bool) -> None:
@@ -244,9 +244,9 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main_callback(
-    no_color: Annotated[
+    simple: Annotated[
         bool,
-        typer.Option("--no-color", help="Disable colored output for programmatic use"),
+        typer.Option("--simple", help="Plain TSV output instead of rich tables"),
     ] = False,
     version: Annotated[  # noqa: ARG001
         bool,
@@ -260,12 +260,12 @@ def main_callback(
     ] = False,
 ) -> None:
     """Global options for vodoo CLI."""
-    _console_config["no_color"] = no_color
+    _console_config["simple"] = simple
     global console  # noqa: PLW0603
     console = get_console()
     # Synchronise the base module's output configuration so that display
     # functions use the same console / simple-output mode.
-    configure_output(console=console, simple=no_color)
+    configure_output(console=console, simple=simple)
 
 
 def get_client() -> OdooClient:

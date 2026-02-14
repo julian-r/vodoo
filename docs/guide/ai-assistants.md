@@ -7,7 +7,7 @@ Vodoo is designed with an **AI-first** approach — its clear, consistent CLI st
 1. **Consistent command patterns** — every domain uses the same verbs (`list`, `show`, `comment`, `note`, `set`, `tag`, `attach`)
 2. **Readable output** — Rich tables and structured data that AI can parse
 3. **Natural language mapping** — commands map directly to plain English requests
-4. **Simple output mode** — `--no-color` flag gives plain TSV for easy programmatic parsing
+4. **Simple output mode** — `--simple` flag gives plain TSV for easy programmatic parsing
 
 ## Example Workflow with Claude Code
 
@@ -53,6 +53,6 @@ The AI assistant will translate your requests into the appropriate `vodoo` comma
 
 ## Tips
 
-- Use `--no-color` when you want the AI to parse output programmatically
+- Use `--simple` when you want the AI to parse output programmatically
 - The `model` subcommand lets the AI work with *any* Odoo model, not just the built-in ones
 - Chain commands: "List tickets, then add a note to each one mentioning the weekly review"
