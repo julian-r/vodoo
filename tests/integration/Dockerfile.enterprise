@@ -1,0 +1,17 @@
+# Build an enterprise Odoo image for integration testing.
+#
+# The build context must be the enterprise-addons directory itself.
+#
+# Build:
+#   docker build -f tests/integration/Dockerfile.enterprise \
+#     --build-arg ODOO_VERSION=19.0 \
+#     -t vodoo-odoo-ee:19.0 \
+#     /path/to/enterprise-addons
+#
+ARG ODOO_VERSION=19.0
+FROM odoo:${ODOO_VERSION}
+
+USER root
+COPY . /mnt/enterprise/
+RUN chown -R odoo:odoo /mnt/enterprise
+USER odoo
