@@ -3,17 +3,6 @@
 from typing import Any
 
 from vodoo.aio.base import (
-    _get_console,
-    _html_to_markdown,
-    _is_simple_output,
-    display_records,
-    get_record,
-    get_record_url,
-    list_fields,
-    list_records,
-    set_record_fields,
-)
-from vodoo.aio.base import (
     add_comment as base_add_comment,
 )
 from vodoo.aio.base import (
@@ -23,14 +12,28 @@ from vodoo.aio.base import (
     create_attachment as base_create_attachment,
 )
 from vodoo.aio.base import (
+    display_records,
+    get_record,
+    get_record_url,
+    list_fields,
+    list_records,
+    set_record_fields,
+)
+from vodoo.aio.base import (
     list_attachments as base_list_attachments,
 )
 from vodoo.aio.base import (
     list_messages as base_list_messages,
 )
 from vodoo.aio.client import AsyncOdooClient
-
-MODEL = "knowledge.article"
+from vodoo.knowledge import (
+    DEFAULT_DETAIL_FIELDS,
+    DEFAULT_LIST_FIELDS,
+    MODEL,
+)
+from vodoo.knowledge import (
+    display_article_detail as display_article_detail,
+)
 
 
 async def list_articles(
@@ -41,7 +44,7 @@ async def list_articles(
 ) -> list[dict[str, Any]]:
     """List knowledge articles."""
     if fields is None:
-        fields = ["id", "name", "parent_id", "category", "icon", "write_date"]
+        fields = list(DEFAULT_LIST_FIELDS)
     return await list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 
@@ -55,7 +58,7 @@ async def get_article(
 ) -> dict[str, Any]:
     """Get a knowledge article."""
     if fields is None:
-        fields = ["id", "name", "parent_id", "category", "icon", "body", "write_date"]
+        fields = list(DEFAULT_DETAIL_FIELDS)
     return await get_record(client, MODEL, article_id, fields=fields)
 
 
@@ -71,36 +74,7 @@ async def set_article_fields(
     return await set_record_fields(client, MODEL, article_id, values)
 
 
-def display_article_detail(article: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed knowledge article information with body content."""
-    if _is_simple_output():
-        print(f"id: {article['id']}")
-        print(f"name: {article.get('icon', '')} {article['name']}")
-        if article.get("parent_id"):
-            print(f"parent: {article['parent_id'][1]}")
-        if article.get("category"):
-            print(f"category: {article['category']}")
-        if article.get("body"):
-            body = article["body"] if show_html else _html_to_markdown(article["body"])
-            print(f"body: {body}")
-    else:
-        console = _get_console()
-        console.print(f"\n[bold cyan]Article #{article['id']}[/bold cyan]")
-        console.print(f"[bold]Title:[/bold] {article.get('icon', '')} {article['name']}")
-
-        if article.get("parent_id"):
-            console.print(f"[bold]Parent:[/bold] {article['parent_id'][1]}")
-
-        if article.get("category"):
-            console.print(f"[bold]Category:[/bold] {article['category']}")
-
-        if article.get("body"):
-            body = article["body"]
-            if show_html:
-                console.print(f"\n[bold]Content:[/bold]\n{body}")
-            else:
-                markdown_text = _html_to_markdown(body)
-                console.print(f"\n[bold]Content:[/bold]\n{markdown_text}")
+# display_article_detail is imported from vodoo.knowledge (pure function, no I/O)
 
 
 async def add_comment(

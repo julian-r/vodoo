@@ -40,6 +40,18 @@ from vodoo.client import OdooClient
 MODEL = "helpdesk.ticket"
 TAG_MODEL = "helpdesk.tag"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "partner_id",
+    "stage_id",
+    "user_id",
+    "priority",
+    "tag_ids",
+    "create_date",
+]
+
 
 def list_tickets(
     client: OdooClient,
@@ -60,16 +72,7 @@ def list_tickets(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 

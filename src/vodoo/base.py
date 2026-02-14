@@ -1,18 +1,17 @@
 """Base operations for Odoo models - shared functionality."""
 
+from __future__ import annotations
+
 import base64
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-from rich.console import Console
-from rich.table import Table
 
 from vodoo.auth import message_post_sudo
 from vodoo.client import OdooClient
 from vodoo.exceptions import FieldParsingError, RecordNotFoundError
 
 if TYPE_CHECKING:
-    pass
+    from rich.console import Console
 
 # ---------------------------------------------------------------------------
 # Output configuration
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
 # console and simple-output flag.  When Vodoo is used as a library these
 # defaults are used instead, so no import of main.py is needed.
 
-_output_console: Console = Console()
+_output_console: Console | None = None
 _output_simple: bool = False
 
 
@@ -30,6 +29,9 @@ def configure_output(*, console: Console | None = None, simple: bool = False) ->
 
     Called by the CLI layer.  Library users may call this to customise
     display behaviour, or simply ignore it (sensible defaults apply).
+
+    Requires the ``cli`` extra (``rich``) when *console* is provided or
+    *simple* is ``False`` and display functions are subsequently called.
 
     Args:
         console: Rich Console instance to use for output.
@@ -44,7 +46,12 @@ def configure_output(*, console: Console | None = None, simple: bool = False) ->
 
 
 def _get_console() -> Console:
-    """Return the currently configured console."""
+    """Return the currently configured console, creating one if needed."""
+    global _output_console  # noqa: PLW0603
+    if _output_console is None:
+        from rich.console import Console as _Console
+
+        _output_console = _Console()
     return _output_console
 
 
@@ -130,6 +137,8 @@ def display_records(records: list[dict[str, Any]], title: str = "Records") -> No
             print("\t".join(row))
     else:
         # Rich table output
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title=title)
 
@@ -510,6 +519,8 @@ def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
         for tag in tags:
             print(f"{tag['id']}\t{tag['name']}\t{tag.get('color', '')}")
     else:
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title=title)
         table.add_column("ID", style="cyan")
@@ -730,6 +741,8 @@ def display_attachments(attachments: list[dict[str, Any]]) -> None:
             created = att.get("create_date", "")
             print(f"{att['id']}\t{name}\t{size_kb}\t{mime}\t{created}")
     else:
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title="Attachments")
         table.add_column("ID", style="cyan")
@@ -830,7 +843,6 @@ def download_record_attachments(
         ]
 
     downloaded_files = []
-    console = _get_console()
 
     for attachment in attachments:
         try:
@@ -849,7 +861,9 @@ def download_record_attachments(
                 output_path.write_bytes(data)
                 downloaded_files.append(output_path)
         except Exception as e:
-            console.print(f"[yellow]Warning: Failed to download {filename}: {e}[/yellow]")
+            import sys
+
+            print(f"Warning: Failed to download {filename}: {e}", file=sys.stderr)
             continue
 
     return downloaded_files

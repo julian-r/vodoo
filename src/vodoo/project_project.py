@@ -27,6 +27,21 @@ from vodoo.client import OdooClient
 # Model name constant
 MODEL = "project.project"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "user_id",
+    "partner_id",
+    "date_start",
+    "date",
+    "task_count",
+    "color",
+]
+
+# Fields for stage listing
+STAGE_FIELDS = ["id", "name", "sequence", "fold", "project_ids"]
+
 
 def list_projects(
     client: OdooClient,
@@ -47,16 +62,7 @@ def list_projects(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "user_id",
-            "partner_id",
-            "date_start",
-            "date",
-            "task_count",
-            "color",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
@@ -275,11 +281,10 @@ def list_stages(
     if project_id is not None:
         domain.append(("project_ids", "in", [project_id]))
 
-    fields = ["id", "name", "sequence", "fold", "project_ids"]
     return client.search_read(
         "project.task.type",
         domain=domain,
-        fields=fields,
+        fields=STAGE_FIELDS,
         order="sequence",
     )
 

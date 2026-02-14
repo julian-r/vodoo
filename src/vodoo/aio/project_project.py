@@ -3,7 +3,15 @@
 from typing import Any
 
 from vodoo.aio.base import (
-    _is_simple_output,
+    add_comment as base_add_comment,
+)
+from vodoo.aio.base import (
+    add_note as base_add_note,
+)
+from vodoo.aio.base import (
+    create_attachment as base_create_attachment,
+)
+from vodoo.aio.base import (
     display_record_detail,
     display_records,
     get_record,
@@ -14,18 +22,15 @@ from vodoo.aio.base import (
     list_records,
     set_record_fields,
 )
-from vodoo.aio.base import (
-    add_comment as base_add_comment,
-)
-from vodoo.aio.base import (
-    add_note as base_add_note,
-)
-from vodoo.aio.base import (
-    create_attachment as base_create_attachment,
-)
 from vodoo.aio.client import AsyncOdooClient
-
-MODEL = "project.project"
+from vodoo.project_project import (
+    DEFAULT_LIST_FIELDS,
+    MODEL,
+    STAGE_FIELDS,
+)
+from vodoo.project_project import (
+    display_stages as display_stages,
+)
 
 
 async def list_projects(
@@ -36,16 +41,7 @@ async def list_projects(
 ) -> list[dict[str, Any]]:
     """List projects."""
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "user_id",
-            "partner_id",
-            "date_start",
-            "date",
-            "task_count",
-            "color",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
     return await list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 
@@ -149,39 +145,12 @@ async def list_stages(
     if project_id is not None:
         domain.append(("project_ids", "in", [project_id]))
 
-    fields = ["id", "name", "sequence", "fold", "project_ids"]
     return await client.search_read(
         "project.task.type",
         domain=domain,
-        fields=fields,
+        fields=STAGE_FIELDS,
         order="sequence",
     )
 
 
-def display_stages(stages: list[dict[str, Any]]) -> None:
-    """Display stages in a table or TSV format."""
-    if _is_simple_output():
-        print("id\tname\tsequence\tfold")
-        for stage in stages:
-            fold = "true" if stage.get("fold") else "false"
-            print(f"{stage['id']}\t{stage['name']}\t{stage.get('sequence', '')}\t{fold}")
-    else:
-        from rich.console import Console
-        from rich.table import Table
-
-        console = Console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("ID", style="cyan", justify="right")
-        table.add_column("Name", style="green")
-        table.add_column("Sequence", justify="right")
-        table.add_column("Folded", justify="center")
-
-        for stage in stages:
-            table.add_row(
-                str(stage["id"]),
-                stage["name"],
-                str(stage.get("sequence", "")),
-                "✓" if stage.get("fold") else "",
-            )
-
-        console.print(table)
+# display_stages is imported from vodoo.project_project (pure function, no I/O)

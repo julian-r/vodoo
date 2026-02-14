@@ -35,9 +35,7 @@ from vodoo.aio.base import (
     list_tags as base_list_tags,
 )
 from vodoo.aio.client import AsyncOdooClient
-
-MODEL = "crm.lead"
-TAG_MODEL = "crm.tag"
+from vodoo.crm import DEFAULT_LIST_FIELDS, MODEL, TAG_MODEL
 
 
 async def list_leads(
@@ -48,20 +46,7 @@ async def list_leads(
 ) -> list[dict[str, Any]]:
     """List CRM leads/opportunities."""
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "team_id",
-            "expected_revenue",
-            "probability",
-            "type",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
     return await list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 

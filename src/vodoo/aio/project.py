@@ -29,9 +29,7 @@ from vodoo.aio.base import (
     list_tags as base_list_tags,
 )
 from vodoo.aio.client import AsyncOdooClient
-
-MODEL = "project.task"
-TAG_MODEL = "project.tags"
+from vodoo.project import DEFAULT_LIST_FIELDS, MODEL, TAG_MODEL, _build_task_values
 
 
 async def create_task(
@@ -45,21 +43,9 @@ async def create_task(
     **kwargs: Any,
 ) -> int:
     """Create a new project task."""
-    values: dict[str, Any] = {
-        "name": name,
-        "project_id": project_id,
-    }
-    if description:
-        values["description"] = description
-    if user_ids:
-        values["user_ids"] = [(6, 0, user_ids)]
-    if tag_ids:
-        values["tag_ids"] = [(6, 0, tag_ids)]
-    if parent_id:
-        values["parent_id"] = parent_id
-    values.update(kwargs)
-
-    context: dict[str, Any] = {"default_project_id": project_id}
+    values, context = _build_task_values(
+        name, project_id, description, user_ids, tag_ids, parent_id, **kwargs
+    )
     return await client.create(MODEL, values, context=context)
 
 
@@ -71,17 +57,7 @@ async def list_tasks(
 ) -> list[dict[str, Any]]:
     """List project tasks."""
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "project_id",
-            "stage_id",
-            "user_ids",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
     return await list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 

@@ -35,9 +35,7 @@ from vodoo.aio.base import (
     list_tags as base_list_tags,
 )
 from vodoo.aio.client import AsyncOdooClient
-
-MODEL = "helpdesk.ticket"
-TAG_MODEL = "helpdesk.tag"
+from vodoo.helpdesk import DEFAULT_LIST_FIELDS, MODEL, TAG_MODEL
 
 
 async def list_tickets(
@@ -48,16 +46,7 @@ async def list_tickets(
 ) -> list[dict[str, Any]]:
     """List helpdesk tickets."""
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
     return await list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 

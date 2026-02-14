@@ -11,11 +11,15 @@ from typing import Any
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.timer import (
     BASE_FIELDS,
+    TIMER_TIMER_DOMAIN,
+    TIMER_TIMER_FIELDS,
     TIMESHEET_MODEL,
     TimerSource,
     Timesheet,
     _parse_odoo_datetime,
     _parse_timesheet,
+    build_running_timer,
+    merge_running_timers,
 )
 
 # -- Async timer backends --
@@ -70,32 +74,7 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         uid: int,
     ) -> list[Timesheet]:
         running_timers = await self._fetch_running_timers(client, uid)
-        result = list(timesheets)
-
-        for timer in running_timers:
-            source_id = timer.source.id
-            match_idx: int | None = None
-
-            for i, ts in enumerate(result):
-                if ts.source.kind == timer.source.kind and ts.source.id == source_id:
-                    match_idx = i
-                    break
-
-            if match_idx is not None:
-                existing = result[match_idx]
-                result[match_idx] = Timesheet(
-                    id=existing.id,
-                    name=existing.name,
-                    project_name=existing.project_name,
-                    source=existing.source,
-                    unit_amount=existing.unit_amount,
-                    timer_start=timer.timer_start,
-                    date=existing.date,
-                )
-            else:
-                result.append(timer)
-
-        return result
+        return merge_running_timers(timesheets, running_timers)
 
     async def start_timer(self, timesheet: Timesheet, client: AsyncOdooClient) -> None:
         if timesheet.source.kind == "task":
@@ -119,12 +98,8 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         try:
             records = await client.search_read(
                 "timer.timer",
-                domain=[
-                    ["user_id", "=", uid],
-                    ["timer_start", "!=", False],
-                    ["timer_pause", "=", False],
-                ],
-                fields=["timer_start", "res_model", "res_id"],
+                domain=[["user_id", "=", uid], *TIMER_TIMER_DOMAIN],
+                fields=TIMER_TIMER_FIELDS,
             )
         except Exception:
             return []
@@ -182,19 +157,7 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
             else:
                 continue
 
-            timer_id = -(record.get("id", res_id))
-            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            timesheets.append(
-                Timesheet(
-                    id=timer_id,
-                    name="",
-                    project_name=project_name,
-                    source=source,
-                    unit_amount=0,
-                    timer_start=timer_start,
-                    date=today,
-                )
-            )
+            timesheets.append(build_running_timer(record, source, project_name, timer_start))
 
         return timesheets
 
@@ -204,9 +167,7 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
 
 def get_timer_backend(client: AsyncOdooClient) -> AsyncTimerBackend:
     """Get the appropriate async timer backend based on the Odoo version."""
-    from vodoo.aio.transport import AsyncJSON2Transport
-
-    if isinstance(client._transport, AsyncJSON2Transport):
+    if client.is_json2:
         return AsyncOdoo19TimerBackend()
     return AsyncLegacyTimerBackend()
 

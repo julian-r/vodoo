@@ -40,6 +40,22 @@ from vodoo.client import OdooClient
 MODEL = "crm.lead"
 TAG_MODEL = "crm.tag"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "partner_id",
+    "stage_id",
+    "user_id",
+    "team_id",
+    "expected_revenue",
+    "probability",
+    "type",
+    "priority",
+    "tag_ids",
+    "create_date",
+]
+
 
 def list_leads(
     client: OdooClient,
@@ -60,20 +76,7 @@ def list_leads(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "team_id",
-            "expected_revenue",
-            "probability",
-            "type",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
