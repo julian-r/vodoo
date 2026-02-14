@@ -71,6 +71,7 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 ### Library
 
 - 🐍 Clean Python API — `OdooClient`, `OdooConfig`, domain helpers
+- ⚡ Full async support via `vodoo.aio` — `AsyncOdooClient` with async context manager
 - 🎯 Structured exception hierarchy mirroring Odoo server errors
 - 📦 No CLI dependencies loaded when imported as a library
 - 🔒 Strict mypy typing throughout
@@ -206,6 +207,36 @@ except VodooError as e:
     print(f"Something else went wrong: {e}")
 ```
 
+## Async Usage
+
+All library functionality is also available as async via `vodoo.aio`:
+
+```python
+from vodoo import OdooConfig
+from vodoo.aio import AsyncOdooClient
+
+config = OdooConfig(
+    url="https://my-instance.odoo.com",
+    database="mydb",
+    username="bot@example.com",
+    password="api-key",
+)
+
+async with AsyncOdooClient(config) as client:
+    # Domain helpers
+    from vodoo.aio.project import list_tasks
+    tasks = await list_tasks(client, limit=10)
+
+    # Generic client
+    partners = await client.search_read("res.partner", fields=["name", "email"], limit=5)
+
+    # Comments / notes
+    from vodoo.aio.crm import add_comment
+    await add_comment(client, 123, "Async update")
+```
+
+Every sync module has an async counterpart under `vodoo.aio` — same function signatures, just `await`ed.
+
 ## CLI Usage
 
 ### CRM Leads/Opportunities
@@ -310,7 +341,11 @@ src/vodoo/
 ├── knowledge.py          # Knowledge article operations (enterprise)
 ├── generic.py            # Generic model CRUD
 ├── security.py           # Security groups, user management
-└── timer.py              # Timer/timesheet start, stop, status
+├── timer.py              # Timer/timesheet start, stop, status
+└── aio/                  # Async versions of all modules above
+    ├── client.py         # AsyncOdooClient
+    ├── transport.py      # Async JSON-2 + legacy transports
+    └── ...               # Async domain modules (same API, awaitable)
 ```
 
 ## Integration Tests
