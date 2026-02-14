@@ -16,6 +16,8 @@ from vodoo.base import (
     _MESSAGE_FIELDS,
     _TAG_FIELDS,
     _convert_to_html,
+    _decode_attachment_data,
+    _decode_attachment_record,
     _format_field_value,
     _get_console,
     _html_to_markdown,
@@ -55,7 +57,9 @@ __all__ = [
     "display_tags",
     "download_attachment",
     "download_record_attachments",
+    "get_attachment_data",
     "get_record",
+    "get_record_attachment_data",
     "get_record_url",
     "list_attachments",
     "list_fields",
@@ -325,6 +329,48 @@ async def download_record_attachments(
             continue
 
     return downloaded_files
+
+
+async def get_attachment_data(
+    client: AsyncOdooClient,
+    attachment_id: int,
+) -> bytes:
+    """Read an attachment and return its raw binary content in-memory."""
+    attachments = await client.read("ir.attachment", [attachment_id], _ATTACHMENT_READ_FIELDS)
+
+    if not attachments:
+        raise RecordNotFoundError("ir.attachment", attachment_id)
+
+    return _decode_attachment_data(attachments[0], attachment_id)
+
+
+async def get_record_attachment_data(
+    client: AsyncOdooClient,
+    model: str,
+    record_id: int,
+) -> list[tuple[int, str, bytes]]:
+    """Read all attachments for a record and return their binary content in-memory."""
+    attachments = await list_attachments(client, model, record_id)
+
+    result: list[tuple[int, str, bytes]] = []
+    for att_meta in attachments:
+        att_id = att_meta["id"]
+        try:
+            att_data = await client.read(
+                "ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS]
+            )
+            if not att_data:
+                continue
+            decoded = _decode_attachment_record(att_data[0], att_id)
+            if decoded is not None:
+                result.append(decoded)
+        except Exception as e:
+            import logging
+
+            logging.getLogger("vodoo").warning("Failed to read attachment %s: %s", att_id, e)
+            continue
+
+    return result
 
 
 async def create_attachment(

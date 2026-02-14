@@ -371,6 +371,44 @@ class TestAsyncProjectTask:
 
                 await delete_record(async_client, "ir.attachment", att_id)
 
+    async def test_get_attachment_data(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.base import get_attachment_data
+        from vodoo.aio.project import create_task_attachment
+
+        content = b"async get_attachment_data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = await create_task_attachment(async_client, self.task_id, tmp_path)
+            data = await get_attachment_data(async_client, att_id)
+            assert data == content
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    async def test_get_record_attachment_data(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.base import get_record_attachment_data
+        from vodoo.aio.project import create_task_attachment
+
+        content = b"async get_record_attachment_data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            await create_task_attachment(async_client, self.task_id, tmp_path)
+            result = await get_record_attachment_data(async_client, "project.task", self.task_id)
+            assert isinstance(result, list)
+            assert len(result) >= 1
+            for att_id, name, data in result:
+                assert isinstance(att_id, int)
+                assert isinstance(name, str)
+                assert isinstance(data, bytes)
+            assert any(data == content for _, _, data in result)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
     async def test_create_task_with_options(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.generic import delete_record
         from vodoo.aio.project import create_task, get_task
@@ -765,6 +803,42 @@ class TestAsyncHelpdesk:
 
         attachments = await list_attachments(async_client, self.ticket_id)
         assert any(a["id"] == att_id for a in attachments)
+
+    async def test_get_ticket_attachment_data(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.helpdesk import create_attachment, get_ticket_attachment_data
+
+        content = b"attachment bytes test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = await create_attachment(async_client, self.ticket_id, tmp_path)
+            data = await get_ticket_attachment_data(async_client, att_id)
+            assert data == content
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    async def test_get_ticket_attachments_data(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.helpdesk import create_attachment, get_ticket_attachments_data
+
+        content = b"attachments data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            await create_attachment(async_client, self.ticket_id, tmp_path)
+            result = await get_ticket_attachments_data(async_client, self.ticket_id)
+            assert isinstance(result, list)
+            assert len(result) >= 1
+            for att_id, name, data in result:
+                assert isinstance(att_id, int)
+                assert isinstance(name, str)
+                assert isinstance(data, bytes)
+            assert any(data == content for _, _, data in result)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     async def test_ticket_tags(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.generic import create_record, delete_record

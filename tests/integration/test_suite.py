@@ -328,6 +328,44 @@ class TestProjectTask:
 
                 delete_record(client, "ir.attachment", att_id)
 
+    def test_get_attachment_data(self, client: OdooClient) -> None:
+        from vodoo.base import get_attachment_data
+        from vodoo.project import create_task_attachment
+
+        content = b"get_attachment_data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = create_task_attachment(client, self.task_id, tmp_path)
+            data = get_attachment_data(client, att_id)
+            assert data == content
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_get_record_attachment_data(self, client: OdooClient) -> None:
+        from vodoo.base import get_record_attachment_data
+        from vodoo.project import create_task_attachment
+
+        content = b"get_record_attachment_data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            create_task_attachment(client, self.task_id, tmp_path)
+            result = get_record_attachment_data(client, "project.task", self.task_id)
+            assert isinstance(result, list)
+            assert len(result) >= 1
+            for att_id, name, data in result:
+                assert isinstance(att_id, int)
+                assert isinstance(name, str)
+                assert isinstance(data, bytes)
+            assert any(data == content for _, _, data in result)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
     def test_create_task_with_options(self, client: OdooClient) -> None:
         from vodoo.generic import delete_record
         from vodoo.project import create_task, get_task
@@ -719,6 +757,42 @@ class TestHelpdesk:
 
         attachments = list_attachments(client, self.ticket_id)
         assert any(a["id"] == att_id for a in attachments)
+
+    def test_get_ticket_attachment_data(self, client: OdooClient) -> None:
+        from vodoo.helpdesk import create_attachment, get_ticket_attachment_data
+
+        content = b"attachment bytes test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = create_attachment(client, self.ticket_id, tmp_path)
+            data = get_ticket_attachment_data(client, att_id)
+            assert data == content
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_get_ticket_attachments_data(self, client: OdooClient) -> None:
+        from vodoo.helpdesk import create_attachment, get_ticket_attachments_data
+
+        content = b"attachments data test content"
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(content)
+            tmp_path = Path(f.name)
+
+        try:
+            create_attachment(client, self.ticket_id, tmp_path)
+            result = get_ticket_attachments_data(client, self.ticket_id)
+            assert isinstance(result, list)
+            assert len(result) >= 1
+            for att_id, name, data in result:
+                assert isinstance(att_id, int)
+                assert isinstance(name, str)
+                assert isinstance(data, bytes)
+            assert any(data == content for _, _, data in result)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_ticket_tags(self, client: OdooClient) -> None:
         from vodoo.generic import create_record, delete_record
