@@ -26,6 +26,15 @@ if TYPE_CHECKING:
 # is unrealistic: the Odoo server itself is the shared mutable state, so tests
 # and CLI sessions are inherently sequential.
 
+# Field lists shared with aio.base
+_TAG_FIELDS: list[str] = ["id", "name", "color"]
+_MESSAGE_FIELDS: list[str] = [
+    "id", "date", "author_id", "body", "subject",
+    "message_type", "subtype_id", "email_from",
+]
+_ATTACHMENT_LIST_FIELDS: list[str] = ["id", "name", "file_size", "mimetype", "create_date"]
+_ATTACHMENT_READ_FIELDS: list[str] = ["name", "datas"]
+
 _output_console: Console | None = None
 _output_simple: bool = False
 
@@ -507,7 +516,7 @@ def list_tags(client: OdooClient, model: str) -> list[dict[str, Any]]:
         List of tag dictionaries
 
     """
-    fields = ["id", "name", "color"]
+    fields = _TAG_FIELDS
     return client.search_read(model, fields=fields, order="name")
 
 
@@ -597,16 +606,7 @@ def list_messages(
         ("model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = [
-        "id",
-        "date",
-        "author_id",
-        "body",
-        "subject",
-        "message_type",
-        "subtype_id",
-        "email_from",
-    ]
+    fields = _MESSAGE_FIELDS
 
     return client.search_read(
         "mail.message",
@@ -723,7 +723,7 @@ def list_attachments(
         ("res_model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = ["id", "name", "file_size", "mimetype", "create_date"]
+    fields = _ATTACHMENT_LIST_FIELDS
 
     return client.search_read("ir.attachment", domain=domain, fields=fields)
 
@@ -789,7 +789,7 @@ def download_attachment(
         RecordNotFoundError: If attachment not found
 
     """
-    attachments = client.read("ir.attachment", [attachment_id], ["name", "datas"])
+    attachments = client.read("ir.attachment", [attachment_id], _ATTACHMENT_READ_FIELDS)
 
     if not attachments:
         raise RecordNotFoundError("ir.attachment", attachment_id)
@@ -851,7 +851,7 @@ def download_record_attachments(
     for attachment in attachments:
         filename = attachment.get("name", f"attachment_{attachment['id']}")
         try:
-            att_data = client.read("ir.attachment", [attachment["id"]], ["name", "datas"])
+            att_data = client.read("ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS)
             if not att_data:
                 continue
 

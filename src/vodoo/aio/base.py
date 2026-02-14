@@ -11,6 +11,10 @@ from typing import Any
 from vodoo.aio.auth import message_post_sudo
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.base import (
+    _ATTACHMENT_LIST_FIELDS,
+    _ATTACHMENT_READ_FIELDS,
+    _MESSAGE_FIELDS,
+    _TAG_FIELDS,
     _convert_to_html,
     _format_field_value,
     _get_console,
@@ -176,7 +180,7 @@ async def add_note(
 
 async def list_tags(client: AsyncOdooClient, model: str) -> list[dict[str, Any]]:
     """List available tags for a model."""
-    fields = ["id", "name", "color"]
+    fields = _TAG_FIELDS
     return await client.search_read(model, fields=fields, order="name")
 
 
@@ -210,16 +214,7 @@ async def list_messages(
         ("model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = [
-        "id",
-        "date",
-        "author_id",
-        "body",
-        "subject",
-        "message_type",
-        "subtype_id",
-        "email_from",
-    ]
+    fields = _MESSAGE_FIELDS
     return await client.search_read(
         "mail.message",
         domain=domain,
@@ -239,7 +234,7 @@ async def list_attachments(
         ("res_model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = ["id", "name", "file_size", "mimetype", "create_date"]
+    fields = _ATTACHMENT_LIST_FIELDS
     return await client.search_read("ir.attachment", domain=domain, fields=fields)
 
 
@@ -261,7 +256,7 @@ async def download_attachment(
     Raises:
         RecordNotFoundError: If attachment not found
     """
-    attachments = await client.read("ir.attachment", [attachment_id], ["name", "datas"])
+    attachments = await client.read("ir.attachment", [attachment_id], _ATTACHMENT_READ_FIELDS)
     if not attachments:
         raise RecordNotFoundError("ir.attachment", attachment_id)
 
@@ -308,7 +303,7 @@ async def download_record_attachments(
     for attachment in attachments:
         filename = attachment.get("name", f"attachment_{attachment['id']}")
         try:
-            att_data = await client.read("ir.attachment", [attachment["id"]], ["name", "datas"])
+            att_data = await client.read("ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS)
             if not att_data:
                 continue
 

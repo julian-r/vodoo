@@ -293,7 +293,7 @@ class TestFieldParsingError:
     def test_bad_format_raises(self) -> None:
         client = self._make_client_with_fields()
 
-        from vodoo.base import parse_field_assignment
+        from vodoo.fields import parse_field_assignment
 
         with pytest.raises(FieldParsingError):
             parse_field_assignment(client, "res.partner", 1, "no-equals-sign")
@@ -301,7 +301,7 @@ class TestFieldParsingError:
     def test_bad_json_raises(self) -> None:
         client = self._make_client_with_fields()
 
-        from vodoo.base import parse_field_assignment
+        from vodoo.fields import parse_field_assignment
 
         with pytest.raises(FieldParsingError):
             parse_field_assignment(client, "res.partner", 1, "name=json:{invalid")
@@ -309,7 +309,7 @@ class TestFieldParsingError:
     def test_compound_operator_non_numeric_raises(self) -> None:
         client = self._make_client_with_fields()
 
-        from vodoo.base import parse_field_assignment
+        from vodoo.fields import parse_field_assignment
 
         with pytest.raises(FieldParsingError):
             parse_field_assignment(client, "res.partner", 1, "name+=hello")
@@ -317,7 +317,7 @@ class TestFieldParsingError:
     def test_division_by_zero_raises(self) -> None:
         client = self._make_client_with_fields()
 
-        from vodoo.base import parse_field_assignment
+        from vodoo.fields import parse_field_assignment
 
         with pytest.raises(FieldParsingError):
             parse_field_assignment(client, "res.partner", 1, "priority/=0")
@@ -325,7 +325,7 @@ class TestFieldParsingError:
     def test_catchable_as_vodoo_error(self) -> None:
         client = self._make_client_with_fields()
 
-        from vodoo.base import parse_field_assignment
+        from vodoo.fields import parse_field_assignment
 
         with pytest.raises(VodooError):
             parse_field_assignment(client, "res.partner", 1, "garbage")
