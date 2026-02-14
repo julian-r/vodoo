@@ -20,6 +20,7 @@ from vodoo.base import (
     _get_console,
     _html_to_markdown,
     _is_simple_output,
+    _prepare_attachment_upload,
     configure_output,
     display_attachments,
     display_messages,
@@ -330,7 +331,9 @@ async def create_attachment(
     client: AsyncOdooClient,
     model: str,
     record_id: int,
-    file_path: Path | str,
+    file_path: Path | str | None = None,
+    *,
+    data: bytes | None = None,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a record.
@@ -339,37 +342,18 @@ async def create_attachment(
         client: Async Odoo client
         model: Model name
         record_id: Record ID
-        file_path: Path to file to attach
-        name: Attachment name (defaults to filename)
+        file_path: Path to file to attach (mutually exclusive with data)
+        data: Raw bytes to attach (mutually exclusive with file_path)
+        name: Attachment name (defaults to filename; required when using data)
 
     Returns:
         ID of created attachment
 
     Raises:
         FileNotFoundError: If file path is invalid
-        ValueError: If path is not a file
+        ValueError: If arguments are invalid
     """
-    file_path = Path(file_path)
-
-    if not file_path.exists():
-        msg = f"File not found: {file_path}"
-        raise FileNotFoundError(msg)
-
-    if not file_path.is_file():
-        msg = f"Path is not a file: {file_path}"
-        raise ValueError(msg)
-
-    file_data = file_path.read_bytes()
-    encoded_data = base64.b64encode(file_data).decode("utf-8")
-    attachment_name = name or file_path.name
-
-    values = {
-        "name": attachment_name,
-        "datas": encoded_data,
-        "res_model": model,
-        "res_id": record_id,
-    }
-
+    values = _prepare_attachment_upload(file_path, data, name, model, record_id)
     return await client.create("ir.attachment", values)
 
 
