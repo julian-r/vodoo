@@ -3,6 +3,7 @@
 Mirrors :class:`vodoo.client.OdooClient` with async methods.
 """
 
+import asyncio
 from typing import Any
 
 from vodoo.aio.transport import (
@@ -48,25 +49,31 @@ class AsyncOdooClient:
         self.db = config.database
         self.username = config.username
         self.password = config.password
+        self._retry = config.retry_config
 
         self._transport: AsyncOdooTransport | None = transport
         self._auto_detect = auto_detect
+        self._init_lock = asyncio.Lock()
 
     async def _ensure_transport(self) -> AsyncOdooTransport:
-        """Lazily initialise and return the transport."""
+        """Lazily initialise and return the transport (thread-safe)."""
         if self._transport is not None:
             return self._transport
 
-        if self._auto_detect:
-            self._transport = await self._detect_transport()
-        else:
-            self._transport = AsyncLegacyTransport(
-                url=self.url,
-                database=self.db,
-                username=self.username,
-                password=self.password,
-            )
-        return self._transport
+        async with self._init_lock:
+            if self._transport is not None:
+                return self._transport
+            if self._auto_detect:
+                self._transport = await self._detect_transport()
+            else:
+                self._transport = AsyncLegacyTransport(
+                    url=self.url,
+                    database=self.db,
+                    username=self.username,
+                    password=self.password,
+                    retry=self._retry,
+                )
+            return self._transport
 
     @property
     def transport(self) -> AsyncOdooTransport:
@@ -91,6 +98,7 @@ class AsyncOdooClient:
             database=self.db,
             username=self.username,
             password=self.password,
+            retry=self._retry,
         )
         try:
             await json2.authenticate()
@@ -102,6 +110,7 @@ class AsyncOdooClient:
                 database=self.db,
                 username=self.username,
                 password=self.password,
+                retry=self._retry,
             )
 
     async def close(self) -> None:
