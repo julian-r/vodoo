@@ -1,4 +1,4 @@
-"""Async Odoo client wrapper.
+"""Async Odoo client wrapper with domain namespaces.
 
 Mirrors :class:`vodoo.client.OdooClient` with async methods.
 """
@@ -55,6 +55,16 @@ class AsyncOdooClient:
         self._transport: AsyncOdooTransport | None = transport
         self._auto_detect = auto_detect
         self._init_lock = asyncio.Lock()
+
+        # Domain namespaces
+        self.helpdesk = _make_helpdesk(self)
+        self.crm = _make_crm(self)
+        self.tasks = _make_tasks(self)
+        self.projects = _make_projects(self)
+        self.knowledge = _make_knowledge(self)
+        self.timer = _make_timer(self)
+        self.security = _make_security(self)
+        self.generic = _make_generic(self)
 
     async def _ensure_transport(self) -> AsyncOdooTransport:
         """Lazily initialise and return the transport (thread-safe)."""
@@ -239,3 +249,56 @@ class AsyncOdooClient:
         """Autocomplete search returning (id, display_name) pairs."""
         transport = await self._ensure_transport()
         return await transport.name_search(model, name, domain, limit)
+
+
+# ---------------------------------------------------------------------------
+# Lazy namespace factories (avoid circular imports)
+# ---------------------------------------------------------------------------
+
+
+def _make_helpdesk(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.helpdesk import AsyncHelpdeskNamespace
+
+    return AsyncHelpdeskNamespace(client)
+
+
+def _make_crm(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.crm import AsyncCRMNamespace
+
+    return AsyncCRMNamespace(client)
+
+
+def _make_tasks(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.project import AsyncTaskNamespace
+
+    return AsyncTaskNamespace(client)
+
+
+def _make_projects(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.project_project import AsyncProjectNamespace
+
+    return AsyncProjectNamespace(client)
+
+
+def _make_knowledge(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.knowledge import AsyncKnowledgeNamespace
+
+    return AsyncKnowledgeNamespace(client)
+
+
+def _make_timer(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.timer import AsyncTimerNamespace
+
+    return AsyncTimerNamespace(client)
+
+
+def _make_security(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.security import AsyncSecurityNamespace
+
+    return AsyncSecurityNamespace(client)
+
+
+def _make_generic(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.generic import AsyncGenericNamespace
+
+    return AsyncGenericNamespace(client)

@@ -1,4 +1,4 @@
-"""Odoo client wrapper.
+"""Odoo client wrapper with domain namespaces.
 The transport is auto-detected based on the Odoo version unless explicitly specified.
 Some methods (``search``, ``read``, ``search_read``, ``unlink``, ``name_search``)
 are pure pass-throughs to the transport.  They exist so callers always use
@@ -59,6 +59,16 @@ class OdooClient:
                 password=self.password,
                 retry=self._retry,
             )
+
+        # Domain namespaces
+        self.helpdesk = _make_helpdesk(self)
+        self.crm = _make_crm(self)
+        self.tasks = _make_tasks(self)
+        self.projects = _make_projects(self)
+        self.knowledge = _make_knowledge(self)
+        self.timer = _make_timer(self)
+        self.security = _make_security(self)
+        self.generic = _make_generic(self)
 
     @property
     def transport(self) -> OdooTransport:
@@ -219,3 +229,56 @@ class OdooClient:
     ) -> list[tuple[int, str]]:
         """Autocomplete search returning (id, display_name) pairs."""
         return self._transport.name_search(model, name, domain, limit)
+
+
+# ---------------------------------------------------------------------------
+# Lazy namespace factories (avoid circular imports)
+# ---------------------------------------------------------------------------
+
+
+def _make_helpdesk(client: OdooClient) -> Any:
+    from vodoo.helpdesk import HelpdeskNamespace
+
+    return HelpdeskNamespace(client)
+
+
+def _make_crm(client: OdooClient) -> Any:
+    from vodoo.crm import CRMNamespace
+
+    return CRMNamespace(client)
+
+
+def _make_tasks(client: OdooClient) -> Any:
+    from vodoo.project import TaskNamespace
+
+    return TaskNamespace(client)
+
+
+def _make_projects(client: OdooClient) -> Any:
+    from vodoo.project_project import ProjectNamespace
+
+    return ProjectNamespace(client)
+
+
+def _make_knowledge(client: OdooClient) -> Any:
+    from vodoo.knowledge import KnowledgeNamespace
+
+    return KnowledgeNamespace(client)
+
+
+def _make_timer(client: OdooClient) -> Any:
+    from vodoo.timer import TimerNamespace
+
+    return TimerNamespace(client)
+
+
+def _make_security(client: OdooClient) -> Any:
+    from vodoo.security import SecurityNamespace
+
+    return SecurityNamespace(client)
+
+
+def _make_generic(client: OdooClient) -> Any:
+    from vodoo.generic import GenericNamespace
+
+    return GenericNamespace(client)
