@@ -39,6 +39,23 @@ DEFAULT_LIST_FIELDS = [
     "color",
 ]
 
+# Default fields for get (detail) operations — excludes gated fields like stage_id
+DEFAULT_DETAIL_FIELDS = [
+    "id",
+    "name",
+    "description",
+    "active",
+    "user_id",
+    "partner_id",
+    "company_id",
+    "date_start",
+    "date",
+    "task_count",
+    "tag_ids",
+    "color",
+    "write_date",
+]
+
 # Fields for stage listing
 STAGE_FIELDS = ["id", "name", "sequence", "fold", "project_ids"]
 
@@ -87,7 +104,7 @@ def get_project(
     Args:
         client: Odoo client
         project_id: Project ID
-        fields: List of field names to read (None = all fields)
+        fields: List of field names to read (None = default detail fields)
 
     Returns:
         Project dictionary
@@ -96,6 +113,8 @@ def get_project(
         ValueError: If project not found
 
     """
+    if fields is None:
+        fields = list(DEFAULT_DETAIL_FIELDS)
     return get_record(client, MODEL, project_id, fields=fields)
 
 

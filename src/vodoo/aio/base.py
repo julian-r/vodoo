@@ -11,11 +11,14 @@ from typing import Any
 from vodoo.aio.auth import message_post_sudo
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.base import (
+    _apply_operator,
     _convert_to_html,
     _format_field_value,
     _get_console,
     _html_to_markdown,
     _is_simple_output,
+    _match_field_assignment,
+    _parse_raw_value,
     configure_output,
     display_attachments,
     display_messages,
@@ -24,7 +27,7 @@ from vodoo.base import (
     display_tags,
     get_record_url,
 )
-from vodoo.exceptions import FieldParsingError, RecordNotFoundError
+from vodoo.exceptions import RecordNotFoundError
 
 # Re-export pure functions so async domain modules can import everything from here
 __all__ = [
@@ -371,7 +374,7 @@ async def create_attachment(
     return await client.create("ir.attachment", values)
 
 
-async def parse_field_assignment(  # noqa: PLR0912, PLR0915
+async def parse_field_assignment(
     client: AsyncOdooClient,
     model: str,
     record_id: int,
@@ -379,74 +382,20 @@ async def parse_field_assignment(  # noqa: PLR0912, PLR0915
     no_markdown: bool = False,
 ) -> tuple[str, Any]:
     """Parse a field assignment and return field name and computed value.
-
-    Supports operators: =, +=, -=, *=, /=
     HTML fields automatically get markdown conversion unless no_markdown=True.
     """
-    import contextlib
-    import json
-    import re
+    field, operator, value = _match_field_assignment(field_assignment)
+    parsed_value = _parse_raw_value(field, value)
 
-    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
-    if not match:
-        msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
-        raise FieldParsingError(msg)
-
-    field = match.group(1).strip()
-    operator = match.group(2).strip()
-    value = match.group(3).strip()
-
-    parsed_value: Any = value
-
-    if value.startswith("json:"):
-        try:
-            parsed_value = json.loads(value[5:])
-        except json.JSONDecodeError as e:
-            msg = f"Invalid JSON for field '{field}': {e}"
-            raise FieldParsingError(msg) from e
-    elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-        parsed_value = int(value)
-    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-        with contextlib.suppress(ValueError):
-            parsed_value = float(value)
-    elif value.lower() in ("true", "false"):
-        parsed_value = value.lower() == "true"
-    elif (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        parsed_value = value[1:-1]
-
+    # Auto-convert markdown to HTML for HTML fields
     if isinstance(parsed_value, str) and not no_markdown:
         fields_info = await list_fields(client, model)
         if field in fields_info and fields_info[field].get("type") == "html":
             parsed_value = _convert_to_html(parsed_value, use_markdown=True)
-
+    # Handle operators that require current value
     if operator in ("+=", "-=", "*=", "/="):
         record = await get_record(client, model, record_id, fields=[field])
         current_value = record.get(field)
-
-        if current_value is None:
-            msg = f"Field '{field}' not found or is None"
-            raise FieldParsingError(msg)
-
-        if not isinstance(current_value, (int, float)):
-            msg = f"Field '{field}' has non-numeric value: {current_value}"
-            raise FieldParsingError(msg)
-
-        if not isinstance(parsed_value, (int, float)):
-            msg = f"Operator '{operator}' requires numeric value, got: {value}"
-            raise FieldParsingError(msg)
-
-        if operator == "+=":
-            parsed_value = current_value + parsed_value
-        elif operator == "-=":
-            parsed_value = current_value - parsed_value
-        elif operator == "*=":
-            parsed_value = current_value * parsed_value
-        elif operator == "/=":
-            if parsed_value == 0:
-                msg = "Division by zero"
-                raise FieldParsingError(msg)
-            parsed_value = current_value / parsed_value
+        parsed_value = _apply_operator(field, operator, parsed_value, current_value)
 
     return field, parsed_value

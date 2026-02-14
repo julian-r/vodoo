@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import html.parser as _html_parser_mod
+import json
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -946,8 +949,80 @@ def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
     base_url = client.config.url.rstrip("/")
     return f"{base_url}/web#id={record_id}&model={model}&view_type=form"
 
+def _match_field_assignment(field_assignment: str) -> tuple[str, str, str]:
+    """Match a field assignment string and return (field, operator, value).
 
-def parse_field_assignment(  # noqa: PLR0912, PLR0915
+    Raises:
+        FieldParsingError: If the assignment format is invalid.
+    """
+    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
+    if not match:
+        msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
+        raise FieldParsingError(msg)
+    field = match.group(1).strip()
+    operator = match.group(2).strip()
+    value = match.group(3).strip()
+    return field, operator, value
+
+
+def _parse_raw_value(field: str, value: str) -> Any:
+    """Parse a raw string value into a typed Python value.
+
+    Handles ``json:`` prefix, integers, floats, booleans, and quoted strings.
+    """
+    parsed_value: Any = value
+    if value.startswith("json:"):
+        try:
+            parsed_value = json.loads(value[5:])
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON for field '{field}': {e}"
+            raise FieldParsingError(msg) from e
+    elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+        parsed_value = int(value)
+    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
+        with contextlib.suppress(ValueError):
+            parsed_value = float(value)
+    elif value.lower() in ("true", "false"):
+        parsed_value = value.lower() == "true"
+    elif (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
+        parsed_value = value[1:-1]
+    return parsed_value
+
+
+def _apply_operator(field: str, operator: str, parsed_value: Any, current_value: Any) -> Any:
+    """Apply a compound operator (``+=``, ``-=``, ``*=``, ``/=``).
+
+    Raises:
+        FieldParsingError: On non-numeric values or division by zero.
+    """
+    if current_value is None:
+        msg = f"Field '{field}' not found or is None"
+        raise FieldParsingError(msg)
+
+    if not isinstance(current_value, (int, float)):
+        msg = f"Field '{field}' has non-numeric value: {current_value}"
+        raise FieldParsingError(msg)
+
+    if not isinstance(parsed_value, (int, float)):
+        msg = f"Operator '{operator}' requires numeric value, got: {parsed_value}"
+        raise FieldParsingError(msg)
+
+    if operator == "+=":
+        return current_value + parsed_value
+    if operator == "-=":
+        return current_value - parsed_value
+    if operator == "*=":
+        return current_value * parsed_value
+    # operator == "/="
+    if parsed_value == 0:
+        msg = "Division by zero"
+        raise FieldParsingError(msg)
+    return current_value / parsed_value
+
+
+def parse_field_assignment(
     client: OdooClient,
     model: str,
     record_id: int,
@@ -955,106 +1030,31 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
     no_markdown: bool = False,
 ) -> tuple[str, Any]:
     """Parse a field assignment and return field name and computed value.
-
-    Supports operators: =, +=, -=, *=, /=
     HTML fields automatically get markdown conversion unless no_markdown=True.
-
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
         no_markdown: If True, disable automatic markdown conversion for HTML fields
-
-    Returns:
         Tuple of (field_name, value)
-
     Raises:
         FieldParsingError: If assignment format is invalid
-
-    Examples:
         >>> parse_field_assignment(client, "project.task", 42, "name=New Title")
         ('name', 'New Title')
         >>> parse_field_assignment(client, "project.task", 42, "priority+=1")
         ('priority', 3)  # if current priority is 2
-
     """
-    import contextlib
-    import json
-    import re
-
-    # Match assignment operators: =, +=, -=, *=, /=
-    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
-    if not match:
-        msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
-        raise FieldParsingError(msg)
-
-    field = match.group(1).strip()
-    operator = match.group(2).strip()
-    value = match.group(3).strip()
-
-    # Parse the value
-    parsed_value: Any = value
-
-    # Check for JSON prefix
-    if value.startswith("json:"):
-        try:
-            parsed_value = json.loads(value[5:])
-        except json.JSONDecodeError as e:
-            msg = f"Invalid JSON for field '{field}': {e}"
-            raise FieldParsingError(msg) from e
-    # Try to parse as integer
-    elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-        parsed_value = int(value)
-    # Try to parse as float
-    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-        with contextlib.suppress(ValueError):
-            parsed_value = float(value)
-    # Try to parse as boolean
-    elif value.lower() in ("true", "false"):
-        parsed_value = value.lower() == "true"
-    # Keep as string otherwise (remove surrounding quotes if present)
-    elif (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        parsed_value = value[1:-1]
-
+    field, operator, value = _match_field_assignment(field_assignment)
+    parsed_value = _parse_raw_value(field, value)
     # Auto-convert markdown to HTML for HTML fields
     if isinstance(parsed_value, str) and not no_markdown:
         fields_info = list_fields(client, model)
         if field in fields_info and fields_info[field].get("type") == "html":
             parsed_value = _convert_to_html(parsed_value, use_markdown=True)
-
-    # Handle operators that require current value
     if operator in ("+=", "-=", "*=", "/="):
-        # Get current value
         record = get_record(client, model, record_id, fields=[field])
         current_value = record.get(field)
-
-        if current_value is None:
-            msg = f"Field '{field}' not found or is None"
-            raise FieldParsingError(msg)
-
-        # Ensure both values are numeric
-        if not isinstance(current_value, (int, float)):
-            msg = f"Field '{field}' has non-numeric value: {current_value}"
-            raise FieldParsingError(msg)
-
-        if not isinstance(parsed_value, (int, float)):
-            msg = f"Operator '{operator}' requires numeric value, got: {value}"
-            raise FieldParsingError(msg)
-
-        # Perform operation
-        if operator == "+=":
-            parsed_value = current_value + parsed_value
-        elif operator == "-=":
-            parsed_value = current_value - parsed_value
-        elif operator == "*=":
-            parsed_value = current_value * parsed_value
-        elif operator == "/=":
-            if parsed_value == 0:
-                msg = "Division by zero"
-                raise FieldParsingError(msg)
-            parsed_value = current_value / parsed_value
+        parsed_value = _apply_operator(field, operator, parsed_value, current_value)
 
     return field, parsed_value

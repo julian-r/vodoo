@@ -55,11 +55,21 @@ def is_enterprise() -> bool:
 
 @pytest.fixture(scope="session")
 def odoo_config() -> OdooConfig:
-    """Load OdooConfig from the test env file."""
+    """Load OdooConfig from the test env file.
+
+    Injects ODOO_* vars into ``os.environ`` so they take highest priority
+    in pydantic-settings, overriding any stale shell variables or the
+    project-root ``.env`` (which may contain production credentials).
+    """
     env_file = os.environ.get("VODOO_TEST_ENV", "")
     if not env_file or not Path(env_file).exists():
         pytest.skip(f"VODOO_TEST_ENV not set or file missing: {env_file!r}")
-
+    # Force test values into os.environ so they beat any existing ODOO_* vars
+    for line in Path(env_file).read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ[key] = value
     return OdooConfig(_env_file=env_file)  # type: ignore[call-arg]
 
 

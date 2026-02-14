@@ -24,6 +24,7 @@ from vodoo.aio.base import (
 )
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.project_project import (
+    DEFAULT_DETAIL_FIELDS,
     DEFAULT_LIST_FIELDS,
     MODEL,
     STAGE_FIELDS,
@@ -56,6 +57,8 @@ async def get_project(
     fields: list[str] | None = None,
 ) -> dict[str, Any]:
     """Get detailed project information."""
+    if fields is None:
+        fields = list(DEFAULT_DETAIL_FIELDS)
     return await get_record(client, MODEL, project_id, fields=fields)
 
 

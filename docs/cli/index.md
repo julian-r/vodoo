@@ -36,6 +36,20 @@ By default, Vodoo uses Rich tables for colorful terminal output. Use `--simple` 
 vodoo --simple helpdesk list | cut -f1,2
 ```
 
+### HTML Handling
+
+Odoo stores all rich-text content (descriptions, knowledge article bodies, chatter messages) as HTML. Vodoo converts this for terminal display depending on the context:
+
+| Content | Default mode | `--simple` mode | `--show-html` |
+|---------|-------------|-----------------|---------------|
+| **Descriptions** (tickets, tasks, leads) | HTML → Markdown | HTML → Markdown | Raw HTML |
+| **Knowledge article bodies** | HTML → Markdown | HTML → Markdown | Raw HTML |
+| **Chatter messages** | HTML → plain text (tags stripped) | HTML → plain text (tags stripped) | Raw HTML |
+
+Descriptions and article bodies are converted to **Markdown** (preserving headings, bold, lists, links, etc.) since they tend to be longer, structured content. Chatter messages are stripped to **plain text** since they're typically short comments and notifications where formatting isn't essential.
+
+When writing content back to Odoo (via `comment`, `note`, or `set`), Vodoo converts your input **to HTML** — with optional `--markdown` support for rich formatting.
+
 ## Common Patterns
 
 All domain subcommands (`helpdesk`, `project-task`, `project`, `crm`) share a consistent interface:

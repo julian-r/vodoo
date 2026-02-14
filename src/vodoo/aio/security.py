@@ -9,6 +9,7 @@ from vodoo.security import (
     GroupDefinition,
     RuleDefinition,
     _access_name,
+    _generate_password,
     _rule_name,
 )
 
@@ -202,12 +203,8 @@ async def create_user(
     email: str | None = None,
 ) -> tuple[int, str]:
     """Create a new user."""
-    import secrets
-    import string
-
     if password is None:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        password = "".join(secrets.choice(alphabet) for _ in range(24))
+        password = _generate_password()
 
     if email is None:
         email = login
@@ -233,12 +230,8 @@ async def set_user_password(
     password: str | None = None,
 ) -> str:
     """Set a user's password."""
-    import secrets
-    import string
-
     if password is None:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        password = "".join(secrets.choice(alphabet) for _ in range(24))
+        password = _generate_password()
 
     await client.write("res.users", [user_id], {"password": password})
     return password
