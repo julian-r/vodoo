@@ -2,7 +2,7 @@
 
 ## Overview
 
-Vodoo follows a layered architecture where domain modules delegate shared operations to a base layer, and the transport layer handles protocol differences between Odoo versions.
+Vodoo follows a layered architecture where domain modules delegate shared operations to a base layer, and the transport layer handles protocol differences between Odoo versions. The entire stack is available in both sync and async variants.
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -10,17 +10,22 @@ Vodoo follows a layered architecture where domain modules delegate shared operat
 │              Typer subcommands + Rich UI             │
 ├──────────────────────────────────────────────────────┤
 │              Domain Modules                          │
-│  helpdesk.py │ project.py │ crm.py │ knowledge.py   │
-│  project_project.py │ timer.py │ generic.py         │
+│  helpdesk │ project │ crm │ knowledge │ timer │ ...  │
+│           (sync in vodoo.*, async in vodoo.aio.*)    │
 ├──────────────────────────────────────────────────────┤
-│              Base Layer (base.py)                    │
-│  Shared CRUD, messaging, attachments, display        │
+│              Base Layer                              │
+│  base.py / aio/base.py — CRUD, messaging, display   │
 ├──────────────────────────────────────────────────────┤
-│              Client (client.py)                      │
-│  OdooClient — unified API, delegates to transport    │
+│              Client                                  │
+│  OdooClient (sync) │ AsyncOdooClient (async)         │
 ├──────────────────────────────────────────────────────┤
-│              Transport (transport.py)                │
-│  LegacyTransport (JSON-RPC) │ JSON2Transport (REST) │
+│              Transport                               │
+│  Sync: LegacyTransport / JSON2Transport (urllib)     │
+│  Async: AsyncLegacyTransport / AsyncJSON2Transport   │
+│         (httpx)                                      │
+├──────────────────────────────────────────────────────┤
+│              Exceptions (exceptions.py)              │
+│  VodooError → TransportError → OdooUserError → ...   │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -31,7 +36,7 @@ Vodoo follows a layered architecture where domain modules delegate shared operat
 Each domain module defines a `MODEL` constant and thin wrappers around `base.py` functions:
 
 ```python
-# helpdesk.py
+# helpdesk.py (sync) / aio/helpdesk.py (async)
 MODEL = "helpdesk.ticket"
 TAG_MODEL = "helpdesk.tag"
 
@@ -41,16 +46,40 @@ def add_comment(client, ticket_id, message, ...):
 
 This keeps domain modules focused on model-specific concerns (field names, default fields) while all shared logic lives in `base.py`.
 
+### Sync / Async Parity
+
+Every sync module under `vodoo.*` has an async mirror under `vodoo.aio.*` with identical function signatures (but `async def` / `await`). The two stacks share:
+
+- `config.py` — configuration (no I/O)
+- `exceptions.py` — exception hierarchy
+- `timer.py` data classes (`Timesheet`, `TimerBackend` etc.)
+
 ### Transport Abstraction
 
-The `OdooTransport` ABC defines the interface. Two implementations exist:
+The `OdooTransport` ABC defines the interface. Four implementations exist:
 
-| Transport | Odoo Versions | Protocol | Auth |
-|-----------|---------------|----------|------|
-| `LegacyTransport` | 14–18 | `POST /jsonrpc` with service envelope | Session cookie |
-| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | Bearer token |
+| Transport | Odoo Versions | Protocol | HTTP Library |
+|-----------|---------------|----------|--------------|
+| `LegacyTransport` | 14–18 | `POST /jsonrpc` | `urllib` (stdlib) |
+| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `urllib` (stdlib) |
+| `AsyncLegacyTransport` | 14–18 | `POST /jsonrpc` | `httpx` |
+| `AsyncJSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx` |
 
-Auto-detection happens in `OdooClient.__init__()`: it tries JSON-2 first, falls back to legacy.
+Auto-detection happens on client init: it tries JSON-2 first, falls back to legacy.
+
+### Exception Mapping
+
+The transport layer inspects `data.name` in JSON-RPC error responses and maps Odoo server exceptions to typed Python exceptions:
+
+```
+odoo.exceptions.AccessError    → OdooAccessError
+odoo.exceptions.AccessDenied   → OdooAccessDeniedError
+odoo.exceptions.UserError      → OdooUserError
+odoo.exceptions.ValidationError → OdooValidationError
+odoo.exceptions.MissingError   → OdooMissingError
+```
+
+This is handled by `transport_error_from_data()` using `ODOO_EXCEPTION_MAP` in `exceptions.py`.
 
 ### Configuration
 
@@ -60,18 +89,24 @@ Auto-detection happens in `OdooClient.__init__()`: it tries JSON-2 first, falls 
 2. `.env` files (searched in priority order)
 3. Direct constructor arguments
 
+### Versioning
+
+The version is derived from git tags via `hatch-vcs` — no hardcoded version string. `__init__.py` reads it at runtime via `importlib.metadata.version("vodoo")`.
+
 ## Module Responsibilities
 
 | Module | Responsibility |
 |--------|---------------|
 | `main.py` | CLI commands via Typer, output formatting |
-| `client.py` | Unified client API, transport auto-detection |
-| `transport.py` | HTTP communication, JSON-RPC / JSON-2 protocol |
+| `client.py` | Sync client, transport auto-detection |
+| `aio/client.py` | Async client, lazy transport init, context manager |
+| `transport.py` | Sync HTTP (stdlib `urllib`) |
+| `aio/transport.py` | Async HTTP (`httpx`) |
 | `config.py` | Configuration loading and validation |
-| `auth.py` | Sudo operations, message posting as other users |
-| `base.py` | Shared CRUD, messaging, attachments, Rich display |
-| `exceptions.py` | Exception hierarchy |
-| `security.py` | Security group creation, user management |
+| `exceptions.py` | Exception hierarchy + Odoo error mapping |
+| `auth.py` / `aio/auth.py` | Sudo operations, message posting as other users |
+| `base.py` / `aio/base.py` | Shared CRUD, messaging, attachments, Rich display |
+| `security.py` / `aio/security.py` | Security group creation, user management |
 
 ## Transport Protocol Details
 
@@ -105,6 +140,7 @@ X-Odoo-Database: <db>
 
 JSON-2 is ~3-4× faster due to reduced envelope overhead and direct model routing.
 
-## No External HTTP Dependencies
+## HTTP Dependencies
 
-Vodoo uses only `urllib.request` from the Python standard library — no `requests`, `httpx`, or `aiohttp`. This keeps the dependency footprint minimal.
+- **Sync** — uses only `urllib.request` from the Python standard library (zero external deps for HTTP)
+- **Async** — uses [httpx](https://www.python-httpx.org/) for non-blocking HTTP

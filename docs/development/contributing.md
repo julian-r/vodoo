@@ -53,12 +53,12 @@ vodoo/
 ├── src/vodoo/
 │   ├── __init__.py           # Public API exports
 │   ├── main.py               # CLI entry point (Typer)
-│   ├── client.py             # OdooClient
-│   ├── transport.py          # Transport layer (JSON-RPC / JSON-2)
+│   ├── client.py             # OdooClient (sync)
+│   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, stdlib urllib)
 │   ├── config.py             # Pydantic configuration
-│   ├── exceptions.py         # Exception hierarchy
+│   ├── exceptions.py         # Exception hierarchy (incl. Odoo server errors)
 │   ├── auth.py               # Authentication / sudo
-│   ├── base.py               # Shared CRUD / messaging helpers
+│   ├── base.py               # Shared CRUD / messaging / display helpers
 │   ├── helpdesk.py           # Helpdesk operations
 │   ├── project.py            # Project task operations
 │   ├── project_project.py    # Project operations
@@ -66,12 +66,36 @@ vodoo/
 │   ├── knowledge.py          # Knowledge articles
 │   ├── generic.py            # Generic model CRUD
 │   ├── security.py           # Security groups
-│   └── timer.py              # Timers / timesheets
+│   ├── timer.py              # Timers / timesheets
+│   └── aio/                  # Async API (mirrors sync modules)
+│       ├── __init__.py       # AsyncOdooClient export
+│       ├── client.py         # AsyncOdooClient
+│       ├── transport.py      # Async transport (httpx)
+│       ├── auth.py           # Async auth / sudo
+│       ├── base.py           # Async shared helpers
+│       ├── helpdesk.py       # Async helpdesk
+│       ├── project.py        # Async project tasks
+│       ├── project_project.py
+│       ├── crm.py            # Async CRM
+│       ├── knowledge.py      # Async knowledge
+│       ├── generic.py        # Async generic CRUD
+│       ├── security.py       # Async security
+│       └── timer.py          # Async timers
 ├── tests/integration/        # Docker-based integration tests
 ├── docs/                     # MkDocs documentation
-├── pyproject.toml
-└── mkdocs.yml
+├── mkdocs.yml                # MkDocs Material + mike versioning
+└── pyproject.toml
 ```
+
+## Versioning
+
+The version is derived from **git tags** via `hatch-vcs` — there is no hardcoded version string anywhere.
+
+- `pyproject.toml` uses `dynamic = ["version"]`
+- `__init__.py` reads the version at runtime via `importlib.metadata`
+- `_version.py` is auto-generated at build time (gitignored)
+
+To release: just create a tag and push it. See [Releasing](#releasing) below.
 
 ## Submitting Changes
 
@@ -90,7 +114,18 @@ uv run mkdocs serve
 
 # Build static site
 uv run mkdocs build
+
+# Build in strict mode (fails on warnings)
+uv run mkdocs build --strict
 ```
+
+Documentation is versioned with [mike](https://github.com/jimporter/mike) and deployed to GitHub Pages on each release.
+
+## Releasing
+
+1. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+2. Create a GitHub release from the tag
+3. GitHub Actions automatically: builds package → publishes to PyPI → deploys versioned docs
 
 ## Reporting Issues
 
