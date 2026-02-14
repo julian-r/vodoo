@@ -7,6 +7,17 @@ from dataclasses import dataclass
 from vodoo.client import OdooClient
 
 
+def _groups_field(client: OdooClient) -> str:
+    """Return the many2many field name for user groups.
+
+    Odoo 19+ renamed ``groups_id`` → ``group_ids``.
+    """
+    fields = client.execute("res.users", "fields_get", ["group_ids"], {"attributes": ["type"]})
+    if fields and "group_ids" in fields and fields["group_ids"].get("type") == "many2many":
+        return "group_ids"
+    return "groups_id"
+
+
 @dataclass(frozen=True)
 class AccessDefinition:
     """Access control entry for a model."""
@@ -75,9 +86,7 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
             AccessDefinition("utm.medium", True, False, False, False),
             AccessDefinition("utm.campaign", True, False, False, False),
         ),
-        rules=(
-            RuleDefinition("crm.lead", "[(1, '=', 1)]", True, True, True, False),
-        ),
+        rules=(RuleDefinition("crm.lead", "[(1, '=', 1)]", True, True, True, False),),
     ),
     GroupDefinition(
         name="API Project",
@@ -115,9 +124,7 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
             AccessDefinition("knowledge.article", True, True, True, False),
             AccessDefinition("knowledge.article.member", True, False, False, False),
         ),
-        rules=(
-            RuleDefinition("knowledge.article", "[(1, '=', 1)]", True, True, True, False),
-        ),
+        rules=(RuleDefinition("knowledge.article", "[(1, '=', 1)]", True, True, True, False),),
     ),
     GroupDefinition(
         name="API Helpdesk",
@@ -130,9 +137,7 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
             AccessDefinition("helpdesk.ticket.type", True, False, False, False),
             AccessDefinition("helpdesk.sla", True, False, False, False),
         ),
-        rules=(
-            RuleDefinition("helpdesk.ticket", "[(1, '=', 1)]", True, True, True, False),
-        ),
+        rules=(RuleDefinition("helpdesk.ticket", "[(1, '=', 1)]", True, True, True, False),),
     ),
 )
 
@@ -224,7 +229,7 @@ def assign_user_to_groups(
 
     commands.extend((4, group_id) for group_id in group_ids)
 
-    client.write("res.users", [user_id], {"group_ids": commands})
+    client.write("res.users", [user_id], {_groups_field(client): commands})
 
 
 def resolve_user_id(client: OdooClient, *, user_id: int | None, login: str | None) -> int:
@@ -393,7 +398,7 @@ def create_user(
             "login": login,
             "email": email,
             "password": password,
-            "group_ids": [(6, 0, [])],  # Empty groups = share user
+            _groups_field(client): [(6, 0, [])],  # Empty groups = share user
         },
     )
 
@@ -442,7 +447,7 @@ def get_user_info(client: OdooClient, user_id: int) -> dict:
     users = client.search_read(
         "res.users",
         domain=[("id", "=", user_id)],
-        fields=["name", "login", "email", "active", "share", "group_ids", "partner_id"],
+        fields=["name", "login", "email", "active", "share", _groups_field(client), "partner_id"],
         limit=1,
     )
     if not users:

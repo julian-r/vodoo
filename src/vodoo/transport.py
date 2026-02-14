@@ -172,8 +172,11 @@ class OdooTransport(ABC):
         kw: dict[str, Any] = {}
         if context:
             kw["context"] = context
-        result: int = self.execute_kw(model, "create", [values], kw if kw else None)
-        return result
+        result = self.execute_kw(model, "create", [values], kw if kw else None)
+        # JSON-2 returns a list of IDs (vals_list), unwrap single-record creates
+        if isinstance(result, list) and len(result) == 1:
+            return int(result[0])
+        return int(result)
 
     def write(
         self,
@@ -454,12 +457,14 @@ def _build_json2_body(  # noqa: PLR0912
                 body["fields"] = args[1]
     elif method == "create":
         if args:
-            body["values"] = args[0]
+            val = args[0]
+            # JSON-2 expects vals_list (a list of dicts), not a single dict
+            body["vals_list"] = val if isinstance(val, list) else [val]
     elif method == "write":
         if args:
             body["ids"] = args[0]
             if len(args) > 1:
-                body["values"] = args[1]
+                body["vals"] = args[1]
     elif method == "unlink":
         if args:
             body["ids"] = args[0]

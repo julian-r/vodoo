@@ -1,0 +1,52 @@
+# Parameterized via environment variables:
+#   ODOO_IMAGE    – full image name (default: odoo:19.0)
+#   ODOO_PORT     – host port      (default: 18069)
+#   ODOO_CONF     – config file    (default: odoo.conf)
+#
+# The Postgres default DB is always "postgres" so Odoo starts without
+# seeing an uninitialised database. The actual test DB is created later
+# by setup_odoo.py via JSON-RPC (db.create_database).
+#
+# Examples:
+#   ODOO_IMAGE=odoo:17.0 ODOO_PORT=17069 docker compose -p vodoo-test-17 up -d
+#   ODOO_IMAGE=vodoo-odoo-ee:19.0 ODOO_PORT=19169 docker compose -p vodoo-test-19ee up -d
+
+services:
+  odoo:
+    image: ${ODOO_IMAGE:-odoo:19.0}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${ODOO_PORT:-18069}:8069"
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./${ODOO_CONF:-odoo.conf}:/etc/odoo/odoo.conf:ro
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=odoo
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8069/web/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  db:
+    image: postgres:17
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  odoo-data:
+  db-data:
