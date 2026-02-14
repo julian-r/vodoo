@@ -1,6 +1,6 @@
 # Helpdesk
 
-Operations for the `helpdesk.ticket` model (Odoo Enterprise).
+`HelpdeskNamespace` for the `helpdesk.ticket` model (Odoo Enterprise), accessed as `client.helpdesk`.
 
 ::: vodoo.helpdesk
     options:

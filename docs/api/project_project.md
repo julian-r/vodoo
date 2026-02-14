@@ -1,6 +1,6 @@
 # Projects
 
-Operations for the `project.project` model.
+`ProjectNamespace` for the `project.project` model, accessed as `client.projects`.
 
 ::: vodoo.project_project
     options:

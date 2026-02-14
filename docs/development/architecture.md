@@ -5,16 +5,17 @@
 Vodoo follows a layered architecture where domain modules delegate shared operations to a base layer, and the transport layer handles protocol differences between Odoo versions. The entire stack is available in both sync and async variants.
 
 ```
-┌──────────────────────────────────────────────────────┐
 │                    CLI (main.py)                     │
 │              Typer subcommands + Rich UI             │
 ├──────────────────────────────────────────────────────┤
-│              Domain Modules                          │
-│  helpdesk │ project │ crm │ knowledge │ timer │ ...  │
-│           (sync in vodoo.*, async in vodoo.aio.*)    │
+│              Domain Namespaces                        │
+│  client.helpdesk │ .crm │ .tasks │ .projects │ ...   │
+│     DomainNamespace subclasses (vodoo._domain)        │
+│     AsyncDomainNamespace subclasses (vodoo.aio._domain)│
 ├──────────────────────────────────────────────────────┤
 │              Base Layer                              │
-│  base.py / aio/base.py — CRUD, messaging, display   │
+│  _domain.py / aio/_domain.py — CRUD, messaging,     │
+│  tags, attachments (shared via inheritance)           │
 ├──────────────────────────────────────────────────────┤
 │              Client                                  │
 │  OdooClient (sync) │ AsyncOdooClient (async)         │
@@ -31,29 +32,38 @@ Vodoo follows a layered architecture where domain modules delegate shared operat
 
 ## Design Patterns
 
-### Domain Delegation
+### Domain Namespaces
 
-Each domain module defines a `MODEL` constant and thin wrappers around `base.py` functions:
+Each domain is exposed as a namespace attribute on the client. Namespaces are `DomainNamespace` subclasses that set class-level attributes (`_model`, `_default_fields`, etc.) and optionally add domain-specific methods:
 
 ```python
-# helpdesk.py (sync) / aio/helpdesk.py (async)
-MODEL = "helpdesk.ticket"
-TAG_MODEL = "helpdesk.tag"
+# vodoo/helpdesk.py
+class HelpdeskNamespace(DomainNamespace):
+    _model = "helpdesk.ticket"
+    _tag_model = "helpdesk.tag"
+    _default_fields = ["id", "name", "partner_id", "stage_id", ...]
+    _record_type = "Ticket"
 
-def add_comment(client, ticket_id, message, ...):
-    return base_add_comment(client, MODEL, ticket_id, message, ...)
+    def create(self, name: str, *, description=None, ...) -> int: ...
 ```
 
-This keeps domain modules focused on model-specific concerns (field names, default fields) while all shared logic lives in `base.py`.
+Namespaces are instantiated eagerly on client init via factory functions (to avoid circular imports):
+
+```python
+# vodoo/client.py
+self.helpdesk = _make_helpdesk(self)  # HelpdeskNamespace(self)
+self.crm = _make_crm(self)           # CrmNamespace(self)
+self.tasks = _make_tasks(self)       # TaskNamespace(self)
+# ... etc.
+```
+
+This keeps domain-specific concerns (field names, model constants) in thin subclasses while all shared logic (CRUD, messaging, tags, attachments) lives in `DomainNamespace`.
 
 ### Sync / Async Parity
-
-Every sync module under `vodoo.*` has an async mirror under `vodoo.aio.*` with identical function signatures (but `async def` / `await`). The two stacks share:
-
+Every sync namespace under `vodoo.*` has an async mirror under `vodoo.aio.*` — `DomainNamespace` / `AsyncDomainNamespace` with identical method signatures (but `async def` / `await`). The two stacks share:
 - `config.py` — configuration (no I/O)
 - `exceptions.py` — exception hierarchy
 - `timer.py` data classes (`Timesheet`, `TimerBackend` etc.)
-
 ### Transport Abstraction
 
 The `OdooTransport` ABC defines the interface. Four implementations exist:
@@ -94,18 +104,18 @@ This is handled by `transport_error_from_data()` using `ODOO_EXCEPTION_MAP` in `
 The version is derived from git tags via `hatch-vcs` — no hardcoded version string. `__init__.py` reads it at runtime via `importlib.metadata.version("vodoo")`.
 
 ## Module Responsibilities
-
-| Module | Responsibility |
 |--------|---------------|
 | `main.py` | CLI commands via Typer, output formatting |
-| `client.py` | Sync client, transport auto-detection |
-| `aio/client.py` | Async client, lazy transport init, context manager |
+| `client.py` | Sync client, transport auto-detection, namespace wiring |
+| `aio/client.py` | Async client, lazy transport init, context manager, namespace wiring |
 | `transport.py` | Sync HTTP (`httpx`) |
 | `aio/transport.py` | Async HTTP (`httpx`) |
 | `config.py` | Configuration loading and validation |
 | `exceptions.py` | Exception hierarchy + Odoo error mapping |
+| `_domain.py` | `DomainNamespace` base class — shared CRUD, messaging, tags, attachments |
+| `aio/_domain.py` | `AsyncDomainNamespace` base class — async mirror |
 | `auth.py` / `aio/auth.py` | Sudo operations, message posting as other users |
-| `base.py` / `aio/base.py` | Shared CRUD, messaging, attachments, Rich display |
+| `helpdesk.py` / `crm.py` / `project.py` / ... | Domain namespace subclasses |
 | `security.py` / `aio/security.py` | Security group creation, user management |
 
 ## Transport Protocol Details

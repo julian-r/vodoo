@@ -1,6 +1,6 @@
 # Async Projects
 
-Async operations for the `project.project` model.
+`AsyncProjectNamespace` for the `project.project` model, accessed as `client.projects` on `AsyncOdooClient`.
 
 ::: vodoo.aio.project_project
     options:

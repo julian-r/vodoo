@@ -1,6 +1,6 @@
 # Async Project Tasks
 
-Async operations for the `project.task` model.
+`AsyncTaskNamespace` for the `project.task` model, accessed as `client.tasks` on `AsyncOdooClient`.
 
 ::: vodoo.aio.project
     options:

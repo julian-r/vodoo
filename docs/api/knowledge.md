@@ -1,6 +1,6 @@
 # Knowledge
 
-Operations for the `knowledge.article` model (Odoo Enterprise).
+`KnowledgeNamespace` for the `knowledge.article` model (Odoo Enterprise), accessed as `client.knowledge`.
 
 ::: vodoo.knowledge
     options:

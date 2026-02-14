@@ -1,6 +1,6 @@
 # Async Generic CRUD
 
-Async generic model operations that work with any Odoo model.
+`AsyncGenericNamespace` for generic model operations that work with any Odoo model, accessed as `client.generic` on `AsyncOdooClient`.
 
 ::: vodoo.aio.generic
     options:

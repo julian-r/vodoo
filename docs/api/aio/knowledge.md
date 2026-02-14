@@ -1,6 +1,6 @@
 # Async Knowledge
 
-Async operations for the `knowledge.article` model (Odoo Enterprise).
+`AsyncKnowledgeNamespace` for the `knowledge.article` model (Odoo Enterprise), accessed as `client.knowledge` on `AsyncOdooClient`.
 
 ::: vodoo.aio.knowledge
     options:

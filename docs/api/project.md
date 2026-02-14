@@ -1,6 +1,6 @@
 # Project Tasks
 
-Operations for the `project.task` model.
+`TaskNamespace` for the `project.task` model, accessed as `client.tasks`.
 
 ::: vodoo.project
     options:

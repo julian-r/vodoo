@@ -1,6 +1,6 @@
 # Async Base Operations
 
-Async shared CRUD, messaging, attachment helpers used by all async domain modules.
+Async shared CRUD, messaging, and attachment helpers used by async domain namespaces.
 
 ::: vodoo.aio.base
     options:
