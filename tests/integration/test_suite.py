@@ -4,8 +4,6 @@ Community tests (project, project-task, crm, model, security) run on all version
 Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 """
 
-from __future__ import annotations
-
 import contextlib
 import tempfile
 from pathlib import Path
@@ -14,6 +12,11 @@ from typing import Any
 import pytest
 
 from vodoo.client import OdooClient
+from vodoo.exceptions import (
+    RecordNotFoundError,
+    TransportError,
+    VodooError,
+)
 from vodoo.transport import JSON2Transport, LegacyTransport
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -816,3 +819,82 @@ class TestTimer:
             assert len(timesheets) >= 1
         finally:
             stop_active_timers(client)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Exception hierarchy (live server)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestExceptions:
+    """Verify Vodoo exceptions are raised correctly against a real Odoo."""
+
+    def test_record_not_found(self, client: OdooClient) -> None:
+        """Reading a non-existent record must raise RecordNotFoundError."""
+        from vodoo.base import get_record
+
+        with pytest.raises(RecordNotFoundError) as exc_info:
+            get_record(client, "res.partner", 999999999)
+
+        assert exc_info.value.model == "res.partner"
+        assert exc_info.value.record_id == 999999999
+
+    def test_record_not_found_is_vodoo_error(self, client: OdooClient) -> None:
+        """RecordNotFoundError must be catchable as VodooError."""
+        from vodoo.base import get_record
+
+        with pytest.raises(VodooError):
+            get_record(client, "res.partner", 999999999)
+
+    def test_access_error_on_forbidden_model(self, client: OdooClient) -> None:
+        """Writing to a model without permission should raise a TransportError subclass.
+
+        We create a share user with no groups, then try to write via that
+        user's credentials.  The server should reject with an AccessError.
+        """
+        from vodoo.config import OdooConfig
+        from vodoo.security import create_user
+
+        user_id, password = create_user(
+            client,
+            name="Vodoo Exception Test User",
+            login="vodoo-exc-test@example.com",
+        )
+        try:
+            # Build a client authenticated as the unprivileged user
+            unprivileged_config = OdooConfig(
+                url=client.config.url,
+                database=client.config.database,
+                username="vodoo-exc-test@example.com",
+                password=password,
+            )
+            unprivileged_client = OdooClient(unprivileged_config, auto_detect=False)
+
+            # This user has no groups → should get AccessError on write
+            with pytest.raises(TransportError) as exc_info:
+                unprivileged_client.write("res.partner", [1], {"name": "Should Fail"})
+
+            # Should be catchable via VodooError
+            assert isinstance(exc_info.value, VodooError)
+        finally:
+            with contextlib.suppress(Exception):
+                from vodoo.generic import delete_record
+
+                delete_record(client, "res.users", user_id)
+
+    def test_validation_error_on_bad_data(self, client: OdooClient) -> None:
+        """Creating a record with invalid data should raise a TransportError.
+
+        Duplicate login is a common way to trigger a server-side constraint.
+        """
+        # "admin" login already exists — creating another should violate
+        # the unique constraint and raise a ValidationError or similar.
+        with pytest.raises(TransportError):
+            client.create(
+                "res.users",
+                {
+                    "name": "Duplicate Admin",
+                    "login": "admin",
+                    "password": "test",
+                },
+            )

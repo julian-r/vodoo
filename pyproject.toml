@@ -1,14 +1,14 @@
 [project]
 name = "vodoo"
-version = "0.3.2"
+dynamic = ["version"]
 description = "Modern Python CLI for Odoo with support for helpdesk, projects, tasks, CRM, and knowledge articles"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Julian Rath", email = "julian.rath@Julian Rath.com" }
+    { name = "Julian Rath", email = "julian.rath@gmail.com" }
 ]
 maintainers = [
-    { name = "Julian Rath GmbH", email = "info@Julian Rath.com" }
+    { name = "Julian Rath", email = "julian.rath@gmail.com" }
 ]
 requires-python = ">=3.12"
 keywords = ["odoo", "helpdesk", "project", "task", "crm", "lead", "opportunity", "knowledge", "wiki", "cli", "management", "jsonrpc", "vodoo"]
@@ -25,16 +25,16 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "typer[all]>=0.12.0",
-    "rich>=13.7.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "python-dotenv>=1.0.0",
     "markdown>=3.5.0",
+    "httpx>=0.27.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/julian-r/vodoo"
+Documentation = "https://julian-r.github.io/vodoo"
 Repository = "https://github.com/julian-r/vodoo"
 Issues = "https://github.com/julian-r/vodoo/issues"
 
@@ -42,11 +42,22 @@ Issues = "https://github.com/julian-r/vodoo/issues"
 vodoo = "vodoo.main:app"
 
 [project.optional-dependencies]
+cli = [
+    "typer[all]>=0.12.0",
+    "rich>=13.7.0",
+]
 dev = [
     "mypy>=1.11.0",
     "ruff>=0.6.0",
     "types-Markdown>=3.5.0",
     "pytest>=8.0.0",
+]
+docs = [
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.27.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
+    "mike>=2.1.0",
 ]
 
 [tool.ruff]
@@ -71,6 +82,12 @@ warn_no_return = true
 check_untyped_defs = true
 strict_equality = true
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/vodoo/_version.py"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"

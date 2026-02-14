@@ -1,5 +1,6 @@
 """CRM lead/opportunity operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -40,6 +41,22 @@ from vodoo.client import OdooClient
 MODEL = "crm.lead"
 TAG_MODEL = "crm.tag"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "partner_id",
+    "stage_id",
+    "user_id",
+    "team_id",
+    "expected_revenue",
+    "probability",
+    "type",
+    "priority",
+    "tag_ids",
+    "create_date",
+]
+
 
 def list_leads(
     client: OdooClient,
@@ -60,20 +77,7 @@ def list_leads(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "team_id",
-            "expected_revenue",
-            "probability",
-            "type",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
@@ -154,7 +158,7 @@ def display_lead_detail(lead: dict[str, Any], show_html: bool = False) -> None:
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(lead, MODEL, show_html=show_html, record_type="Lead")
+    display_record_detail(lead, show_html=show_html, record_type="Lead")
 
 
 def add_comment(
@@ -284,9 +288,9 @@ def list_lead_attachments(
 def download_lead_attachments(
     client: OdooClient,
     lead_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a lead.
 
     Args:
@@ -305,7 +309,7 @@ def download_lead_attachments(
 def create_lead_attachment(
     client: OdooClient,
     lead_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a lead.

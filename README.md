@@ -2,12 +2,59 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/vodoo)](https://pypi.org/project/vodoo/)
+[![Documentation](https://img.shields.io/badge/docs-julian--r.github.io%2Fvodoo-blue)](https://julian-r.github.io/vodoo)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 
-A modern Python CLI tool for Odoo with support for helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets. Features include comments, notes, tags, attachments, timers, and more.
+A Python library and CLI for Odoo. Use it as a **library** in your own scripts, services, and automations — or as a **CLI** for quick ad-hoc operations and AI-assisted workflows.
 
-**🤖 AI-First Design**: Designed to be used with Claude Code or similar AI coding assistants to streamline Odoo workflows through natural language commands.
+Supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets across Odoo 17–19.
+
+**📖 [Full Documentation](https://julian-r.github.io/vodoo)** — Getting started, CLI reference, Python library guide, and API docs.
+
+## Quick Start — Library
+
+```python
+from vodoo import OdooClient, OdooConfig, RecordNotFoundError
+
+config = OdooConfig(
+    url="https://my-instance.odoo.com",
+    database="mydb",
+    username="bot@example.com",
+    password="api-key-or-password",
+)
+client = OdooClient(config)
+
+# High-level domain helpers
+from vodoo.project import list_tasks
+tasks = list_tasks(client, limit=10)
+
+# Generic client for any model
+partners = client.search_read("res.partner", fields=["name", "email"], limit=5)
+
+# Structured exceptions — catch what you need
+try:
+    from vodoo.base import get_record
+    record = get_record(client, "res.partner", 999999999)
+except RecordNotFoundError as e:
+    print(f"{e.model} #{e.record_id} not found")
+```
+
+## Quick Start — CLI
+
+```bash
+# Run without installing
+uvx vodoo crm list --search "acme"
+
+# Or install globally
+pip install vodoo
+vodoo helpdesk list --stage "In Progress"
+vodoo project-task show 42
+vodoo timer start 42
+```
+
+Works well with AI assistants like Claude Code — natural language in, structured Odoo operations out.
 
 ## Odoo Version Support
 
@@ -17,485 +64,321 @@ A modern Python CLI tool for Odoo with support for helpdesk tickets, project tas
 | Odoo 18 | Legacy JSON-RPC | ✅ Fully tested |
 | Odoo 19 | JSON-2 (bearer auth) | ✅ Fully tested |
 
-Vodoo auto-detects the Odoo version and selects the appropriate transport layer. Odoo 19's JSON-2 API is ~3-4x faster than legacy JSON-RPC.
+Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's JSON-2 API is ~3–4x faster than legacy JSON-RPC.
 
 ## Features
 
-- 📋 Helpdesk tickets, project tasks, projects, CRM leads, and knowledge articles
+### Library
+
+- 🐍 Clean Python API — `OdooClient`, `OdooConfig`, domain helpers
+- ⚡ Full async support via `vodoo.aio` — `AsyncOdooClient` with async context manager
+- 🎯 Structured exception hierarchy mirroring Odoo server errors
+- 📦 No CLI dependencies loaded when imported as a library
+- 🔒 Strict mypy typing throughout
+
+### CLI
+
+- 📋 Helpdesk tickets, project tasks, projects, CRM leads, knowledge articles
 - ⏱️ Timer / timesheet management (start, stop, status)
-- 💬 Add comments and internal notes (with markdown-to-HTML conversion)
-- 🏷️ Create, manage, and assign tags
-- 📎 Upload, list, and download attachments
+- 💬 Comments, internal notes, tags, attachments
 - 🔍 Search across text fields (name, email, phone, description)
-- 🧰 Generic CRUD operations for any Odoo model
-- 🔀 Auto-detecting transport layer (JSON-2 for Odoo 19+, legacy JSON-RPC for 14-18)
+- 🧰 Generic CRUD for any Odoo model
 - 🎨 Rich terminal output with tables
-- ⚙️ Flexible configuration via environment variables or config files
-- 🔒 Type-safe with mypy strict mode
-- 🚀 Modern Python tooling (uv, ruff, mypy)
+
+### Shared
+
+- 🔀 Auto-detecting transport layer (JSON-2 for Odoo 19+, legacy JSON-RPC for 17–18)
+- ⚙️ Configuration via environment variables, `.env`, or `OdooConfig`
+- 🔐 HTTPS enforcement warnings for production safety
 
 ## Installation
 
-### From PyPI (recommended)
-
 ```bash
-# Install via pip
+# From PyPI
 pip install vodoo
 
-# Or install via pipx (recommended for CLI tools)
-pipx install vodoo
-
-# Or run without installing using uvx (requires uv)
+# Or run the CLI without installing
 uvx vodoo helpdesk list
-```
 
-### From source
-
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
-
-```bash
-# Clone the repository
+# From source (development)
 git clone https://github.com/julian-r/vodoo.git
 cd vodoo
-
-# Install dependencies
-uv sync
-
-# Install in development mode with dev dependencies
 uv sync --all-extras
-
-# Install the CLI tool
-uv pip install -e .
 ```
 
 ## Configuration
 
-Create a configuration file with your Odoo credentials. The CLI looks for configuration in these locations (in order):
-
-1. `.vodoo.env` in the current directory
-2. `~/.config/vodoo/config.env`
-3. `.env` in the current directory
-
-### Configuration File Format
-
-Create a `.env` or `.vodoo.env` file:
+Create a `.vodoo.env`, `~/.config/vodoo/config.env`, or `.env` file:
 
 ```bash
 ODOO_URL=https://your-odoo-instance.com
 ODOO_DATABASE=your_database
 ODOO_USERNAME=your_username
 ODOO_PASSWORD=your_password_or_api_key
-ODOO_DEFAULT_USER_ID=123  # Optional: default user ID for sudo operations
+ODOO_DEFAULT_USER_ID=123  # Optional: default user for sudo operations
 ```
 
-### Environment Variables
+Or set environment variables directly, or pass values to `OdooConfig()` in code.
 
-All configuration values can also be set via environment variables with the `ODOO_` prefix:
+## Exception Hierarchy
 
-```bash
-export ODOO_URL="https://your-odoo-instance.com"
-export ODOO_DATABASE="your_database"
-export ODOO_USERNAME="your_username"
-export ODOO_PASSWORD="your_password"
+All exceptions inherit from `VodooError` so you can catch broadly or narrowly:
+
+```
+VodooError
+├── ConfigurationError
+├── AuthenticationError
+├── RecordNotFoundError          ← .model, .record_id attributes
+├── RecordOperationError
+├── TransportError               ← .code, .data attributes
+│   └── OdooUserError            ← odoo.exceptions.UserError
+│       ├── OdooAccessDeniedError
+│       ├── OdooAccessError
+│       ├── OdooMissingError
+│       └── OdooValidationError
+└── FieldParsingError
 ```
 
-## Security & Service Accounts
+Server-side Odoo errors are automatically mapped to the matching exception class, so you can handle `OdooAccessError` separately from `OdooValidationError` without parsing error strings.
 
-For production use, run Vodoo with a dedicated least-privilege service account instead of a personal user. This keeps access scoped to the models your automation needs and avoids accidental exposure of customer data.
+## Library Usage
 
-See [docs/SECURITY.md](docs/SECURITY.md) for a concise setup checklist and recommended access rules.
+### Domain Helpers
 
-```bash
-# Create standard API groups
-vodoo security create-groups
+Each Odoo model has a dedicated module with high-level functions:
 
-# Assign a bot user to all groups
-vodoo security assign-bot --login service-vodoo@company.com
+```python
+from vodoo import OdooClient, OdooConfig
+
+client = OdooClient(OdooConfig(
+    url="https://odoo.example.com",
+    database="prod",
+    username="bot@example.com",
+    password="api-key",
+))
+
+# Project tasks
+from vodoo.project import list_tasks, get_task, add_comment
+tasks = list_tasks(client, domain=[("stage_id.name", "=", "In Progress")], limit=20)
+task = get_task(client, 42)
+add_comment(client, 42, "Deployed to staging")
+
+# CRM leads
+from vodoo.crm import list_leads, set_lead_fields
+leads = list_leads(client, domain=[("type", "=", "opportunity")], limit=20)
+set_lead_fields(client, 123, {"expected_revenue": 50000, "probability": 75})
+
+# Helpdesk (enterprise)
+from vodoo.helpdesk import list_tickets
+tickets = list_tickets(client, domain=[("stage_id.name", "=", "New")], limit=10)
+
+# Timers
+from vodoo.timer import start_timer_on_task, stop_active_timers
+start_timer_on_task(client, task_id=42)
+stop_active_timers(client)
+
+# Generic CRUD — works with any Odoo model
+records = client.search_read("res.partner", [("is_company", "=", True)], fields=["name"])
+new_id = client.create("res.partner", {"name": "Acme Corp", "is_company": True})
+client.write("res.partner", [new_id], {"phone": "+1234567890"})
 ```
 
-## Usage
+### Error Handling
 
-### Using with Claude Code or AI Assistants
+```python
+from vodoo import (
+    OdooClient, OdooConfig, VodooError,
+    AuthenticationError, RecordNotFoundError,
+    OdooAccessError, OdooValidationError,
+)
 
-This CLI is designed to work seamlessly with AI coding assistants like Claude Code. Instead of remembering complex command syntax, you can use natural language:
-
-**Example workflow with Claude Code:**
+try:
+    client = OdooClient(OdooConfig(...))
+    client.write("res.partner", [999], {"name": "Updated"})
+except AuthenticationError:
+    print("Bad credentials")
+except RecordNotFoundError as e:
+    print(f"{e.model} #{e.record_id} does not exist")
+except OdooAccessError:
+    print("Insufficient permissions")
+except OdooValidationError:
+    print("Data constraint violated")
+except VodooError as e:
+    print(f"Something else went wrong: {e}")
 ```
-You: "Show me all tickets assigned to me that are in progress"
-Claude: [runs: vodoo helpdesk list --assigned-to "Your Name" --stage "In Progress"]
 
-You: "Add an internal note to ticket 123 saying we're waiting for customer response"
-Claude: [runs: vodoo helpdesk note 123 "Waiting for customer response"]
+## Async Usage
 
-You: "Download all attachments from ticket 456"
-Claude: [runs: vodoo helpdesk attachments 456, then downloads each]
+All library functionality is also available as async via `vodoo.aio`:
+
+```python
+from vodoo import OdooConfig
+from vodoo.aio import AsyncOdooClient
+
+config = OdooConfig(
+    url="https://my-instance.odoo.com",
+    database="mydb",
+    username="bot@example.com",
+    password="api-key",
+)
+
+async with AsyncOdooClient(config) as client:
+    # Domain helpers
+    from vodoo.aio.project import list_tasks
+    tasks = await list_tasks(client, limit=10)
+
+    # Generic client
+    partners = await client.search_read("res.partner", fields=["name", "email"], limit=5)
+
+    # Comments / notes
+    from vodoo.aio.crm import add_comment
+    await add_comment(client, 123, "Async update")
 ```
 
-The CLI is designed with AI assistants in mind, providing clear command structure and helpful error messages.
+Every sync module has an async counterpart under `vodoo.aio` — same function signatures, just `await`ed.
 
-### Direct CLI Usage
-
-### Knowledge Articles
-
-```bash
-# List all articles
-vodoo knowledge list
-
-# List workspace articles only
-vodoo knowledge list --category workspace
-
-# List favorite articles
-vodoo knowledge list --favorite
-
-# Filter by name
-vodoo knowledge list --name "Getting Started"
-
-# Show article details (with content)
-vodoo knowledge show 123
-
-# Show raw HTML content
-vodoo knowledge show 123 --html
-
-# Add internal note
-vodoo knowledge note 123 "Updated section on installation"
-
-# Get article URL
-vodoo knowledge url 123
-```
+## CLI Usage
 
 ### CRM Leads/Opportunities
 
 ```bash
-# List all leads/opportunities
-vodoo crm list
-
-# Search across name, email, phone, contact, description
-vodoo crm list --search "acme"
-vodoo crm list -s "john@example.com"
-
-# List only leads or opportunities
-vodoo crm list --type lead
-vodoo crm list --type opportunity
-
-# Filter by stage, team, user, or partner
-vodoo crm list --stage "Qualified"
-vodoo crm list --team "Direct Sales"
-vodoo crm list --user "John Doe"
-vodoo crm list --partner "Acme Corp"
-
-# Combine search with filters
-vodoo crm list --search "software" --type opportunity --stage "Proposition"
-
-# Show lead details
+vodoo crm list --search "acme" --type opportunity --stage "Qualified"
 vodoo crm show 123
-
-# Add internal note (always allowed)
-vodoo crm note 123 "Followed up via phone"
-
-# Update lead fields
 vodoo crm set 123 expected_revenue=50000 probability=75
-
-# Attach a file
+vodoo crm note 123 "Followed up via phone"
 vodoo crm attach 123 proposal.pdf
-
-# Get lead URL
 vodoo crm url 123
+```
+
+### Project Tasks
+
+```bash
+vodoo project-task list --stage "In Progress"
+vodoo project-task show 42
+vodoo project-task comment 42 "Deployed to staging"
+vodoo project-task attach 42 screenshot.png
+```
+
+### Projects
+
+```bash
+vodoo project list
+vodoo project show 1
+vodoo project note 1 "Sprint planning notes"
+```
+
+### Helpdesk Tickets (Enterprise)
+
+```bash
+vodoo helpdesk list --stage "New" --assigned-to "John"
+vodoo helpdesk show 123
+vodoo helpdesk note 123 "Internal update"
+vodoo helpdesk comment 123 "We're looking into this"
+vodoo helpdesk download 456 --output ./attachments/
+```
+
+### Knowledge Articles (Enterprise)
+
+```bash
+vodoo knowledge list --category workspace
+vodoo knowledge show 123
+vodoo knowledge note 123 "Updated installation section"
 ```
 
 ### Timers / Timesheets
 
 ```bash
-# Show today's timesheets with running state
+vodoo timer start 42
 vodoo timer status
-
-# Start a timer on a task
-vodoo timer start --task 42
-
-# Start a timer on a helpdesk ticket (enterprise)
-vodoo timer start --ticket 99
-
-# Resume a stopped timesheet
-vodoo timer start --timesheet 15
-
-# Show only running timers
-vodoo timer active
-
-# Stop all running timers
 vodoo timer stop
-
-# Stop a specific timesheet timer
-vodoo timer stop --timesheet 15
 ```
 
 ### Generic Model Operations
 
 ```bash
-# Read records with a domain filter
-vodoo model read res.partner --domain='[["email","ilike","@acme.com"]]' --field name --field email
-
-# Create a record
+vodoo model read res.partner --domain='[["is_company","=",true]]' --field name --field email
 vodoo model create res.partner name="Acme" email=info@acme.com
-
-# Update a record
 vodoo model update res.partner 123 phone="+123456789"
-
-# Delete a record (requires confirmation)
-vodoo model delete res.partner 123 --confirm
-
-# Call a custom model method
+vodoo model delete res.partner 123
 vodoo model call res.partner name_search --args='["Acme"]'
 ```
 
-For safety, use a least-privilege service account (see [docs/SECURITY.md](docs/SECURITY.md)).
-
-### List Tickets
+### Security / Service Accounts
 
 ```bash
-# List all tickets (default limit: 50)
-vodoo helpdesk list
-
-# Filter by stage
-vodoo helpdesk list --stage "In Progress"
-
-# Filter by partner
-vodoo helpdesk list --partner "Acme Corp"
-
-# Filter by assigned user
-vodoo helpdesk list --assigned-to "John Doe"
-
-# Set custom limit
-vodoo helpdesk list --limit 100
+vodoo security create-groups
+vodoo security assign-bot --login service-vodoo@company.com
 ```
 
-### View Ticket Details
+For production use, run Vodoo with a dedicated least-privilege service account. See the [Security Guide](https://julian-r.github.io/vodoo/development/security/).
 
-```bash
-# Show detailed information for a specific ticket
-vodoo helpdesk show 123
+## Documentation
+
+Full docs at **[julian-r.github.io/vodoo](https://julian-r.github.io/vodoo)**:
+
+- [Getting Started](https://julian-r.github.io/vodoo/getting-started/installation/) — Installation, configuration, quick start
+- [CLI Reference](https://julian-r.github.io/vodoo/cli/) — All commands with examples
+- [Library Guide](https://julian-r.github.io/vodoo/guide/library/) — Using Vodoo as a Python library
+- [API Reference](https://julian-r.github.io/vodoo/api/) — Auto-generated from docstrings
+- [Security Guide](https://julian-r.github.io/vodoo/development/security/) — Service account setup
+
+## Project Structure
+
+```
+src/vodoo/
+├── __init__.py           # Public API: OdooClient, OdooConfig, exceptions
+├── exceptions.py         # Exception hierarchy (VodooError and subclasses)
+├── client.py             # OdooClient — delegates to transport layer
+├── transport.py          # Transport abstraction (JSON-2 + legacy JSON-RPC)
+├── config.py             # Pydantic configuration from env/.env files
+├── auth.py               # Authentication and sudo utilities
+├── base.py               # Shared CRUD, messaging, attachment helpers
+├── main.py               # CLI entry point (Typer) — not loaded by library imports
+├── helpdesk.py           # Helpdesk ticket operations (enterprise)
+├── project.py            # Project task operations
+├── project_project.py    # Project operations
+├── crm.py                # CRM lead/opportunity operations
+├── knowledge.py          # Knowledge article operations (enterprise)
+├── generic.py            # Generic model CRUD
+├── security.py           # Security groups, user management
+├── timer.py              # Timer/timesheet start, stop, status
+└── aio/                  # Async versions of all modules above
+    ├── client.py         # AsyncOdooClient
+    ├── transport.py      # Async JSON-2 + legacy transports
+    └── ...               # Async domain modules (same API, awaitable)
 ```
 
-### Add Comments and Notes
+## Integration Tests
+
+60+ tests per Odoo version against real instances in Docker:
 
 ```bash
-# Add an internal note (not visible to customers)
-vodoo helpdesk note 123 "This is an internal note for the team"
-
-# Add a public comment (visible to customers)
-vodoo helpdesk comment 123 "This is a public comment"
-
-# Post as a specific user
-vodoo helpdesk note 123 "Internal update" --user-id 42
-vodoo helpdesk comment 123 "Admin comment" --user-id 42
-```
-
-### Manage Tags
-
-```bash
-# List all available tags
-vodoo helpdesk tags
-
-# Add a tag to a ticket
-vodoo helpdesk tag 123 5
-```
-
-### Work with Attachments
-
-```bash
-# List attachments for a ticket
-vodoo helpdesk attachments 123
-
-# Download an attachment (saves to current directory with original name)
-vodoo helpdesk download 456
-
-# Download to a specific path
-vodoo helpdesk download 456 --output /path/to/file.pdf
-
-# Download to a specific directory (uses original filename)
-vodoo helpdesk download 456 --output /path/to/directory/
+./tests/integration/run.sh           # All community editions (17, 18, 19)
+./tests/integration/run.sh 19        # Just Odoo 19
+ENTERPRISE=1 ./tests/integration/run.sh 19   # Include enterprise
 ```
 
 ## Development
 
-### Code Quality
-
-This project uses modern Python tooling:
-
-- **ruff**: Fast linting and formatting
-- **mypy**: Static type checking with strict mode
-- **uv**: Fast dependency management
-
 ```bash
-# Run ruff linting
+uv sync --all-extras
 uv run ruff check .
-
-# Auto-fix ruff issues
-uv run ruff check --fix .
-
-# Format code
 uv run ruff format .
-
-# Run mypy type checking
 uv run mypy src/vodoo
 ```
 
-### Project Structure
+## Publishing
 
-```
-vodoo/
-├── src/vodoo/
-│   ├── __init__.py
-│   ├── main.py              # CLI entry point (Typer subcommands)
-│   ├── client.py            # OdooClient — delegates to transport layer
-│   ├── transport.py         # Transport abstraction (JSON-2 + legacy JSON-RPC)
-│   ├── config.py            # Pydantic configuration from env/.env files
-│   ├── auth.py              # Authentication and sudo utilities
-│   ├── base.py              # Shared CRUD, messaging, attachment helpers
-│   ├── helpdesk.py          # Helpdesk ticket operations (enterprise)
-│   ├── project.py           # Project task operations
-│   ├── project_project.py   # Project operations
-│   ├── crm.py               # CRM lead/opportunity operations
-│   ├── knowledge.py         # Knowledge article operations (enterprise)
-│   ├── generic.py           # Generic model CRUD
-│   ├── security.py          # Security groups, user management
-│   └── timer.py             # Timer/timesheet start, stop, status
-├── tests/
-│   └── integration/         # Docker-based integration tests (see docs/)
-├── docs/
-│   ├── SECURITY.md          # Service account setup guide
-│   └── INTEGRATION_TESTS.md # Integration test documentation
-├── pyproject.toml
-└── README.md
-```
-
-## How It Works
-
-### Transport Layer
-
-Vodoo auto-detects the Odoo version and uses the appropriate transport:
-
-- **JSON-2 (Odoo 19+)**: Bearer token auth, model-specific endpoints (`/json/2/<model>/<method>`), ~3-4x faster
-- **Legacy JSON-RPC (Odoo 14-18)**: Generic `/jsonrpc` endpoint with `service/method/args` envelope
-
-The detection happens automatically on first connection — no configuration needed.
-
-### Sudo Operations for Comments
-
-Comments are posted using Odoo's `message_post` method with sudo context, allowing you to post messages as a specific user. Configure `ODOO_DEFAULT_USER_ID` to set the default user for comment operations.
-
-### Attachment Handling
-
-Attachments are stored in Odoo's `ir.attachment` model with base64-encoded data. The CLI automatically decodes and saves files when downloading.
-
-## Integration Tests
-
-Automated tests run against real Odoo instances (17, 18, 19) in Docker — both Community and Enterprise editions. 60 tests per instance, 354 total.
+Version is derived from git tags via `hatch-vcs`:
 
 ```bash
-# Run all community tests
-./tests/integration/run.sh
-
-# Run specific version with enterprise
-ENTERPRISE=1 ./tests/integration/run.sh 19
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-See [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md) for details.
-
-## Requirements
-
-- Python 3.12+
-- Access to an Odoo instance with the JSON-RPC or JSON-2 API enabled
-- Valid Odoo credentials (username/password or API key)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Development Setup
-
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/vodoo.git`
-3. Create a feature branch: `git checkout -b feature/my-new-feature`
-4. Install development dependencies: `uv sync --all-extras`
-5. Make your changes
-6. Run tests and checks:
-   ```bash
-   uv run ruff check .
-   uv run ruff format .
-   uv run mypy src/vodoo
-   ```
-7. Commit your changes: `git commit -am 'Add some feature'`
-8. Push to the branch: `git push origin feature/my-new-feature`
-9. Submit a pull request
-
-### Reporting Issues
-
-Please report issues at: https://github.com/julian-r/vodoo/issues
-
-## Publishing to PyPI
-
-This project is configured to automatically publish to PyPI using GitHub Actions with trusted publishing.
-
-### Setup (One-time configuration)
-
-1. **Configure PyPI Trusted Publisher**:
-   - Go to https://pypi.org/manage/account/publishing/
-   - Add a new pending publisher with these details:
-     - PyPI Project Name: `vodoo`
-     - Owner: `Julian Rath`
-     - Repository name: `vodoo`
-     - Workflow name: `publish.yml`
-     - Environment name: `pypi`
-
-2. **Configure TestPyPI Trusted Publisher** (optional, for testing):
-   - Go to https://test.pypi.org/manage/account/publishing/
-   - Add the same configuration with environment name: `testpypi`
-
-3. **Create GitHub Environments**:
-   - Go to your repository settings → Environments
-   - Create environment `pypi` (add protection rules if desired)
-   - Create environment `testpypi` (optional)
-
-### Releasing a new version
-
-1. Update the version in `pyproject.toml` and `src/vodoo/__init__.py`
-2. Commit the version bump: `git commit -am "Bump version to X.Y.Z"`
-3. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. Create a GitHub release from the tag
-5. The GitHub Action will automatically build and publish to PyPI
-
-### Manual testing with TestPyPI
-
-To manually trigger a test publish to TestPyPI:
-```bash
-# From the GitHub repository, go to Actions → Publish to PyPI → Run workflow
-```
-
-### Local build and test
-
-```bash
-# Build the package locally
-uv build
-
-# Install from local build
-pip install dist/vodoo-*.whl
-
-# Or test with TestPyPI
-uv build
-twine upload --repository testpypi dist/*
-```
+GitHub Actions builds and publishes to PyPI automatically.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2025 Julian Rath.
 
-Copyright (c) 2025 Julian Rath GmbH
-
-## Acknowledgments
-
-Built with:
-- [Typer](https://typer.tiangolo.com/) - CLI framework
-- [Rich](https://rich.readthedocs.io/) - Terminal formatting
-- [Pydantic](https://docs.pydantic.dev/) - Data validation
-- [uv](https://github.com/astral-sh/uv) - Package management
-- [Ruff](https://github.com/astral-sh/ruff) - Linting and formatting
-- [mypy](http://mypy-lang.org/) - Type checking
+Built with [Typer](https://typer.tiangolo.com/), [Rich](https://rich.readthedocs.io/), [Pydantic](https://docs.pydantic.dev/), [uv](https://github.com/astral-sh/uv), [Ruff](https://github.com/astral-sh/ruff), and [mypy](http://mypy-lang.org/).

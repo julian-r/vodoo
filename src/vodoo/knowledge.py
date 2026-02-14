@@ -1,5 +1,6 @@
 """Knowledge article operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -31,6 +32,12 @@ from vodoo.client import OdooClient
 
 MODEL = "knowledge.article"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = ["id", "name", "parent_id", "category", "icon", "write_date"]
+
+# Default fields for get (detail) operations
+DEFAULT_DETAIL_FIELDS = ["id", "name", "parent_id", "category", "icon", "body", "write_date"]
+
 
 def list_articles(
     client: OdooClient,
@@ -40,7 +47,7 @@ def list_articles(
 ) -> list[dict[str, Any]]:
     """List knowledge articles."""
     if fields is None:
-        fields = ["id", "name", "parent_id", "category", "icon", "write_date"]
+        fields = list(DEFAULT_LIST_FIELDS)
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
 
@@ -56,7 +63,7 @@ def get_article(
 ) -> dict[str, Any]:
     """Get a knowledge article."""
     if fields is None:
-        fields = ["id", "name", "parent_id", "category", "icon", "body", "write_date"]
+        fields = list(DEFAULT_DETAIL_FIELDS)
     return get_record(client, MODEL, article_id, fields=fields)
 
 
@@ -139,7 +146,7 @@ def list_article_attachments(client: OdooClient, article_id: int) -> list[dict[s
 def create_article_attachment(
     client: OdooClient,
     article_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create a knowledge article attachment."""

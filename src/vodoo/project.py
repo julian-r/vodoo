@@ -1,5 +1,6 @@
 """Project task operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -27,10 +28,58 @@ from vodoo.base import (
     create_attachment as base_create_attachment,
 )
 from vodoo.client import OdooClient
+from vodoo.content import Markdown
 
 # Model name constant
 MODEL = "project.task"
 TAG_MODEL = "project.tags"
+
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "partner_id",
+    "project_id",
+    "stage_id",
+    "user_ids",
+    "priority",
+    "tag_ids",
+    "create_date",
+]
+
+
+def _build_task_values(
+    name: str,
+    project_id: int,
+    description: str | None = None,
+    user_ids: list[int] | None = None,
+    tag_ids: list[int] | None = None,
+    parent_id: int | None = None,
+    **kwargs: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build values and context dicts for task creation.
+
+    Returns:
+        Tuple of (values, context) dictionaries
+    """
+    values: dict[str, Any] = {
+        "name": name,
+        "project_id": project_id,
+    }
+
+    if description:
+        values["description"] = Markdown(description)
+    if user_ids:
+        values["user_ids"] = [(6, 0, user_ids)]
+    if tag_ids:
+        values["tag_ids"] = [(6, 0, tag_ids)]
+    if parent_id:
+        values["parent_id"] = parent_id
+
+    values.update(kwargs)
+
+    context: dict[str, Any] = {"default_project_id": project_id}
+    return values, context
 
 
 def create_task(
@@ -65,26 +114,9 @@ def create_task(
         43
 
     """
-    values: dict[str, Any] = {
-        "name": name,
-        "project_id": project_id,
-    }
-
-    if description:
-        values["description"] = description
-    if user_ids:
-        values["user_ids"] = [(6, 0, user_ids)]
-    if tag_ids:
-        values["tag_ids"] = [(6, 0, tag_ids)]
-    if parent_id:
-        values["parent_id"] = parent_id
-
-    # Add any additional kwargs
-    values.update(kwargs)
-
-    # Pass context with default_project_id to ensure proper stage/company setup
-    context: dict[str, Any] = {"default_project_id": project_id}
-
+    values, context = _build_task_values(
+        name, project_id, description, user_ids, tag_ids, parent_id, **kwargs
+    )
     return client.create(MODEL, values, context=context)
 
 
@@ -107,17 +139,7 @@ def list_tasks(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "project_id",
-            "stage_id",
-            "user_ids",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
@@ -198,7 +220,7 @@ def display_task_detail(task: dict[str, Any], show_html: bool = False) -> None:
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(task, MODEL, show_html=show_html, record_type="Task")
+    display_record_detail(task, show_html=show_html, record_type="Task")
 
 
 def add_comment(
@@ -377,9 +399,9 @@ def list_task_attachments(
 def download_task_attachments(
     client: OdooClient,
     task_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a task.
 
     Args:
@@ -398,7 +420,7 @@ def download_task_attachments(
 def create_task_attachment(
     client: OdooClient,
     task_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a task.

@@ -12,8 +12,6 @@ Usage:
     python setup_odoo.py --port 19169 --version 19 --project vodoo-test-19ee --enterprise
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import subprocess

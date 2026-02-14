@@ -1,5 +1,14 @@
-"""Helpdesk operations for Vodoo."""
+"""Helpdesk operations for Vodoo.
 
+Each domain module (helpdesk, crm, project, etc.) deliberately uses explicit
+one-liner delegates to :mod:`vodoo.base` rather than a generic registry or
+class-based dispatch.  This is verbose (~15 functions per module, duplicated
+for async) but keeps every function independently discoverable in IDE
+autocomplete, grep, and generated docs, and makes stack traces trivial to
+follow.  The maintenance cost of these thin wrappers is near-zero.
+"""
+
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -40,6 +49,18 @@ from vodoo.client import OdooClient
 MODEL = "helpdesk.ticket"
 TAG_MODEL = "helpdesk.tag"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "partner_id",
+    "stage_id",
+    "user_id",
+    "priority",
+    "tag_ids",
+    "create_date",
+]
+
 
 def list_tickets(
     client: OdooClient,
@@ -60,16 +81,7 @@ def list_tickets(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "partner_id",
-            "stage_id",
-            "user_id",
-            "priority",
-            "tag_ids",
-            "create_date",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
@@ -150,7 +162,7 @@ def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> No
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(ticket, MODEL, show_html=show_html, record_type="Ticket")
+    display_record_detail(ticket, show_html=show_html, record_type="Ticket")
 
 
 def add_comment(
@@ -280,9 +292,9 @@ def list_attachments(
 def download_ticket_attachments(
     client: OdooClient,
     ticket_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a ticket.
 
     Args:
@@ -301,7 +313,7 @@ def download_ticket_attachments(
 def create_attachment(
     client: OdooClient,
     ticket_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a ticket.

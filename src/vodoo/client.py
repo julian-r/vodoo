@@ -1,21 +1,21 @@
 """Odoo client wrapper.
-
-Provides OdooClient which delegates to an OdooTransport (legacy JSON-RPC or JSON-2).
 The transport is auto-detected based on the Odoo version unless explicitly specified.
+Some methods (``search``, ``read``, ``search_read``, ``unlink``, ``name_search``)
+are pure pass-throughs to the transport.  They exist so callers always use
+``client.method()`` — mixing ``client.create()`` (which adds ``process_values``)
+with ``client.transport.search()`` would be a confusing API surface.
 """
 
 from typing import Any
 
 from vodoo.config import OdooConfig
+from vodoo.content import process_values
+from vodoo.exceptions import VodooError
 from vodoo.transport import (
     JSON2Transport,
     LegacyTransport,
     OdooTransport,
-    OdooTransportError,
 )
-
-# Re-export for backwards compatibility
-OdooRPCError = OdooTransportError
 
 
 class OdooClient:
@@ -45,6 +45,7 @@ class OdooClient:
         self.db = config.database
         self.username = config.username
         self.password = config.password
+        self._retry = config.retry_config
 
         if transport is not None:
             self._transport = transport
@@ -56,6 +57,7 @@ class OdooClient:
                 database=self.db,
                 username=self.username,
                 password=self.password,
+                retry=self._retry,
             )
 
     @property
@@ -75,17 +77,30 @@ class OdooClient:
             database=self.db,
             username=self.username,
             password=self.password,
+            retry=self._retry,
         )
         try:
             json2.authenticate()
             return json2
-        except Exception:
+        except VodooError:
+            json2.close()
             return LegacyTransport(
                 url=self.url,
                 database=self.db,
                 username=self.username,
                 password=self.password,
+                retry=self._retry,
             )
+
+    def close(self) -> None:
+        """Close the underlying HTTP client."""
+        self._transport.close()
+
+    def __enter__(self) -> "OdooClient":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.close()
 
     @property
     def uid(self) -> int:
@@ -176,7 +191,7 @@ class OdooClient:
         context: dict[str, Any] | None = None,
     ) -> int:
         """Create a new record."""
-        return self._transport.create(model, values, context)
+        return self._transport.create(model, process_values(values), context)
 
     def write(
         self,
@@ -185,7 +200,7 @@ class OdooClient:
         values: dict[str, Any],
     ) -> bool:
         """Update records."""
-        return self._transport.write(model, ids, values)
+        return self._transport.write(model, ids, process_values(values))
 
     def unlink(
         self,

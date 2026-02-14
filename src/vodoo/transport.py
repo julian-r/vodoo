@@ -3,24 +3,53 @@
 Provides two implementations:
 - LegacyTransport: Odoo 14-18 using POST /jsonrpc with service/method/args envelope
 - JSON2Transport: Odoo 19+ using POST /json/2/<model>/<method> with bearer token auth
-
-The factory function `make_transport()` auto-detects the Odoo version.
 """
 
 import json
-import urllib.request
+import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
+import httpx
 
-class OdooTransportError(Exception):
-    """Base exception for transport-level errors."""
+from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
 
-    def __init__(self, message: str, code: int = -1, data: dict[str, Any] | None = None) -> None:
-        self.code = code
-        self.message = message
-        self.data = data or {}
-        super().__init__(f"[{code}] {message}")
+_RETRYABLE_METHODS = frozenset(
+    {
+        "search",
+        "search_read",
+        "read",
+        "fields_get",
+        "name_search",
+    }
+)
+
+
+@dataclass(frozen=True)
+class RetryConfig:
+    """Configuration for transient-error retry behaviour.
+
+    Retries use exponential backoff: ``backoff_base * 2 ** attempt`` seconds,
+    capped at *backoff_max*.
+
+    Attributes:
+        max_retries: Maximum number of retry attempts (0 to disable retries).
+        backoff_base: Initial backoff delay in seconds.
+        backoff_max: Upper bound on the backoff delay in seconds.
+    """
+
+    max_retries: int = 2
+    backoff_base: float = 0.5
+    backoff_max: float = 30.0
+
+    def delay(self, attempt: int) -> float:
+        """Return the backoff delay for the given zero-based *attempt*."""
+        return float(min(self.backoff_base * 2**attempt, self.backoff_max))
+
+
+#: Default retry configuration used when none is supplied.
+DEFAULT_RETRY = RetryConfig()
 
 
 class OdooTransport(ABC):
@@ -39,13 +68,16 @@ class OdooTransport(ABC):
         password: str,
         *,
         timeout: int = 30,
+        retry: RetryConfig | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.database = database.strip()
         self.username = username.strip()
         self.password = password.strip()
         self.timeout = timeout
+        self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
+        self._http = httpx.Client(timeout=timeout)
 
     @property
     def uid(self) -> int:
@@ -59,7 +91,7 @@ class OdooTransport(ABC):
         """Authenticate and return the user ID.
 
         Raises:
-            OdooTransportError: If authentication fails.
+            AuthenticationError: If authentication fails.
         """
 
     @abstractmethod
@@ -82,7 +114,7 @@ class OdooTransport(ABC):
             Method result
 
         Raises:
-            OdooTransportError: On RPC/HTTP errors.
+            TransportError: On RPC/HTTP errors.
         """
 
     @abstractmethod
@@ -103,8 +135,18 @@ class OdooTransport(ABC):
             Result
 
         Raises:
-            OdooTransportError: On RPC/HTTP errors.
+            TransportError: On RPC/HTTP errors.
         """
+
+    def _is_retryable(self, method: str, exc: Exception) -> bool:
+        """Check if a failed call should be retried."""
+        if method not in _RETRYABLE_METHODS:
+            return False
+        return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout))
+
+    def close(self) -> None:
+        """Close the underlying HTTP client."""
+        self._http.close()
 
     # -- Convenience helpers (built on top of execute_kw) --
 
@@ -230,7 +272,7 @@ class LegacyTransport(OdooTransport):
             [self.database, self.username, self.password, {}],
         )
         if not isinstance(result, int) or result <= 0:
-            raise OdooTransportError("Authentication failed", code=401)
+            raise AuthenticationError("Authentication failed")
         self._uid = result
         return self._uid
 
@@ -242,19 +284,18 @@ class LegacyTransport(OdooTransport):
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         uid = self.uid
-        return self.call_service(
-            "object",
-            "execute_kw",
-            [
-                self.database,
-                uid,
-                self.password,
-                model,
-                method,
-                args,
-                kwargs or {},
-            ],
-        )
+        call_args = [self.database, uid, self.password, model, method, args, kwargs or {}]
+        last_exc: Exception | None = None
+        for attempt in range(self.retry.max_retries + 1):
+            try:
+                return self.call_service("object", "execute_kw", call_args)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    time.sleep(self.retry.delay(attempt))
+                    continue
+                raise
+        raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
 
     def call_service(
         self,
@@ -273,23 +314,22 @@ class LegacyTransport(OdooTransport):
             "id": None,
         }
 
-        data = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(
+        response = self._http.post(
             f"{self.url}/jsonrpc",
-            data=data,
-            headers={"Content-Type": "application/json"},
+            json=payload,
         )
-
-        with urllib.request.urlopen(request, timeout=self.timeout) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        response.raise_for_status()
+        result = response.json()
 
         if "error" in result:
             error = result["error"]
-            raise OdooTransportError(
-                message=error.get("message", "Unknown error"),
-                code=error.get("code", -1),
-                data=error.get("data"),
-            )
+            err_code = error.get("code", -1)
+            err_data = error.get("data")
+            err_msg = error.get("message", "Unknown error")
+            # Prefer the user-facing message from data when available
+            if isinstance(err_data, dict) and err_data.get("message"):
+                err_msg = err_data["message"]
+            raise transport_error_from_data(err_msg, code=err_code, data=err_data)
 
         return result.get("result")
 
@@ -305,17 +345,25 @@ class JSON2Transport(OdooTransport):
             return self._uid
 
         # JSON-2 authenticates by looking up the current user via search_read
-        records = self.search_read(
-            "res.users",
-            domain=[["login", "=", self.username]],
-            fields=["id"],
-            limit=1,
-        )
+        try:
+            records = self.search_read(
+                "res.users",
+                domain=[["login", "=", self.username]],
+                fields=["id"],
+                limit=1,
+            )
+        except TransportError as e:
+            raise AuthenticationError(
+                f"Authentication failed — API key may be invalid or lacks access: {e}"
+            ) from e
         if not records:
-            raise OdooTransportError("Authentication failed — user not found", code=401)
+            raise AuthenticationError(
+                f"Authentication failed — user '{self.username}' not found. "
+                "If using an API key, ensure it belongs to this user."
+            )
         uid = records[0].get("id")
         if not isinstance(uid, int):
-            raise OdooTransportError("Authentication failed — invalid user ID", code=401)
+            raise AuthenticationError("Authentication failed — invalid user ID")
         self._uid = uid
         return self._uid
 
@@ -327,7 +375,17 @@ class JSON2Transport(OdooTransport):
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         body = _build_json2_body(method, args, kwargs)
-        return self._request(model, method, body)
+        last_exc: Exception | None = None
+        for attempt in range(self.retry.max_retries + 1):
+            try:
+                return self._request(model, method, body)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self.retry.max_retries and self._is_retryable(method, exc):
+                    time.sleep(self.retry.delay(attempt))
+                    continue
+                raise
+        raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
 
     def call_service(
         self,
@@ -337,105 +395,45 @@ class JSON2Transport(OdooTransport):
     ) -> Any:
         # JSON-2 doesn't have a service endpoint; fall back to legacy for service calls
         # This is only used for things like version_info which aren't model methods
-        raise OdooTransportError(
+        raise TransportError(
             "call_service is not supported on JSON-2 transport; use execute_kw",
-            code=-1,
         )
 
     def _request(self, model: str, method: str, body: dict[str, Any]) -> Any:
         """Send a JSON-2 API request."""
         endpoint = f"{self.url}/json/2/{model}/{method}"
 
-        data = json.dumps(body).encode("utf-8")
-        request = urllib.request.Request(
-            endpoint,
-            data=data,
-            headers={
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": f"bearer {self.password}",
-                "User-Agent": "Vodoo",
-            },
-        )
+        headers: dict[str, str] = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": f"bearer {self.password}",
+            "User-Agent": "Vodoo",
+        }
         if self.database:
-            request.add_header("X-Odoo-Database", self.database)
+            headers["X-Odoo-Database"] = self.database
 
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                resp_data = response.read()
-        except urllib.error.HTTPError as e:
-            # Try to parse error body
+            response = self._http.post(endpoint, json=body, headers=headers)
+            response.raise_for_status()
+            resp_data = response.content
+        except httpx.HTTPStatusError as e:
+            # Try to parse error body for structured Odoo error info
+            err_data: dict[str, Any] | None = None
             try:
-                err_body = json.loads(e.read().decode("utf-8"))
-                msg = err_body.get("message", f"HTTP {e.code}")
+                err_body = e.response.json()
+                msg = err_body.get("message", f"HTTP {e.response.status_code}")
+                if isinstance(err_body, dict):
+                    err_data = err_body.get("data") or err_body
             except Exception:
-                msg = f"HTTP {e.code}"
-            raise OdooTransportError(msg, code=e.code) from e
+                msg = f"HTTP {e.response.status_code}"
+            raise transport_error_from_data(msg, code=e.response.status_code, data=err_data) from e
 
         if not resp_data:
             return None
 
-        raw = resp_data.decode("utf-8").strip()
-        if raw in ("null", "false"):
-            return None
-        if raw == "true":
-            return True
-
-        # Try JSON parse
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-
-        # Bare number
-        try:
-            return float(raw) if "." in raw else int(raw)
-        except ValueError:
-            pass
-
-        # Bare string
-        return raw
+        return _parse_json2_response(resp_data)
 
 
-def make_transport(
-    url: str,
-    database: str,
-    username: str,
-    password: str,
-    *,
-    timeout: int = 30,
-) -> OdooTransport:
-    """Auto-detect Odoo version and return the appropriate transport.
-
-    Probes the JSON-2 endpoint first (Odoo 19+); falls back to legacy JSON-RPC.
-
-    Args:
-        url: Odoo instance URL
-        database: Database name
-        username: Username
-        password: Password or API key
-        timeout: Request timeout in seconds
-
-    Returns:
-        OdooTransport instance (JSON2Transport or LegacyTransport)
-    """
-    json2 = JSON2Transport(
-        url=url,
-        database=database,
-        username=username,
-        password=password,
-        timeout=timeout,
-    )
-    try:
-        json2.authenticate()
-        return json2
-    except Exception:
-        return LegacyTransport(
-            url=url,
-            database=database,
-            username=username,
-            password=password,
-            timeout=timeout,
-        )
+# -- Shared helpers -----------------------------------------------------------
 
 
 def _build_json2_body(  # noqa: PLR0912
@@ -468,8 +466,10 @@ def _build_json2_body(  # noqa: PLR0912
     elif method == "unlink":
         if args:
             body["ids"] = args[0]
-    elif method not in ("name_search", "fields_get") and args and isinstance(args[0], list):
-        # Generic method call — pass ids if first arg is a list
+    elif args and isinstance(args[0], list) and all(isinstance(i, int) for i in args[0]):
+        # Generic method call — pass as ids when first arg is a list of ints
+        # (e.g., action_timer_start([42])). Other list-typed first args are
+        # left for the caller to structure via kwargs.
         body["ids"] = args[0]
 
     if kwargs:
@@ -479,6 +479,30 @@ def _build_json2_body(  # noqa: PLR0912
             body["domain"] = body.pop("args")
 
     return body
+
+
+def _parse_json2_response(resp_data: bytes) -> Any:
+    """Parse a JSON-2 response body."""
+    raw = resp_data.decode("utf-8").strip()
+    if raw in ("null", "false"):
+        return None
+    if raw == "true":
+        return True
+
+    # Try JSON parse
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Bare number
+    try:
+        return float(raw) if "." in raw else int(raw)
+    except ValueError:
+        pass
+
+    # Bare string
+    return raw
 
 
 def _parse_name_search(result: Any) -> list[tuple[int, str]]:

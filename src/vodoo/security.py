@@ -1,10 +1,17 @@
 """Security group utilities for Vodoo."""
 
-from __future__ import annotations
-
+import secrets
+import string
 from dataclasses import dataclass
+from typing import Any
 
 from vodoo.client import OdooClient
+
+
+def _generate_password() -> str:
+    """Generate a random 24-character password."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(24))
 
 
 def _groups_field(client: OdooClient) -> str:
@@ -396,13 +403,9 @@ def create_user(
         Tuple of (user_id, password)
 
     """
-    import secrets
-    import string
-
     # Generate password if not provided
     if password is None:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        password = "".join(secrets.choice(alphabet) for _ in range(24))
+        password = _generate_password()
 
     # Use login as email if not provided
     if email is None:
@@ -439,19 +442,15 @@ def set_user_password(
         The password that was set
 
     """
-    import secrets
-    import string
-
     # Generate password if not provided
     if password is None:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        password = "".join(secrets.choice(alphabet) for _ in range(24))
+        password = _generate_password()
 
     client.write("res.users", [user_id], {"password": password})
     return password
 
 
-def get_user_info(client: OdooClient, user_id: int) -> dict:
+def get_user_info(client: OdooClient, user_id: int) -> dict[str, Any]:
     """Get user information.
 
     Args:
