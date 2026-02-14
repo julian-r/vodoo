@@ -181,7 +181,7 @@ Vodoo handles this automatically when using `comment` and `note` commands.
 
 ### mail.message Creation Requirements
 
-Creating messages directly via XML-RPC requires:
+Creating messages directly via the Odoo API requires:
 
 1. **Access rights**: User must be in a group with `mail.message` create permission (API Base provides this)
 2. **Document access**: User must have access to the related document (e.g., be a follower for projects)

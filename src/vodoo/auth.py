@@ -103,7 +103,7 @@ def message_post_sudo(
     partner_id = get_partner_id_from_user(client, user_id)
 
     # Create the message directly in mail.message model
-    # This avoids the XML-RPC marshalling issue with message_post
+    # This avoids the RPC marshalling issue with message_post
 
     # For notes, we want the "Note" subtype, for comments we want "Discussions"
     subtype_name = "Note" if is_note else "Discussions"

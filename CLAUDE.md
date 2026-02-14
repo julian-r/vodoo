@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Vodoo is a Python CLI tool for interacting with Odoo via XML-RPC. It supports helpdesk tickets, project tasks, projects, and CRM leads/opportunities.
+Vodoo is a Python CLI tool for interacting with Odoo via JSON-RPC (Odoo 14-18) and JSON-2 (Odoo 19+). It supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
 
 ## Commands
 
@@ -36,7 +36,7 @@ uv build
 
 ### Module Structure
 
-- **client.py** - XML-RPC transport layer wrapping Odoo's external API
+- **client.py** - High-level client delegating to the transport layer
 - **config.py** - Pydantic-based configuration from environment variables/.env files
 - **auth.py** - Authentication utilities and sudo operations
 - **base.py** - Shared operations (CRUD, display, attachments, messages) used by all domain modules
