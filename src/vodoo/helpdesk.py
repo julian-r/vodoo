@@ -8,6 +8,7 @@ autocomplete, grep, and generated docs, and makes stack traces trivial to
 follow.  The maintenance cost of these thin wrappers is near-zero.
 """
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -291,9 +292,9 @@ def list_attachments(
 def download_ticket_attachments(
     client: OdooClient,
     ticket_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a ticket.
 
     Args:
@@ -312,7 +313,7 @@ def download_ticket_attachments(
 def create_attachment(
     client: OdooClient,
     ticket_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a ticket.

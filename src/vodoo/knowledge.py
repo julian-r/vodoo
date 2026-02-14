@@ -1,5 +1,6 @@
 """Knowledge article operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -145,7 +146,7 @@ def list_article_attachments(client: OdooClient, article_id: int) -> list[dict[s
 def create_article_attachment(
     client: OdooClient,
     article_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create a knowledge article attachment."""

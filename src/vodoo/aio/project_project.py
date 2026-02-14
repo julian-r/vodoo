@@ -1,5 +1,6 @@
 """Async project (project.project) operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.aio.base import (
@@ -127,7 +128,7 @@ async def list_project_attachments(
 async def create_project_attachment(
     client: AsyncOdooClient,
     project_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a project."""

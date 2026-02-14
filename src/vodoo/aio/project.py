@@ -1,5 +1,6 @@
 """Async project task operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.aio.base import (
@@ -177,9 +178,9 @@ async def list_task_attachments(
 async def download_task_attachments(
     client: AsyncOdooClient,
     task_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a task."""
     return await download_record_attachments(
         client, MODEL, task_id, output_dir, extension=extension
@@ -189,7 +190,7 @@ async def download_task_attachments(
 async def create_task_attachment(
     client: AsyncOdooClient,
     task_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a task."""

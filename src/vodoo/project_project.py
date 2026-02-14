@@ -1,5 +1,6 @@
 """Project (project.project) operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -250,7 +251,7 @@ def list_project_attachments(
 def create_project_attachment(
     client: OdooClient,
     project_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a project.

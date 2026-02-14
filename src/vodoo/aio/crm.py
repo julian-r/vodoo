@@ -1,5 +1,6 @@
 """Async CRM lead/opportunity operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.aio.base import (
@@ -146,9 +147,9 @@ async def list_lead_attachments(
 async def download_lead_attachments(
     client: AsyncOdooClient,
     lead_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a lead."""
     return await download_record_attachments(
         client, MODEL, lead_id, output_dir, extension=extension
@@ -158,7 +159,7 @@ async def download_lead_attachments(
 async def create_lead_attachment(
     client: AsyncOdooClient,
     lead_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a lead."""

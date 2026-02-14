@@ -1,5 +1,6 @@
 """CRM lead/opportunity operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -287,9 +288,9 @@ def list_lead_attachments(
 def download_lead_attachments(
     client: OdooClient,
     lead_id: int,
-    output_dir: Any = None,
+    output_dir: Path | None = None,
     extension: str | None = None,
-) -> list[Any]:
+) -> list[Path]:
     """Download all attachments from a lead.
 
     Args:
@@ -308,7 +309,7 @@ def download_lead_attachments(
 def create_lead_attachment(
     client: OdooClient,
     lead_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a lead.
