@@ -12,11 +12,12 @@ Quick start as a library (sync)::
     )
     client = OdooClient(config)
 
-    # Use the high-level domain helpers …
-    from vodoo.helpdesk import list_tickets
-    tickets = list_tickets(client, limit=10)
+    # Domain namespaces on the client
+    tickets = client.helpdesk.list(limit=10)
+    ticket = client.helpdesk.get(42)
+    client.helpdesk.comment(42, "Deployed to staging")
 
-    # … or the generic client directly
+    # Generic client for any model
     partners = client.search_read("res.partner", fields=["name", "email"], limit=5)
 
 Quick start (async)::
@@ -26,8 +27,8 @@ Quick start (async)::
     config = OdooConfig(...)
 
     async with AsyncOdooClient(config) as client:
-        from vodoo.aio.helpdesk import list_tickets
-        tickets = await list_tickets(client, limit=10)
+        tickets = await client.helpdesk.list(limit=10)
+        leads = await client.crm.list(limit=5)
 """
 
 from importlib.metadata import PackageNotFoundError, version

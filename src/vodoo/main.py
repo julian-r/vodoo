@@ -13,36 +13,15 @@ from vodoo.base import (
     display_attachments,
     display_messages,
     display_records,
+    display_tags,
     download_attachment,
     get_record,
 )
 from vodoo.client import OdooClient
 from vodoo.config import get_config
 from vodoo.crm import (
-    add_comment as add_lead_comment,
-)
-from vodoo.crm import (
-    add_note as add_lead_note,
-)
-from vodoo.crm import (
-    add_tag_to_lead,
-    create_lead_attachment,
     display_lead_detail,
     display_leads,
-    download_lead_attachments,
-    get_lead,
-    get_lead_url,
-    list_lead_attachments,
-    list_lead_fields,
-    list_lead_messages,
-    list_leads,
-    set_lead_fields,
-)
-from vodoo.crm import (
-    display_tags as display_lead_tags,
-)
-from vodoo.crm import (
-    list_tags as list_lead_tags,
 )
 from vodoo.exceptions import (
     AuthenticationError,
@@ -53,113 +32,26 @@ from vodoo.exceptions import (
     VodooError,
 )
 from vodoo.fields import parse_field_assignment
-from vodoo.generic import (
-    call_method,
-    create_record,
-    delete_record,
-    search_records,
-    update_record,
-)
 from vodoo.helpdesk import (
-    add_comment,
-    add_note,
-    add_tag_to_ticket,
-    create_attachment,
-    display_tags,
     display_ticket_detail,
     display_tickets,
-    download_ticket_attachments,
-    get_ticket,
-    get_ticket_url,
-    list_attachments,
-    list_messages,
-    list_tags,
-    list_ticket_fields,
-    list_tickets,
-    set_ticket_fields,
-)
-from vodoo.knowledge import (
-    add_comment as add_article_comment,
-)
-from vodoo.knowledge import (
-    add_note as add_article_note,
 )
 from vodoo.knowledge import (
     display_article_detail,
     display_articles,
-    get_article,
-    get_article_url,
-    list_article_attachments,
-    list_article_messages,
-    list_articles,
 )
 from vodoo.project import (
-    add_comment as add_task_comment,
-)
-from vodoo.project import (
-    add_note as add_task_note,
-)
-from vodoo.project import (
-    add_tag_to_task,
-    create_task,
-    create_task_attachment,
     display_task_detail,
     display_task_tags,
     display_tasks,
-    download_task_attachments,
-    get_task,
-    get_task_url,
-    list_task_attachments,
-    list_task_fields,
-    list_task_messages,
-    list_task_tags,
-    list_tasks,
-    set_task_fields,
-)
-from vodoo.project import (
-    create_tag as create_project_tag,
-)
-from vodoo.project import (
-    delete_tag as delete_project_tag,
 )
 from vodoo.project_project import (
-    add_comment as add_project_comment,
-)
-from vodoo.project_project import (
-    add_note as add_project_note,
-)
-from vodoo.project_project import (
-    create_project_attachment,
     display_project_detail,
     display_projects,
     display_stages,
-    get_project,
-    get_project_url,
-    list_project_attachments,
-    list_project_fields,
-    list_project_messages,
-    list_projects,
-    list_stages,
-    set_project_fields,
 )
 from vodoo.security import (
     GROUP_DEFINITIONS,
-    assign_user_to_groups,
-    create_security_groups,
-    create_user,
-    get_group_ids,
-    get_user_info,
-    resolve_user_id,
-    set_user_password,
-)
-from vodoo.timer import (
-    fetch_active_timesheets,
-    fetch_today_timesheets,
-    start_timer_on_task,
-    start_timer_on_ticket,
-    start_timer_on_timesheet,
-    stop_active_timers,
-    stop_timer_on_timesheet,
 )
 
 
@@ -320,7 +212,6 @@ def get_client() -> OdooClient:
 
 
 def _show_fields(  # noqa: PLR0912
-    client: OdooClient,
     record_type: str,
     get_record_fn: Callable[..., dict[str, Any]],
     list_fields_fn: Callable[..., dict[str, Any]],
@@ -329,7 +220,7 @@ def _show_fields(  # noqa: PLR0912
 ) -> None:
     """Shared implementation for all ``fields`` sub-commands."""
     if record_id:
-        record = get_record_fn(client, record_id)
+        record = get_record_fn(record_id)
         console.print(f"\n[bold cyan]Fields for {record_type} #{record_id}[/bold cyan]\n")
 
         if field_name:
@@ -341,7 +232,7 @@ def _show_fields(  # noqa: PLR0912
             for key, value in sorted(record.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
     else:
-        fields = list_fields_fn(client)
+        fields = list_fields_fn()
         console.print(f"\n[bold cyan]Available {record_type} Fields[/bold cyan]\n")
 
         if field_name:
@@ -367,7 +258,6 @@ def _show_fields(  # noqa: PLR0912
 
 
 def _download_all(
-    client: OdooClient,
     record_type: str,
     record_id: int,
     list_attachments_fn: Callable[..., list[dict[str, Any]]],
@@ -376,7 +266,7 @@ def _download_all(
     extension: str | None = None,
 ) -> None:
     """Shared implementation for all ``download-all`` sub-commands."""
-    attachments = list_attachments_fn(client, record_id)
+    attachments = list_attachments_fn(record_id)
     if not attachments:
         console.print(f"[yellow]No attachments found for {record_type} {record_id}[/yellow]")
         return
@@ -393,7 +283,7 @@ def _download_all(
     else:
         console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
 
-    downloaded_files = download_fn(client, record_id, output_dir, extension=extension)
+    downloaded_files = download_fn(record_id, output_dir, extension=extension)
 
     if downloaded_files:
         console.print(f"\n[green]Successfully downloaded {len(downloaded_files)} files:[/green]")
@@ -427,7 +317,7 @@ def helpdesk_list(
         domain.append(("user_id.name", "ilike", assigned_to))
 
     with _handle_errors():
-        tickets = list_tickets(client, domain=domain, limit=limit, fields=fields)
+        tickets = client.helpdesk.list(domain=domain, limit=limit, fields=fields)
         display_tickets(tickets)
         console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
 
@@ -448,7 +338,7 @@ def helpdesk_show(
     client = get_client()
 
     with _handle_errors():
-        ticket = get_ticket(client, ticket_id, fields=fields)
+        ticket = client.helpdesk.get(ticket_id, fields=fields)
 
         if fields:
             # If specific fields requested, show them directly
@@ -475,8 +365,8 @@ def helpdesk_comment(
     client = get_client()
 
     with _handle_errors():
-        success = add_comment(
-            client, ticket_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.helpdesk.comment(
+            ticket_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added comment to ticket {ticket_id}[/green]")
@@ -501,7 +391,9 @@ def helpdesk_note(
     client = get_client()
 
     with _handle_errors():
-        success = add_note(client, ticket_id, message, user_id=author_id, markdown=not no_markdown)
+        success = client.helpdesk.note(
+            ticket_id, message, user_id=author_id, markdown=not no_markdown
+        )
         if success:
             console.print(f"[green]Successfully added note to ticket {ticket_id}[/green]")
         else:
@@ -515,7 +407,7 @@ def helpdesk_tags() -> None:
     client = get_client()
 
     with _handle_errors():
-        tags = list_tags(client)
+        tags = client.helpdesk.tags()
         display_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
@@ -529,7 +421,7 @@ def helpdesk_tag(
     client = get_client()
 
     with _handle_errors():
-        add_tag_to_ticket(client, ticket_id, tag_id)
+        client.helpdesk.add_tag(ticket_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to ticket {ticket_id}[/green]")
 
 
@@ -549,7 +441,7 @@ def helpdesk_chatter(
     client = get_client()
 
     with _handle_errors():
-        messages = list_messages(client, ticket_id, limit=limit)
+        messages = client.helpdesk.messages(ticket_id, limit=limit)
         if messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -564,7 +456,7 @@ def helpdesk_attachments(
     client = get_client()
 
     with _handle_errors():
-        attachments = list_attachments(client, ticket_id)
+        attachments = client.helpdesk.attachments(ticket_id)
         if attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -604,11 +496,10 @@ def helpdesk_download_all(
     client = get_client()
     with _handle_errors():
         _download_all(
-            client,
             "ticket",
             ticket_id,
-            list_attachments,
-            download_ticket_attachments,
+            client.helpdesk.attachments,
+            client.helpdesk.download,
             output_dir=output_dir,
             extension=extension,
         )
@@ -626,10 +517,9 @@ def helpdesk_fields(
     client = get_client()
     with _handle_errors():
         _show_fields(
-            client,
             "Helpdesk Ticket",
-            get_ticket,
-            list_ticket_fields,
+            client.helpdesk.get,
+            client.helpdesk.fields,
             record_id=ticket_id,
             field_name=field_name,
         )
@@ -670,7 +560,7 @@ def helpdesk_set(
                 client, "helpdesk.ticket", ticket_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = set_ticket_fields(client, ticket_id, values)
+        success = client.helpdesk.set(ticket_id, values)
         if success:
             console.print(f"[green]Successfully updated ticket {ticket_id}[/green]")
             for field, value in values.items():
@@ -693,14 +583,14 @@ def helpdesk_attach(
     client = get_client()
 
     with _handle_errors():
-        attachment_id = create_attachment(client, ticket_id, file_path, name=name)
+        attachment_id = client.helpdesk.attach(ticket_id, file_path, name=name)
         console.print(
             f"[green]Successfully attached {file_path.name} to ticket {ticket_id}[/green]"
         )
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show ticket URL for verification
-        url = get_ticket_url(client, ticket_id)
+        url = client.helpdesk.url(ticket_id)
         console.print(f"\n[cyan]View ticket:[/cyan] {url}")
 
 
@@ -712,7 +602,7 @@ def helpdesk_url(
     client = get_client()
 
     with _handle_errors():
-        url = get_ticket_url(client, ticket_id)
+        url = client.helpdesk.url(ticket_id)
         console.print(url)
 
 
@@ -743,7 +633,7 @@ def project_list(
         domain.append(("user_ids.name", "ilike", assigned_to))
 
     with _handle_errors():
-        tasks = list_tasks(client, domain=domain, limit=limit, fields=fields)
+        tasks = client.tasks.list(domain=domain, limit=limit, fields=fields)
         display_tasks(tasks)
         console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
@@ -775,8 +665,7 @@ def project_task_create(
     client = get_client()
 
     with _handle_errors():
-        task_id = create_task(
-            client,
+        task_id = client.tasks.create(
             name=name,
             project_id=project_id,
             description=description,
@@ -787,7 +676,7 @@ def project_task_create(
         console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
 
         # Show the URL
-        url = get_task_url(client, task_id)
+        url = client.tasks.url(task_id)
         console.print(f"\n[cyan]View task:[/cyan] {url}")
 
 
@@ -807,7 +696,7 @@ def project_show(
     client = get_client()
 
     with _handle_errors():
-        task = get_task(client, task_id, fields=fields)
+        task = client.tasks.get(task_id, fields=fields)
 
         if fields:
             # If specific fields requested, show them directly
@@ -834,8 +723,8 @@ def project_comment(
     client = get_client()
 
     with _handle_errors():
-        success = add_task_comment(
-            client, task_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.tasks.comment(
+            task_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added comment to task {task_id}[/green]")
@@ -860,9 +749,7 @@ def project_note(
     client = get_client()
 
     with _handle_errors():
-        success = add_task_note(
-            client, task_id, message, user_id=author_id, markdown=not no_markdown
-        )
+        success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
             console.print(f"[green]Successfully added note to task {task_id}[/green]")
         else:
@@ -876,7 +763,7 @@ def project_tags() -> None:
     client = get_client()
 
     with _handle_errors():
-        tags = list_task_tags(client)
+        tags = client.tasks.tags()
         display_task_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
@@ -890,7 +777,7 @@ def project_tag(
     client = get_client()
 
     with _handle_errors():
-        add_tag_to_task(client, task_id, tag_id)
+        client.tasks.add_tag(task_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
 
 
@@ -903,7 +790,7 @@ def project_tag_create(
     client = get_client()
 
     with _handle_errors():
-        tag_id = create_project_tag(client, name, color=color)
+        tag_id = client.tasks.create_tag(name, color=color)
         console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
 
 
@@ -921,7 +808,7 @@ def project_tag_delete(
         raise typer.Exit(1)
 
     with _handle_errors():
-        success = delete_project_tag(client, tag_id)
+        success = client.tasks.delete_tag(tag_id)
         if success:
             console.print(f"[green]Successfully deleted tag {tag_id}[/green]")
         else:
@@ -945,7 +832,7 @@ def project_chatter(
     client = get_client()
 
     with _handle_errors():
-        messages = list_task_messages(client, task_id, limit=limit)
+        messages = client.tasks.messages(task_id, limit=limit)
         if messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -960,7 +847,7 @@ def project_attachments(
     client = get_client()
 
     with _handle_errors():
-        attachments = list_task_attachments(client, task_id)
+        attachments = client.tasks.attachments(task_id)
         if attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1000,11 +887,10 @@ def project_download_all(
     client = get_client()
     with _handle_errors():
         _download_all(
-            client,
             "task",
             task_id,
-            list_task_attachments,
-            download_task_attachments,
+            client.tasks.attachments,
+            client.tasks.download,
             output_dir=output_dir,
             extension=extension,
         )
@@ -1022,10 +908,9 @@ def project_fields(
     client = get_client()
     with _handle_errors():
         _show_fields(
-            client,
             "Project Task",
-            get_task,
-            list_task_fields,
+            client.tasks.get,
+            client.tasks.fields,
             record_id=task_id,
             field_name=field_name,
         )
@@ -1066,7 +951,7 @@ def project_set(
                 client, "project.task", task_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = set_task_fields(client, task_id, values)
+        success = client.tasks.set(task_id, values)
         if success:
             console.print(f"[green]Successfully updated task {task_id}[/green]")
             for field, value in values.items():
@@ -1089,12 +974,12 @@ def project_attach(
     client = get_client()
 
     with _handle_errors():
-        attachment_id = create_task_attachment(client, task_id, file_path, name=name)
+        attachment_id = client.tasks.attach(task_id, file_path, name=name)
         console.print(f"[green]Successfully attached {file_path.name} to task {task_id}[/green]")
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show task URL for verification
-        url = get_task_url(client, task_id)
+        url = client.tasks.url(task_id)
         console.print(f"\n[cyan]View task:[/cyan] {url}")
 
 
@@ -1106,7 +991,7 @@ def project_url(
     client = get_client()
 
     with _handle_errors():
-        url = get_task_url(client, task_id)
+        url = client.tasks.url(task_id)
         console.print(url)
 
 
@@ -1137,7 +1022,7 @@ def project_project_list(
         domain.append(("partner_id.name", "ilike", partner))
 
     with _handle_errors():
-        projects = list_projects(client, domain=domain, limit=limit, fields=fields)
+        projects = client.projects.list(domain=domain, limit=limit, fields=fields)
         display_projects(projects)
         console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
 
@@ -1158,7 +1043,7 @@ def project_project_show(
     client = get_client()
 
     with _handle_errors():
-        project = get_project(client, project_id, fields=fields)
+        project = client.projects.get(project_id, fields=fields)
 
         if fields:
             # If specific fields requested, show them directly
@@ -1185,8 +1070,8 @@ def project_project_comment(
     client = get_client()
 
     with _handle_errors():
-        success = add_project_comment(
-            client, project_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.projects.comment(
+            project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added comment to project {project_id}[/green]")
@@ -1211,8 +1096,8 @@ def project_project_note(
     client = get_client()
 
     with _handle_errors():
-        success = add_project_note(
-            client, project_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.projects.note(
+            project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added note to project {project_id}[/green]")
@@ -1237,7 +1122,7 @@ def project_project_chatter(
     client = get_client()
 
     with _handle_errors():
-        messages = list_project_messages(client, project_id, limit=limit)
+        messages = client.projects.messages(project_id, limit=limit)
         if messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -1252,7 +1137,7 @@ def project_project_attachments(
     client = get_client()
 
     with _handle_errors():
-        attachments = list_project_attachments(client, project_id)
+        attachments = client.projects.attachments(project_id)
         if attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1272,10 +1157,9 @@ def project_project_fields(
     client = get_client()
     with _handle_errors():
         _show_fields(
-            client,
             "Project",
-            get_project,
-            list_project_fields,
+            client.projects.get,
+            client.projects.fields,
             record_id=project_id,
             field_name=field_name,
         )
@@ -1313,7 +1197,7 @@ def project_project_set(
                 client, "project.project", project_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = set_project_fields(client, project_id, values)
+        success = client.projects.set(project_id, values)
         if success:
             console.print(f"[green]Successfully updated project {project_id}[/green]")
             for field, value in values.items():
@@ -1336,14 +1220,14 @@ def project_project_attach(
     client = get_client()
 
     with _handle_errors():
-        attachment_id = create_project_attachment(client, project_id, file_path, name=name)
+        attachment_id = client.projects.attach(project_id, file_path, name=name)
         console.print(
             f"[green]Successfully attached {file_path.name} to project {project_id}[/green]"
         )
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show project URL for verification
-        url = get_project_url(client, project_id)
+        url = client.projects.url(project_id)
         console.print(f"\n[cyan]View project:[/cyan] {url}")
 
 
@@ -1355,7 +1239,7 @@ def project_project_url(
     client = get_client()
 
     with _handle_errors():
-        url = get_project_url(client, project_id)
+        url = client.projects.url(project_id)
         console.print(url)
 
 
@@ -1377,7 +1261,7 @@ def project_project_stages(
     client = get_client()
 
     with _handle_errors():
-        stages = list_stages(client, project_id=project_id)
+        stages = client.projects.stages(project_id=project_id)
         if stages:
             display_stages(stages)
             console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
@@ -1411,7 +1295,7 @@ def knowledge_list(
         domain.append(("category", "=", category))
 
     with _handle_errors():
-        articles = list_articles(client, domain=domain, limit=limit)
+        articles = client.knowledge.list(domain=domain, limit=limit)
         display_articles(articles)
         console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
 
@@ -1427,7 +1311,7 @@ def knowledge_show(
     client = get_client()
 
     with _handle_errors():
-        article = get_article(client, article_id)
+        article = client.knowledge.get(article_id)
         display_article_detail(article, show_html=show_html)
 
 
@@ -1446,8 +1330,8 @@ def knowledge_comment(
     client = get_client()
 
     with _handle_errors():
-        success = add_article_comment(
-            client, article_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.knowledge.comment(
+            article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added comment to article {article_id}[/green]")
@@ -1471,8 +1355,8 @@ def knowledge_note(
     client = get_client()
 
     with _handle_errors():
-        success = add_article_note(
-            client, article_id, message, user_id=author_id, markdown=not no_markdown
+        success = client.knowledge.note(
+            article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
             console.print(f"[green]Successfully added note to article {article_id}[/green]")
@@ -1493,7 +1377,7 @@ def knowledge_chatter(
     client = get_client()
 
     with _handle_errors():
-        messages = list_article_messages(client, article_id, limit=limit)
+        messages = client.knowledge.messages(article_id, limit=limit)
         if messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -1508,7 +1392,7 @@ def knowledge_attachments(
     client = get_client()
 
     with _handle_errors():
-        attachments = list_article_attachments(client, article_id)
+        attachments = client.knowledge.attachments(article_id)
         if attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1524,7 +1408,7 @@ def knowledge_url(
     client = get_client()
 
     with _handle_errors():
-        url = get_article_url(client, article_id)
+        url = client.knowledge.url(article_id)
         console.print(url)
 
 
@@ -1537,7 +1421,7 @@ def security_create_groups() -> None:
     client = get_client()
 
     with _handle_errors():
-        group_ids, warnings = create_security_groups(client)
+        group_ids, warnings = client.security.create_groups()
         console.print("[green]Security groups ready:[/green]")
         for name, group_id in group_ids.items():
             console.print(f"- {name}: {group_id}")
@@ -1577,13 +1461,13 @@ def security_assign_bot(
     client = get_client()
 
     with _handle_errors():
-        resolved_user_id = resolve_user_id(client, user_id=user_id, login=login)
+        resolved_user_id = client.security.resolve_user(user_id=user_id, login=login)
         group_names = [group.name for group in GROUP_DEFINITIONS]
 
         if create_groups:
-            group_ids, warnings = create_security_groups(client)
+            group_ids, warnings = client.security.create_groups()
         else:
-            group_ids, warnings = get_group_ids(client, group_names)
+            group_ids, warnings = client.security.get_group_ids(group_names)
 
         missing_groups = [name for name in group_names if name not in group_ids]
         if missing_groups:
@@ -1591,8 +1475,7 @@ def security_assign_bot(
             console.print(f"[red]Missing groups:[/red] {missing_list}")
             raise typer.Exit(1)
 
-        assign_user_to_groups(
-            client,
+        client.security.assign(
             resolved_user_id,
             list(group_ids.values()),
             remove_default_groups=not keep_default_groups,
@@ -1652,8 +1535,7 @@ def security_create_user(
     client = get_client()
 
     with _handle_errors():
-        user_id, generated_password = create_user(
-            client,
+        user_id, generated_password = client.security.create_user(
             name=name,
             login=login,
             password=password,
@@ -1667,16 +1549,16 @@ def security_create_user(
             console.print("[yellow]⚠ Save this password - it cannot be retrieved later![/yellow]")
 
         # Get user info to show share status
-        user_info = get_user_info(client, user_id)
+        user_info = client.security.get_user(user_id)
         console.print(f"[bold]Share (not billed):[/bold] {user_info['share']}")
 
         if assign_groups:
             group_names = [group.name for group in GROUP_DEFINITIONS]
 
             if create_groups:
-                group_ids, warnings = create_security_groups(client)
+                group_ids, warnings = client.security.create_groups()
             else:
-                group_ids, warnings = get_group_ids(client, group_names)
+                group_ids, warnings = client.security.get_group_ids(group_names)
 
             missing_groups = [name for name in group_names if name not in group_ids]
             if missing_groups:
@@ -1684,8 +1566,7 @@ def security_create_user(
                 console.print(f"[yellow]Missing groups (skipped):[/yellow] {missing_list}")
 
             if group_ids:
-                assign_user_to_groups(
-                    client,
+                client.security.assign(
                     user_id,
                     list(group_ids.values()),
                     remove_default_groups=True,
@@ -1726,12 +1607,12 @@ def security_set_password(
     client = get_client()
 
     with _handle_errors():
-        resolved_user_id = resolve_user_id(client, user_id=user_id, login=login)
+        resolved_user_id = client.security.resolve_user(user_id=user_id, login=login)
 
-        new_password = set_user_password(client, resolved_user_id, password)
+        new_password = client.security.set_password(resolved_user_id, password)
 
         # Get user info for display
-        user_info = get_user_info(client, resolved_user_id)
+        user_info = client.security.get_user(resolved_user_id)
 
         console.print(
             f"[green]Password updated for:[/green] {user_info['name']} (id={resolved_user_id})"
@@ -1773,7 +1654,7 @@ def model_create(
             # Parse using existing helper
             field, value = parse_field_assignment(client, model, 0, field_assignment)
             values[field] = value
-        record_id = create_record(client, model, values)
+        record_id = client.generic.create(model, values)
         console.print(f"[green]Successfully created record with ID {record_id}[/green]")
         console.print(f"Model: {model}")
         for field, value in values.items():
@@ -1821,8 +1702,7 @@ def model_read(
 
             parsed_domain = json.loads(domain) if domain else []
 
-            records = search_records(
-                client,
+            records = client.generic.search(
                 model,
                 domain=parsed_domain,
                 fields=fields,
@@ -1868,7 +1748,7 @@ def model_update(
                 client, model, record_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = update_record(client, model, record_id, values)
+        success = client.generic.update(model, record_id, values)
         if success:
             console.print(f"[green]Successfully updated record {record_id}[/green]")
             console.print(f"Model: {model}")
@@ -1892,7 +1772,7 @@ def model_delete(
     client = get_client()
 
     with _handle_errors():
-        success = delete_record(client, model, record_id)
+        success = client.generic.delete(model, record_id)
         if success:
             console.print(f"[green]Successfully deleted record {record_id} from {model}[/green]")
         else:
@@ -1920,8 +1800,7 @@ def model_call(
         args = json.loads(args_json)
         kwargs = json.loads(kwargs_json)
 
-        result = call_method(
-            client,
+        result = client.generic.call(
             model,
             method,
             args=args,
@@ -1982,7 +1861,7 @@ def crm_list(
         domain.append(("type", "=", lead_type))
 
     with _handle_errors():
-        leads = list_leads(client, domain=domain, limit=limit, fields=fields)
+        leads = client.crm.list(domain=domain, limit=limit, fields=fields)
         display_leads(leads)
         console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
 
@@ -2003,7 +1882,7 @@ def crm_show(
     client = get_client()
 
     with _handle_errors():
-        lead = get_lead(client, lead_id, fields=fields)
+        lead = client.crm.get(lead_id, fields=fields)
         if fields:
             console.print(f"\n[bold cyan]Lead #{lead_id}[/bold cyan]\n")
             for key, value in sorted(lead.items()):
@@ -2027,9 +1906,7 @@ def crm_comment(
     client = get_client()
 
     with _handle_errors():
-        success = add_lead_comment(
-            client, lead_id, message, user_id=author_id, markdown=not no_markdown
-        )
+        success = client.crm.comment(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
             console.print(f"[green]Successfully added comment to lead {lead_id}[/green]")
         else:
@@ -2052,13 +1929,10 @@ def crm_note(
     client = get_client()
 
     with _handle_errors():
-        success = add_lead_note(
-            client, lead_id, message, user_id=author_id, markdown=not no_markdown
-        )
+        success = client.crm.note(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
             console.print(f"[green]Successfully added note to lead {lead_id}[/green]")
         else:
-            console.print(f"[red]Failed to add note to lead {lead_id}[/red]")
             raise typer.Exit(1)
 
 
@@ -2068,8 +1942,8 @@ def crm_tags() -> None:
     client = get_client()
 
     with _handle_errors():
-        tags = list_lead_tags(client)
-        display_lead_tags(tags)
+        tags = client.crm.tags()
+        display_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
@@ -2082,7 +1956,7 @@ def crm_tag(
     client = get_client()
 
     with _handle_errors():
-        add_tag_to_lead(client, lead_id, tag_id)
+        client.crm.add_tag(lead_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
 
 
@@ -2096,7 +1970,7 @@ def crm_chatter(
     client = get_client()
 
     with _handle_errors():
-        messages = list_lead_messages(client, lead_id, limit=limit)
+        messages = client.crm.messages(lead_id, limit=limit)
         if messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -2111,7 +1985,7 @@ def crm_attachments(
     client = get_client()
 
     with _handle_errors():
-        attachments = list_lead_attachments(client, lead_id)
+        attachments = client.crm.attachments(lead_id)
         if attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -2148,11 +2022,10 @@ def crm_download_all(
     client = get_client()
     with _handle_errors():
         _download_all(
-            client,
             "lead",
             lead_id,
-            list_lead_attachments,
-            download_lead_attachments,
+            client.crm.attachments,
+            client.crm.download,
             output_dir=output_dir,
             extension=extension,
         )
@@ -2167,10 +2040,9 @@ def crm_fields(
     client = get_client()
     with _handle_errors():
         _show_fields(
-            client,
             "CRM Lead",
-            get_lead,
-            list_lead_fields,
+            client.crm.get,
+            client.crm.fields,
             record_id=lead_id,
             field_name=field_name,
         )
@@ -2198,7 +2070,7 @@ def crm_set(
                 client, "crm.lead", lead_id, fa, no_markdown=no_markdown
             )
             values[field] = value
-        success = set_lead_fields(client, lead_id, values)
+        success = client.crm.set(lead_id, values)
         if success:
             console.print(f"[green]Successfully updated lead {lead_id}[/green]")
             for field, value in values.items():
@@ -2218,10 +2090,10 @@ def crm_attach(
     client = get_client()
 
     with _handle_errors():
-        attachment_id = create_lead_attachment(client, lead_id, file_path, name=name)
+        attachment_id = client.crm.attach(lead_id, file_path, name=name)
         console.print(f"[green]Successfully attached {file_path.name} to lead {lead_id}[/green]")
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
-        url = get_lead_url(client, lead_id)
+        url = client.crm.url(lead_id)
         console.print(f"\n[cyan]View lead:[/cyan] {url}")
 
 
@@ -2233,7 +2105,7 @@ def crm_url(
     client = get_client()
 
     with _handle_errors():
-        url = get_lead_url(client, lead_id)
+        url = client.crm.url(lead_id)
         console.print(url)
 
 
@@ -2246,7 +2118,7 @@ def timer_status() -> None:
     client = get_client()
 
     with _handle_errors():
-        timesheets = fetch_today_timesheets(client)
+        timesheets = client.timer.today()
         if not timesheets:
             console.print("[yellow]No timesheets found for today[/yellow]")
             return
@@ -2303,13 +2175,13 @@ def timer_start(
 
     with _handle_errors():
         if source == "task":
-            start_timer_on_task(client, record_id)
+            client.timer.start_task(record_id)
             console.print(f"[green]▶ Started timer on task {record_id}[/green]")
         elif source == "ticket":
-            start_timer_on_ticket(client, record_id)
+            client.timer.start_ticket(record_id)
             console.print(f"[green]▶ Started timer on ticket {record_id}[/green]")
         elif source == "timesheet":
-            start_timer_on_timesheet(client, record_id)
+            client.timer.start_timesheet(record_id)
             console.print(f"[green]▶ Started timer on timesheet {record_id}[/green]")
         else:
             console.print(f"[red]Unknown source type: {source}[/red]")
@@ -2336,10 +2208,10 @@ def timer_stop(
 
     with _handle_errors():
         if timesheet_id is not None:
-            stop_timer_on_timesheet(client, timesheet_id)
+            client.timer.stop_timesheet(timesheet_id)
             console.print(f"[green]⏹ Stopped timer on timesheet {timesheet_id}[/green]")
         else:
-            stopped = stop_active_timers(client)
+            stopped = client.timer.stop()
             if stopped:
                 console.print(f"[green]⏹ Stopped {len(stopped)} timer(s):[/green]")
                 for ts in stopped:
@@ -2354,7 +2226,7 @@ def timer_active() -> None:
     client = get_client()
 
     with _handle_errors():
-        active = fetch_active_timesheets(client)
+        active = client.timer.active()
         if not active:
             console.print("[yellow]No running timers[/yellow]")
             return
