@@ -93,6 +93,13 @@ vodoo helpdesk download 789
 
 ```python
 from vodoo import OdooClient, OdooConfig
+config = OdooConfig(
+    url="https://my.odoo.com",
+    database="mydb",
+    username="bot@example.com",
+    password="api-key",
+)
+client = OdooClient(config)
 # List open opportunities
 leads = client.crm.list(
     domain=[["type", "=", "opportunity"]],
@@ -100,7 +107,8 @@ leads = client.crm.list(
 )
 for lead in leads:
     print(f"{lead['id']}: {lead['name']}")
-client.crm.note(lead_id=42, message="Synced from external system")
+# Add a note
+client.crm.note(42, "Synced from external system")
 ```
 
 ## Next Steps
