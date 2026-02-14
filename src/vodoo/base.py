@@ -255,7 +255,6 @@ def display_record_detail(  # noqa: PLR0912
 
     Args:
         record: Record dictionary
-        model: Model name
         show_html: If True, show raw HTML description, else convert to markdown
         record_type: Human-readable record type (e.g., "Ticket", "Task")
 
