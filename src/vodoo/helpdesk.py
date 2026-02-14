@@ -35,6 +35,12 @@ from vodoo.base import (
     display_tags as base_display_tags,
 )
 from vodoo.base import (
+    get_attachment_data as base_get_attachment_data,
+)
+from vodoo.base import (
+    get_record_attachment_data as base_get_record_attachment_data,
+)
+from vodoo.base import (
     list_attachments as base_list_attachments,
 )
 from vodoo.base import (
@@ -418,3 +424,47 @@ def _build_ticket_values(
     if team_id is not None:
         values["team_id"] = team_id
     return values
+
+
+def get_ticket_attachment_data(
+    client: OdooClient,
+    attachment_id: int,
+) -> bytes:
+    """Read a ticket attachment and return its raw binary content.
+
+    Unlike :func:`download_attachment`, the file is never written to disk;
+    the decoded bytes are returned directly.
+
+    Args:
+        client: Odoo client
+        attachment_id: Attachment ID
+
+    Returns:
+        Raw bytes of the attachment
+
+    Raises:
+        RecordNotFoundError: If attachment not found or has no data
+
+    """
+    return base_get_attachment_data(client, attachment_id)
+
+
+def get_ticket_attachments_data(
+    client: OdooClient,
+    ticket_id: int,
+) -> list[tuple[int, str, bytes]]:
+    """Read all attachments for a ticket and return their binary content.
+
+    Unlike :func:`download_ticket_attachments`, files are never written to
+    disk; each attachment's decoded bytes are returned in-memory.
+
+    Args:
+        client: Odoo client
+        ticket_id: Ticket ID
+
+    Returns:
+        List of ``(attachment_id, filename, data)`` tuples.
+        Attachments with empty or missing ``datas`` are silently skipped.
+
+    """
+    return base_get_record_attachment_data(client, MODEL, ticket_id)

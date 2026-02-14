@@ -41,6 +41,22 @@ _MESSAGE_FIELDS: list[str] = [
 _ATTACHMENT_LIST_FIELDS: list[str] = ["id", "name", "file_size", "mimetype", "create_date"]
 _ATTACHMENT_READ_FIELDS: list[str] = ["name", "datas"]
 
+
+def _decode_attachment_data(attachment: dict[str, Any], attachment_id: int) -> bytes:
+    """Decode base64 datas from an attachment record, or raise."""
+    if not attachment.get("datas"):
+        raise RecordNotFoundError("ir.attachment", attachment_id)
+    return base64.b64decode(attachment["datas"])
+
+
+def _decode_attachment_record(att: dict[str, Any], att_id: int) -> tuple[int, str, bytes] | None:
+    """Decode a single attachment record into (id, name, bytes), or None if empty."""
+    if not att.get("datas"):
+        return None
+    filename = att.get("name", f"attachment_{att_id}")
+    return (att_id, filename, base64.b64decode(att["datas"]))
+
+
 _output_console: Console | None = None
 _output_simple: bool = False
 
@@ -921,6 +937,71 @@ def _prepare_attachment_upload(
         "res_model": model,
         "res_id": record_id,
     }
+
+
+def get_attachment_data(
+    client: OdooClient,
+    attachment_id: int,
+) -> bytes:
+    """Read an attachment and return its raw binary content.
+
+    Unlike :func:`download_attachment`, the file is never written to disk;
+    the decoded bytes are returned directly.
+
+    Args:
+        client: Odoo client
+        attachment_id: Attachment ID
+
+    Returns:
+        Raw bytes of the attachment
+
+    Raises:
+        RecordNotFoundError: If attachment not found or has no data
+
+    """
+    attachments = client.read("ir.attachment", [attachment_id], _ATTACHMENT_READ_FIELDS)
+    if not attachments:
+        raise RecordNotFoundError("ir.attachment", attachment_id)
+
+    return _decode_attachment_data(attachments[0], attachment_id)
+
+
+def get_record_attachment_data(
+    client: OdooClient,
+    model: str,
+    record_id: int,
+) -> list[tuple[int, str, bytes]]:
+    """Read all attachments for a record and return their binary content.
+
+    Unlike :func:`download_record_attachments`, files are never written to
+    disk; each attachment's decoded bytes are returned in-memory.
+
+    Args:
+        client: Odoo client
+        model: Model name
+        record_id: Record ID
+
+    Returns:
+        List of ``(attachment_id, filename, data)`` tuples.
+        Attachments with empty or missing ``datas`` are silently skipped.
+
+    """
+    attachments = list_attachments(client, model, record_id)
+
+    result: list[tuple[int, str, bytes]] = []
+    for att_meta in attachments:
+        att_id = att_meta["id"]
+        try:
+            att_data = client.read("ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS])
+            if not att_data:
+                continue
+            decoded = _decode_attachment_record(att_data[0], att_id)
+            if decoded is not None:
+                result.append(decoded)
+        except Exception:
+            continue
+
+    return result
 
 
 def create_attachment(
