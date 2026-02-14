@@ -10,6 +10,7 @@ import builtins
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from vodoo._domain import DomainNamespace, _convert_to_html
 from vodoo.aio.auth import message_post_sudo
 from vodoo.exceptions import RecordNotFoundError
 
@@ -29,25 +30,10 @@ class AsyncDomainNamespace:
     _default_detail_fields: ClassVar[list[str] | None] = None
     _record_type: ClassVar[str] = "Record"
 
-    _TAG_FIELDS: ClassVar[list[str]] = ["id", "name", "color"]
-    _MESSAGE_FIELDS: ClassVar[list[str]] = [
-        "id",
-        "date",
-        "author_id",
-        "body",
-        "subject",
-        "message_type",
-        "subtype_id",
-        "email_from",
-    ]
-    _ATTACHMENT_LIST_FIELDS: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "file_size",
-        "mimetype",
-        "create_date",
-    ]
-    _ATTACHMENT_READ_FIELDS: ClassVar[list[str]] = ["name", "datas"]
+    _TAG_FIELDS = DomainNamespace._TAG_FIELDS
+    _MESSAGE_FIELDS = DomainNamespace._MESSAGE_FIELDS
+    _ATTACHMENT_LIST_FIELDS = DomainNamespace._ATTACHMENT_LIST_FIELDS
+    _ATTACHMENT_READ_FIELDS = DomainNamespace._ATTACHMENT_READ_FIELDS
 
     def __init__(self, client: AsyncOdooClient) -> None:
         self._client = client
@@ -308,12 +294,3 @@ class AsyncDomainNamespace:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _convert_to_html(text: str, use_markdown: bool = False) -> str:
-    """Convert text to HTML, optionally processing markdown."""
-    if use_markdown:
-        from vodoo.content import _markdown_to_html
-
-        return _markdown_to_html(text)
-    return f"<p>{text}</p>"
