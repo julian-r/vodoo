@@ -92,6 +92,21 @@ Version is derived from **git tags** via `hatch-vcs` — single source of truth.
 - `_version.py` is auto-generated at build time (gitignored)
 - To release: `git tag v0.4.0 && git push origin v0.4.0` → create GitHub release
 
+## GitHub
+
+Use `gh` CLI for all GitHub interactions (issues, PRs, releases, etc.):
+
+```bash
+gh issue list
+gh issue view 14
+gh issue comment 14 --body "comment text"
+gh pr create --title "..." --body "..."
+gh pr list
+gh release create v0.4.0 --generate-notes
+```
+
+Do NOT use browser automation for GitHub — `gh` is authenticated and faster.
+
 ## Code Style
 
 - Python 3.12+ with strict mypy typing
