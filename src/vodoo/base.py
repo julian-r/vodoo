@@ -20,6 +20,11 @@ if TYPE_CHECKING:
 # The CLI layer (main.py) calls ``configure_output()`` to set the active
 # console and simple-output flag.  When Vodoo is used as a library these
 # defaults are used instead, so no import of main.py is needed.
+#
+# These are module-level globals rather than contextvars.  Concurrent output
+# configurations in the same process would stomp each other, but that scenario
+# is unrealistic: the Odoo server itself is the shared mutable state, so tests
+# and CLI sessions are inherently sequential.
 
 _output_console: Console | None = None
 _output_simple: bool = False
