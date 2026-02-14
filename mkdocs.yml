@@ -42,8 +42,8 @@ theme:
     - toc.follow
   icon:
     repo: fontawesome/brands/github
-  logo: material/book-open-variant
-  favicon: material/book-open-variant
+    logo: material/book-open-variant
+  favicon: assets/logo.png
 
 not_in_nav: |
   /INTEGRATION_TESTS.md
