@@ -1,7 +1,9 @@
 """Odoo client wrapper.
-
-Provides OdooClient which delegates to an OdooTransport (legacy JSON-RPC or JSON-2).
 The transport is auto-detected based on the Odoo version unless explicitly specified.
+Some methods (``search``, ``read``, ``search_read``, ``unlink``, ``name_search``)
+are pure pass-throughs to the transport.  They exist so callers always use
+``client.method()`` — mixing ``client.create()`` (which adds ``process_values``)
+with ``client.transport.search()`` would be a confusing API surface.
 """
 
 from typing import Any
@@ -42,6 +44,7 @@ class OdooClient:
         self.db = config.database
         self.username = config.username
         self.password = config.password
+        self._retry = config.retry_config
 
         if transport is not None:
             self._transport = transport
@@ -53,6 +56,7 @@ class OdooClient:
                 database=self.db,
                 username=self.username,
                 password=self.password,
+                retry=self._retry,
             )
 
     @property
@@ -72,6 +76,7 @@ class OdooClient:
             database=self.db,
             username=self.username,
             password=self.password,
+            retry=self._retry,
         )
         try:
             json2.authenticate()
@@ -83,6 +88,7 @@ class OdooClient:
                 database=self.db,
                 username=self.username,
                 password=self.password,
+                retry=self._retry,
             )
 
     def close(self) -> None:
