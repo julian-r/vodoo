@@ -141,6 +141,15 @@ from vodoo.security import (
     resolve_user_id,
     set_user_password,
 )
+from vodoo.timer import (
+    fetch_active_timesheets,
+    fetch_today_timesheets,
+    start_timer_on_task,
+    start_timer_on_ticket,
+    start_timer_on_timesheet,
+    stop_active_timers,
+    stop_timer_on_timesheet,
+)
 
 app = typer.Typer(
     name="vodoo",
@@ -196,6 +205,13 @@ security_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(security_app, name="security")
+
+timer_app = typer.Typer(
+    name="timer",
+    help="Timer / timesheet operations (start, stop, status)",
+    no_args_is_help=True,
+)
+app.add_typer(timer_app, name="timer")
 
 # Global state for console configuration
 _console_config = {"no_color": False}
@@ -1915,7 +1931,9 @@ def security_set_password(
         # Get user info for display
         user_info = get_user_info(client, resolved_user_id)
 
-        console.print(f"[green]Password updated for:[/green] {user_info['name']} (id={resolved_user_id})")
+        console.print(
+            f"[green]Password updated for:[/green] {user_info['name']} (id={resolved_user_id})"
+        )
         console.print(f"[bold]Login:[/bold] {user_info['login']}")
         if password is None:
             console.print(f"[bold]New password:[/bold] {new_password}")
@@ -2522,6 +2540,159 @@ def crm_url(
     try:
         url = get_lead_url(client, lead_id)
         console.print(url)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+# Timer commands
+
+
+@timer_app.command("status")
+def timer_status() -> None:
+    """Show today's timesheets and running timers."""
+    client = get_client()
+
+    try:
+        timesheets = fetch_today_timesheets(client)
+        if not timesheets:
+            console.print("[yellow]No timesheets found for today[/yellow]")
+            return
+
+        from rich.table import Table
+
+        table = Table(title="Today's Timesheets")
+        table.add_column("ID", style="cyan")
+        table.add_column("State", style="bold")
+        table.add_column("Source", style="green")
+        table.add_column("Project", style="blue")
+        table.add_column("Elapsed", style="yellow", justify="right")
+        table.add_column("Description", style="dim")
+
+        for ts in timesheets:
+            state_icon = "▶️" if ts.state.value == "running" else "⏹"
+            state_style = "bold green" if ts.state.value == "running" else "dim"
+            table.add_row(
+                str(ts.id),
+                f"[{state_style}]{state_icon} {ts.state.value}[/{state_style}]",
+                ts.display_label,
+                ts.project_name or "",
+                ts.elapsed_formatted,
+                ts.name or "",
+            )
+
+        console.print(table)
+
+        active = [ts for ts in timesheets if ts.state.value == "running"]
+        console.print(f"\n[dim]{len(timesheets)} timesheets, {len(active)} running[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@timer_app.command("start")
+def timer_start(
+    record_id: Annotated[int, typer.Argument(help="Task, ticket, or timesheet ID")],
+    source: Annotated[
+        str,
+        typer.Option(
+            "--source",
+            "-s",
+            help="Source type: 'task', 'ticket', or 'timesheet' (default: task)",
+        ),
+    ] = "task",
+) -> None:
+    """Start a timer on a task, ticket, or timesheet.
+
+    Examples:
+        vodoo timer start 42                    # Start timer on task 42
+        vodoo timer start 42 --source task      # Same as above
+        vodoo timer start 10 --source ticket    # Start timer on ticket 10
+        vodoo timer start 99 --source timesheet # Start on existing timesheet
+    """
+    client = get_client()
+
+    try:
+        if source == "task":
+            start_timer_on_task(client, record_id)
+            console.print(f"[green]▶ Started timer on task {record_id}[/green]")
+        elif source == "ticket":
+            start_timer_on_ticket(client, record_id)
+            console.print(f"[green]▶ Started timer on ticket {record_id}[/green]")
+        elif source == "timesheet":
+            start_timer_on_timesheet(client, record_id)
+            console.print(f"[green]▶ Started timer on timesheet {record_id}[/green]")
+        else:
+            console.print(f"[red]Unknown source type: {source}[/red]")
+            console.print("[dim]Use: task, ticket, or timesheet[/dim]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@timer_app.command("stop")
+def timer_stop(
+    timesheet_id: Annotated[
+        int | None,
+        typer.Argument(help="Timesheet ID to stop (omit to stop all running timers)"),
+    ] = None,
+) -> None:
+    """Stop a running timer.
+
+    If no timesheet ID is given, stops all currently running timers.
+
+    Examples:
+        vodoo timer stop         # Stop all running timers
+        vodoo timer stop 99      # Stop timer on timesheet 99
+    """
+    client = get_client()
+
+    try:
+        if timesheet_id is not None:
+            stop_timer_on_timesheet(client, timesheet_id)
+            console.print(f"[green]⏹ Stopped timer on timesheet {timesheet_id}[/green]")
+        else:
+            stopped = stop_active_timers(client)
+            if stopped:
+                console.print(f"[green]⏹ Stopped {len(stopped)} timer(s):[/green]")
+                for ts in stopped:
+                    console.print(f"  - {ts.display_label} ({ts.elapsed_formatted})")
+            else:
+                console.print("[yellow]No running timers to stop[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@timer_app.command("active")
+def timer_active() -> None:
+    """Show only currently running timers."""
+    client = get_client()
+
+    try:
+        active = fetch_active_timesheets(client)
+        if not active:
+            console.print("[yellow]No running timers[/yellow]")
+            return
+
+        from rich.table import Table
+
+        table = Table(title="Running Timers")
+        table.add_column("ID", style="cyan")
+        table.add_column("Source", style="green")
+        table.add_column("Project", style="blue")
+        table.add_column("Elapsed", style="yellow", justify="right")
+
+        for ts in active:
+            table.add_row(
+                str(ts.id),
+                ts.display_label,
+                ts.project_name or "",
+                ts.elapsed_formatted,
+            )
+
+        console.print(table)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e

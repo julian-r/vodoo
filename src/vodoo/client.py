@@ -1,39 +1,44 @@
-"""Odoo JSON-RPC client wrapper."""
+"""Odoo client wrapper.
 
-import json
-import urllib.request
+Provides OdooClient which delegates to an OdooTransport (legacy JSON-RPC or JSON-2).
+The transport is auto-detected based on the Odoo version unless explicitly specified.
+"""
+
 from typing import Any
 
 from vodoo.config import OdooConfig
+from vodoo.transport import (
+    JSON2Transport,
+    LegacyTransport,
+    OdooTransport,
+    OdooTransportError,
+)
 
-
-class OdooRPCError(Exception):
-    """Exception raised for Odoo JSON-RPC errors."""
-
-    def __init__(self, code: int, message: str, data: dict[str, Any] | None = None) -> None:
-        """Initialize RPC error.
-
-        Args:
-            code: Error code from JSON-RPC response
-            message: Error message
-            data: Additional error data (debug info, traceback, etc.)
-
-        """
-        self.code = code
-        self.message = message
-        self.data = data or {}
-        super().__init__(f"[{code}] {message}")
+# Re-export for backwards compatibility
+OdooRPCError = OdooTransportError
 
 
 class OdooClient:
-    """Odoo JSON-RPC client for external API access."""
+    """Odoo client for external API access.
 
-    def __init__(self, config: OdooConfig) -> None:
+    Wraps an OdooTransport to provide a convenient interface for Odoo operations.
+    Supports both legacy JSON-RPC (Odoo 14-18) and JSON-2 API (Odoo 19+).
+    """
+
+    def __init__(
+        self,
+        config: OdooConfig,
+        *,
+        transport: OdooTransport | None = None,
+        auto_detect: bool = True,
+    ) -> None:
         """Initialize Odoo client.
 
         Args:
             config: Odoo configuration
-
+            transport: Explicit transport instance (skips auto-detection)
+            auto_detect: If True and no transport given, probe JSON-2 first then
+                         fall back to legacy. If False, use legacy directly.
         """
         self.config = config
         self.url = config.url.rstrip("/")
@@ -41,85 +46,51 @@ class OdooClient:
         self.username = config.username
         self.password = config.password
 
-        # JSON-RPC endpoint
-        self._endpoint = f"{self.url}/jsonrpc"
-
-        # Authenticate and get uid
-        self._uid: int | None = None
-
-    def _jsonrpc_call(
-        self,
-        service: str,
-        method: str,
-        args: list[Any],
-    ) -> Any:
-        """Make a JSON-RPC 2.0 call to Odoo.
-
-        Args:
-            service: Service name ('common', 'object', 'db')
-            method: Method name
-            args: Arguments for the method
-
-        Returns:
-            Result from the JSON-RPC call
-
-        Raises:
-            OdooRPCError: If the RPC call returns an error
-
-        """
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "call",
-            "params": {
-                "service": service,
-                "method": method,
-                "args": args,
-            },
-            "id": None,
-        }
-
-        data = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(
-            self._endpoint,
-            data=data,
-            headers={"Content-Type": "application/json"},
-        )
-
-        with urllib.request.urlopen(request) as response:
-            result = json.loads(response.read().decode("utf-8"))
-
-        if "error" in result:
-            error = result["error"]
-            raise OdooRPCError(
-                code=error.get("code", -1),
-                message=error.get("message", "Unknown error"),
-                data=error.get("data"),
+        if transport is not None:
+            self._transport = transport
+        elif auto_detect:
+            self._transport = self._detect_transport()
+        else:
+            self._transport = LegacyTransport(
+                url=self.url,
+                database=self.db,
+                username=self.username,
+                password=self.password,
             )
 
-        return result.get("result")
+    @property
+    def transport(self) -> OdooTransport:
+        """The underlying transport."""
+        return self._transport
+
+    @property
+    def is_json2(self) -> bool:
+        """Whether the client is using the JSON-2 API (Odoo 19+)."""
+        return isinstance(self._transport, JSON2Transport)
+
+    def _detect_transport(self) -> OdooTransport:
+        """Auto-detect Odoo version and return appropriate transport."""
+        json2 = JSON2Transport(
+            url=self.url,
+            database=self.db,
+            username=self.username,
+            password=self.password,
+        )
+        try:
+            json2.authenticate()
+            return json2
+        except Exception:
+            return LegacyTransport(
+                url=self.url,
+                database=self.db,
+                username=self.username,
+                password=self.password,
+            )
 
     @property
     def uid(self) -> int:
-        """Get authenticated user ID.
-
-        Returns:
-            User ID
-
-        Raises:
-            RuntimeError: If authentication fails
-
-        """
-        if self._uid is None:
-            result = self._jsonrpc_call(
-                "common",
-                "authenticate",
-                [self.db, self.username, self.password, {}],
-            )
-            if not isinstance(result, int) or result <= 0:
-                msg = "Authentication failed"
-                raise RuntimeError(msg)
-            self._uid = result
-        return self._uid
+        """Get authenticated user ID."""
+        return self._transport.uid
 
     def execute(
         self,
@@ -138,13 +109,8 @@ class OdooClient:
 
         Returns:
             Method result
-
         """
-        return self._jsonrpc_call(
-            "object",
-            "execute_kw",
-            [self.db, self.uid, self.password, model, method, list(args), kwargs],
-        )
+        return self._transport.execute_kw(model, method, list(args), kwargs or None)
 
     def execute_sudo(
         self,
@@ -160,18 +126,15 @@ class OdooClient:
             model: Odoo model name
             method: Method name
             user_id: User ID to execute as
-            *args: Positional arguments for the method
-            **kwargs: Keyword arguments for the method
+            *args: Positional arguments
+            **kwargs: Keyword arguments
 
         Returns:
             Method result
-
         """
-        # Add context with sudo user
         if "context" not in kwargs:
             kwargs["context"] = {}
         kwargs["context"]["sudo_user_id"] = user_id
-
         return self.execute(model, method, *args, **kwargs)
 
     def search(
@@ -182,29 +145,8 @@ class OdooClient:
         offset: int = 0,
         order: str | None = None,
     ) -> list[int]:
-        """Search for records.
-
-        Args:
-            model: Odoo model name
-            domain: Search domain
-            limit: Maximum number of records
-            offset: Number of records to skip
-            order: Sort order
-
-        Returns:
-            List of record IDs
-
-        """
-        kwargs: dict[str, Any] = {}
-        if limit is not None:
-            kwargs["limit"] = limit
-        if offset > 0:
-            kwargs["offset"] = offset
-        if order is not None:
-            kwargs["order"] = order
-
-        result: list[int] = self.execute(model, "search", domain or [], **kwargs)
-        return result
+        """Search for records."""
+        return self._transport.search(model, domain, limit, offset, order)
 
     def read(
         self,
@@ -212,23 +154,8 @@ class OdooClient:
         ids: list[int],
         fields: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Read records by IDs.
-
-        Args:
-            model: Odoo model name
-            ids: List of record IDs
-            fields: List of field names to read (None = all fields)
-
-        Returns:
-            List of record dictionaries
-
-        """
-        # For read, fields should be passed as a positional argument (list), not in kwargs
-        if fields is not None:
-            result: list[dict[str, Any]] = self.execute(model, "read", ids, fields)
-        else:
-            result = self.execute(model, "read", ids)
-        return result
+        """Read records by IDs."""
+        return self._transport.read(model, ids, fields)
 
     def search_read(
         self,
@@ -239,36 +166,8 @@ class OdooClient:
         offset: int = 0,
         order: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Search and read records in one call.
-
-        Args:
-            model: Odoo model name
-            domain: Search domain
-            fields: List of field names to read
-            limit: Maximum number of records
-            offset: Number of records to skip
-            order: Sort order
-
-        Returns:
-            List of record dictionaries
-
-        """
-        kwargs: dict[str, Any] = {}
-        if fields is not None:
-            kwargs["fields"] = fields
-        if limit is not None:
-            kwargs["limit"] = limit
-        if offset > 0:
-            kwargs["offset"] = offset
-        if order is not None:
-            kwargs["order"] = order
-
-        result: list[dict[str, Any]] = self._jsonrpc_call(
-            "object",
-            "execute_kw",
-            [self.db, self.uid, self.password, model, "search_read", [domain or []], kwargs],
-        )
-        return result
+        """Search and read records in one call."""
+        return self._transport.search_read(model, domain, fields, limit, offset, order)
 
     def create(
         self,
@@ -276,27 +175,8 @@ class OdooClient:
         values: dict[str, Any],
         context: dict[str, Any] | None = None,
     ) -> int:
-        """Create a new record.
-
-        Args:
-            model: Odoo model name
-            values: Field values for the new record
-            context: Optional context dict (e.g., {'default_project_id': 10})
-
-        Returns:
-            ID of created record
-
-        """
-        kwargs: dict[str, Any] = {}
-        if context:
-            kwargs["context"] = context
-
-        result: int = self._jsonrpc_call(
-            "object",
-            "execute_kw",
-            [self.db, self.uid, self.password, model, "create", [values], kwargs],
-        )
-        return result
+        """Create a new record."""
+        return self._transport.create(model, values, context)
 
     def write(
         self,
@@ -304,34 +184,23 @@ class OdooClient:
         ids: list[int],
         values: dict[str, Any],
     ) -> bool:
-        """Update records.
-
-        Args:
-            model: Odoo model name
-            ids: List of record IDs to update
-            values: Field values to update
-
-        Returns:
-            True if successful
-
-        """
-        result: bool = self.execute(model, "write", ids, values)
-        return result
+        """Update records."""
+        return self._transport.write(model, ids, values)
 
     def unlink(
         self,
         model: str,
         ids: list[int],
     ) -> bool:
-        """Delete records.
+        """Delete records."""
+        return self._transport.unlink(model, ids)
 
-        Args:
-            model: Odoo model name
-            ids: List of record IDs to delete
-
-        Returns:
-            True if successful
-
-        """
-        result: bool = self.execute(model, "unlink", ids)
-        return result
+    def name_search(
+        self,
+        model: str,
+        name: str,
+        domain: list[Any] | None = None,
+        limit: int = 7,
+    ) -> list[tuple[int, str]]:
+        """Autocomplete search returning (id, display_name) pairs."""
+        return self._transport.name_search(model, name, domain, limit)

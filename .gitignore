@@ -18,6 +18,7 @@ wheels/
 # Environment and config
 .env
 .vodoo.env
+tests/integration/.env.test.*
 *.local.env
 
 # mypy
