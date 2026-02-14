@@ -39,7 +39,7 @@ ENTERPRISE=1 ./tests/integration/run.sh 19    # also run enterprise 19
 KEEP=1 ./tests/integration/run.sh 19          # don't tear down containers
 
 # Unit tests
-uv run pytest tests/test_exceptions.py tests/test_generic.py -v
+uv run pytest tests/test_exceptions.py -v
 
 # Documentation (MkDocs Material + mike versioning)
 uv sync --extra docs
