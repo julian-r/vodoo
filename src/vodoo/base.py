@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import html.parser as _html_parser_mod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -386,6 +387,94 @@ def _convert_to_html(text: str, use_markdown: bool = False) -> str:
     return f"<p>{text}</p>"
 
 
+class _HTMLToMarkdown(_html_parser_mod.HTMLParser):
+    """Simple HTML to Markdown converter."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.result: list[str] = []
+        self.in_bold = False
+        self.in_italic = False
+        self.in_code = False
+        self.in_pre = False
+        self.in_heading = 0
+        self.in_list_item = False
+        self.list_stack: list[str] = []  # Track ul/ol nesting
+
+    def handle_starttag(  # noqa: PLR0912
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],  # noqa: ARG002
+    ) -> None:
+        if tag in ("b", "strong"):
+            self.in_bold = True
+            self.result.append("**")
+        elif tag in ("i", "em"):
+            self.in_italic = True
+            self.result.append("*")
+        elif tag == "code":
+            self.in_code = True
+            self.result.append("`")
+        elif tag == "pre":
+            self.in_pre = True
+            self.result.append("\n```\n")
+        elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            self.in_heading = int(tag[1])
+            self.result.append("\n" + "#" * self.in_heading + " ")
+        elif tag == "br":
+            self.result.append("\n")
+        elif tag == "p":
+            self.result.append("\n\n")
+        elif tag == "a":
+            self.result.append("[")
+        elif tag == "ul":
+            self.list_stack.append("ul")
+            self.result.append("\n")
+        elif tag == "ol":
+            self.list_stack.append("ol")
+            self.result.append("\n")
+        elif tag == "li":
+            self.in_list_item = True
+            indent = "  " * (len(self.list_stack) - 1)
+            if self.list_stack and self.list_stack[-1] == "ul":
+                self.result.append(f"{indent}- ")
+            else:
+                self.result.append(f"{indent}1. ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("b", "strong"):
+            self.in_bold = False
+            self.result.append("**")
+        elif tag in ("i", "em"):
+            self.in_italic = False
+            self.result.append("*")
+        elif tag == "code":
+            self.in_code = False
+            self.result.append("`")
+        elif tag == "pre":
+            self.in_pre = False
+            self.result.append("\n```\n")
+        elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            self.in_heading = 0
+            self.result.append("\n")
+        elif tag == "a":
+            self.result.append("]")
+        elif tag in ("ul", "ol"):
+            if self.list_stack:
+                self.list_stack.pop()
+            self.result.append("\n")
+        elif tag == "li":
+            self.in_list_item = False
+            self.result.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if data.strip() or self.in_pre:
+            self.result.append(data)
+
+    def get_markdown(self) -> str:
+        return "".join(self.result).strip()
+
+
 def _html_to_markdown(html: str) -> str:
     """Convert HTML to markdown for display.
 
@@ -397,96 +486,8 @@ def _html_to_markdown(html: str) -> str:
 
     """
     from html import unescape
-    from html.parser import HTMLParser
 
-    class HTMLToMarkdown(HTMLParser):
-        """Simple HTML to Markdown converter."""
-
-        def __init__(self) -> None:
-            super().__init__()
-            self.result: list[str] = []
-            self.in_bold = False
-            self.in_italic = False
-            self.in_code = False
-            self.in_pre = False
-            self.in_heading = 0
-            self.in_list_item = False
-            self.list_stack: list[str] = []  # Track ul/ol nesting
-
-        def handle_starttag(  # noqa: PLR0912
-            self,
-            tag: str,
-            attrs: list[tuple[str, str | None]],  # noqa: ARG002
-        ) -> None:
-            if tag in ("b", "strong"):
-                self.in_bold = True
-                self.result.append("**")
-            elif tag in ("i", "em"):
-                self.in_italic = True
-                self.result.append("*")
-            elif tag == "code":
-                self.in_code = True
-                self.result.append("`")
-            elif tag == "pre":
-                self.in_pre = True
-                self.result.append("\n```\n")
-            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                self.in_heading = int(tag[1])
-                self.result.append("\n" + "#" * self.in_heading + " ")
-            elif tag == "br":
-                self.result.append("\n")
-            elif tag == "p":
-                self.result.append("\n\n")
-            elif tag == "a":
-                self.result.append("[")
-            elif tag == "ul":
-                self.list_stack.append("ul")
-                self.result.append("\n")
-            elif tag == "ol":
-                self.list_stack.append("ol")
-                self.result.append("\n")
-            elif tag == "li":
-                self.in_list_item = True
-                indent = "  " * (len(self.list_stack) - 1)
-                if self.list_stack and self.list_stack[-1] == "ul":
-                    self.result.append(f"{indent}- ")
-                else:
-                    self.result.append(f"{indent}1. ")
-
-        def handle_endtag(self, tag: str) -> None:
-            if tag in ("b", "strong"):
-                self.in_bold = False
-                self.result.append("**")
-            elif tag in ("i", "em"):
-                self.in_italic = False
-                self.result.append("*")
-            elif tag == "code":
-                self.in_code = False
-                self.result.append("`")
-            elif tag == "pre":
-                self.in_pre = False
-                self.result.append("\n```\n")
-            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                self.in_heading = 0
-                self.result.append("\n")
-            elif tag == "a":
-                self.result.append("]")
-            elif tag in ("ul", "ol"):
-                if self.list_stack:
-                    self.list_stack.pop()
-                self.result.append("\n")
-            elif tag == "li":
-                self.in_list_item = False
-                self.result.append("\n")
-
-        def handle_data(self, data: str) -> None:
-            if data.strip() or self.in_pre:
-                self.result.append(data)
-
-        def get_markdown(self) -> str:
-            return "".join(self.result).strip()
-
-    parser = HTMLToMarkdown()
+    parser = _HTMLToMarkdown()
     parser.feed(unescape(html))
     return parser.get_markdown()
 
@@ -555,8 +556,7 @@ def add_tag_to_record(
         True if successful
 
     """
-    # Get current tags
-    record = get_record(client, model, record_id)
+    record = get_record(client, model, record_id, fields=["tag_ids"])
     current_tags = record.get("tag_ids", [])
 
     # Add new tag if not already present
@@ -842,11 +842,11 @@ def download_record_attachments(
             att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")
         ]
 
-    downloaded_files = []
+    downloaded_files: list[Path] = []
 
     for attachment in attachments:
+        filename = attachment.get("name", f"attachment_{attachment['id']}")
         try:
-            # Read the full attachment with data
             att_data = client.read("ir.attachment", [attachment["id"]], ["name", "datas"])
             if not att_data:
                 continue
@@ -855,15 +855,14 @@ def download_record_attachments(
             filename = att.get("name", f"attachment_{attachment['id']}")
             output_path = output_dir / filename
 
-            # Decode base64 data and write to file
             if att.get("datas"):
                 data = base64.b64decode(att["datas"])
                 output_path.write_bytes(data)
                 downloaded_files.append(output_path)
         except Exception as e:
-            import sys
+            import logging
 
-            print(f"Warning: Failed to download {filename}: {e}", file=sys.stderr)
+            logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
             continue
 
     return downloaded_files

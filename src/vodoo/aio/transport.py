@@ -7,13 +7,21 @@ Provides two async implementations:
 Mirrors :mod:`vodoo.transport` but uses ``httpx.AsyncClient`` for non-blocking I/O.
 """
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
 
 from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
-from vodoo.transport import _build_json2_body, _parse_json2_response, _parse_name_search
+from vodoo.transport import (
+    _RETRY_BACKOFF,
+    _RETRY_COUNT,
+    _RETRYABLE_METHODS,
+    _build_json2_body,
+    _parse_json2_response,
+    _parse_name_search,
+)
 
 
 class AsyncOdooTransport(ABC):
@@ -71,6 +79,12 @@ class AsyncOdooTransport(ABC):
         args: list[Any],
     ) -> Any:
         """Call a JSON-RPC service method (e.g. common/authenticate)."""
+
+    def _is_retryable(self, method: str, exc: Exception) -> bool:
+        """Check if a failed call should be retried."""
+        if method not in _RETRYABLE_METHODS:
+            return False
+        return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout))
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -216,19 +230,18 @@ class AsyncLegacyTransport(AsyncOdooTransport):
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         uid = await self.get_uid()
-        return await self.call_service(
-            "object",
-            "execute_kw",
-            [
-                self.database,
-                uid,
-                self.password,
-                model,
-                method,
-                args,
-                kwargs or {},
-            ],
-        )
+        call_args = [self.database, uid, self.password, model, method, args, kwargs or {}]
+        last_exc: Exception | None = None
+        for attempt in range(_RETRY_COUNT + 1):
+            try:
+                return await self.call_service("object", "execute_kw", call_args)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
+                    await asyncio.sleep(_RETRY_BACKOFF * (attempt + 1))
+                    continue
+                raise
+        raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
 
     async def call_service(
         self,
@@ -273,14 +286,22 @@ class AsyncJSON2Transport(AsyncOdooTransport):
         if self._uid is not None:
             return self._uid
 
-        records = await self.search_read(
-            "res.users",
-            domain=[["login", "=", self.username]],
-            fields=["id"],
-            limit=1,
-        )
+        try:
+            records = await self.search_read(
+                "res.users",
+                domain=[["login", "=", self.username]],
+                fields=["id"],
+                limit=1,
+            )
+        except TransportError as e:
+            raise AuthenticationError(
+                f"Authentication failed — API key may be invalid or lacks access: {e}"
+            ) from e
         if not records:
-            raise AuthenticationError("Authentication failed — user not found")
+            raise AuthenticationError(
+                f"Authentication failed — user '{self.username}' not found. "
+                "If using an API key, ensure it belongs to this user."
+            )
         uid = records[0].get("id")
         if not isinstance(uid, int):
             raise AuthenticationError("Authentication failed — invalid user ID")
@@ -295,7 +316,17 @@ class AsyncJSON2Transport(AsyncOdooTransport):
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         body = _build_json2_body(method, args, kwargs)
-        return await self._request(model, method, body)
+        last_exc: Exception | None = None
+        for attempt in range(_RETRY_COUNT + 1):
+            try:
+                return await self._request(model, method, body)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < _RETRY_COUNT and self._is_retryable(method, exc):
+                    await asyncio.sleep(_RETRY_BACKOFF * (attempt + 1))
+                    continue
+                raise
+        raise last_exc  # type: ignore[misc]  # unreachable but satisfies mypy
 
     async def call_service(
         self,
@@ -338,36 +369,3 @@ class AsyncJSON2Transport(AsyncOdooTransport):
             return None
 
         return _parse_json2_response(resp_data)
-
-
-async def make_async_transport(
-    url: str,
-    database: str,
-    username: str,
-    password: str,
-    *,
-    timeout: int = 30,
-) -> AsyncOdooTransport:
-    """Auto-detect Odoo version and return the appropriate async transport.
-
-    Probes the JSON-2 endpoint first (Odoo 19+); falls back to legacy JSON-RPC.
-    """
-    json2 = AsyncJSON2Transport(
-        url=url,
-        database=database,
-        username=username,
-        password=password,
-        timeout=timeout,
-    )
-    try:
-        await json2.authenticate()
-        return json2
-    except Exception:
-        await json2.close()
-        return AsyncLegacyTransport(
-            url=url,
-            database=database,
-            username=username,
-            password=password,
-            timeout=timeout,
-        )

@@ -182,7 +182,7 @@ async def add_tag_to_record(
     tag_id: int,
 ) -> bool:
     """Add a tag to a record."""
-    record = await get_record(client, model, record_id)
+    record = await get_record(client, model, record_id, fields=["tag_ids"])
     current_tags = record.get("tag_ids", [])
     if tag_id not in current_tags:
         current_tags.append(tag_id)
@@ -299,7 +299,6 @@ async def download_record_attachments(
         ]
 
     downloaded_files: list[Path] = []
-    console = _get_console()
 
     for attachment in attachments:
         filename = attachment.get("name", f"attachment_{attachment['id']}")
@@ -317,7 +316,9 @@ async def download_record_attachments(
                 output_path.write_bytes(data)
                 downloaded_files.append(output_path)
         except Exception as e:
-            console.print(f"[yellow]Warning: Failed to download {filename}: {e}[/yellow]")
+            import logging
+
+            logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
             continue
 
     return downloaded_files

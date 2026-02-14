@@ -246,8 +246,15 @@ def get_timer_backend(client: OdooClient) -> TimerBackend:
     return LegacyTimerBackend()
 
 
+# Cache keyed by client id to avoid repeated RPC probes within a session
+_helpdesk_field_cache: dict[int, bool] = {}
+
+
 def _has_helpdesk_field(client: OdooClient) -> bool:
-    """Check if helpdesk_ticket_id field exists on timesheets."""
+    """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
+    key = id(client)
+    if key in _helpdesk_field_cache:
+        return _helpdesk_field_cache[key]
     try:
         client.search_read(
             TIMESHEET_MODEL,
@@ -255,9 +262,11 @@ def _has_helpdesk_field(client: OdooClient) -> bool:
             fields=["id", "helpdesk_ticket_id"],
             limit=1,
         )
+        result = True
     except Exception:
-        return False
-    return True
+        result = False
+    _helpdesk_field_cache[key] = result
+    return result
 
 
 def _get_fields(client: OdooClient) -> list[str]:

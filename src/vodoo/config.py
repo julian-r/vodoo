@@ -41,6 +41,14 @@ class OdooConfig(BaseSettings):
             )
         return self
 
+    def __repr__(self) -> str:
+        """Mask password in repr to avoid leaking credentials in logs."""
+        return (
+            f"OdooConfig(url={self.url!r}, database={self.database!r}, "
+            f"username={self.username!r}, password='***', "
+            f"default_user_id={self.default_user_id!r})"
+        )
+
     @classmethod
     def from_file(cls, config_path: Path | None = None) -> "OdooConfig":
         """Load configuration from file.

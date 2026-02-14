@@ -84,6 +84,16 @@ class OdooClient:
                 password=self.password,
             )
 
+    def close(self) -> None:
+        """Close the underlying HTTP client."""
+        self._transport.close()
+
+    def __enter__(self) -> "OdooClient":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.close()
+
     @property
     def uid(self) -> int:
         """Get authenticated user ID."""

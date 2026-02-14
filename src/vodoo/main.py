@@ -1,5 +1,6 @@
 """Main CLI application for Vodoo."""
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -279,6 +280,95 @@ def get_client() -> OdooClient:
     return OdooClient(config)
 
 
+# ---------------------------------------------------------------------------
+# Shared CLI helpers to avoid copy-paste across domain commands
+# ---------------------------------------------------------------------------
+
+
+def _show_fields(  # noqa: PLR0912
+    client: OdooClient,
+    record_type: str,
+    get_record_fn: Callable[..., dict[str, Any]],
+    list_fields_fn: Callable[..., dict[str, Any]],
+    record_id: int | None = None,
+    field_name: str | None = None,
+) -> None:
+    """Shared implementation for all ``fields`` sub-commands."""
+    if record_id:
+        record = get_record_fn(client, record_id)
+        console.print(f"\n[bold cyan]Fields for {record_type} #{record_id}[/bold cyan]\n")
+
+        if field_name:
+            if field_name in record:
+                console.print(f"[bold]{field_name}:[/bold] {record[field_name]}")
+            else:
+                console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
+        else:
+            for key, value in sorted(record.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+    else:
+        fields = list_fields_fn(client)
+        console.print(f"\n[bold cyan]Available {record_type} Fields[/bold cyan]\n")
+
+        if field_name:
+            if field_name in fields:
+                field_def = fields[field_name]
+                console.print(f"[bold]{field_name}[/bold]")
+                console.print(f"  Type: {field_def.get('type', 'N/A')}")
+                console.print(f"  String: {field_def.get('string', 'N/A')}")
+                console.print(f"  Required: {field_def.get('required', False)}")
+                console.print(f"  Readonly: {field_def.get('readonly', False)}")
+                if field_def.get("help"):
+                    console.print(f"  Help: {field_def['help']}")
+            else:
+                console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
+        else:
+            for name, definition in sorted(fields.items()):
+                field_type = definition.get("type", "unknown")
+                field_label = definition.get("string", name)
+                console.print(f"[cyan]{name}[/cyan] ({field_type}) - {field_label}")
+
+            console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
+            console.print("[dim]Use --field-name to see details for a specific field[/dim]")
+
+
+def _download_all(
+    client: OdooClient,
+    record_type: str,
+    record_id: int,
+    list_attachments_fn: Callable[..., list[dict[str, Any]]],
+    download_fn: Callable[..., list[Any]],
+    output_dir: Path | None = None,
+    extension: str | None = None,
+) -> None:
+    """Shared implementation for all ``download-all`` sub-commands."""
+    attachments = list_attachments_fn(client, record_id)
+    if not attachments:
+        console.print(f"[yellow]No attachments found for {record_type} {record_id}[/yellow]")
+        return
+
+    if extension:
+        ext = extension.lower().lstrip(".")
+        filtered = [att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")]
+        if not filtered:
+            console.print(
+                f"[yellow]No {ext} attachments found for {record_type} {record_id}[/yellow]"
+            )
+            return
+        console.print(f"[cyan]Downloading {len(filtered)} .{ext} attachments...[/cyan]")
+    else:
+        console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
+
+    downloaded_files = download_fn(client, record_id, output_dir, extension=extension)
+
+    if downloaded_files:
+        console.print(f"\n[green]Successfully downloaded {len(downloaded_files)} files:[/green]")
+        for file_path in downloaded_files:
+            console.print(f"  - {file_path}")
+    else:
+        console.print("[yellow]No files were downloaded[/yellow]")
+
+
 @helpdesk_app.command("list")
 def helpdesk_list(
     stage: Annotated[str | None, typer.Option(help="Filter by stage name")] = None,
@@ -505,48 +595,23 @@ def helpdesk_download_all(
 ) -> None:
     """Download all attachments from a ticket."""
     client = get_client()
-
     try:
-        # First check if there are any attachments
-        attachments = list_attachments(client, ticket_id)
-        if not attachments:
-            console.print(f"[yellow]No attachments found for ticket {ticket_id}[/yellow]")
-            return
-
-        # Filter by extension if provided
-        if extension:
-            ext = extension.lower().lstrip(".")
-            filtered_attachments = [
-                att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")
-            ]
-            if not filtered_attachments:
-                console.print(f"[yellow]No {ext} attachments found for ticket {ticket_id}[/yellow]")
-                return
-            console.print(
-                f"[cyan]Downloading {len(filtered_attachments)} .{ext} attachments...[/cyan]"
-            )
-        else:
-            console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
-
-        downloaded_files = download_ticket_attachments(
-            client, ticket_id, output_dir, extension=extension
+        _download_all(
+            client,
+            "ticket",
+            ticket_id,
+            list_attachments,
+            download_ticket_attachments,
+            output_dir=output_dir,
+            extension=extension,
         )
-
-        if downloaded_files:
-            console.print(
-                f"\n[green]Successfully downloaded {len(downloaded_files)} files:[/green]"
-            )
-            for file_path in downloaded_files:
-                console.print(f"  - {file_path}")
-        else:
-            console.print("[yellow]No files were downloaded[/yellow]")
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
 @helpdesk_app.command("fields")
-def helpdesk_fields(  # noqa: PLR0912
+def helpdesk_fields(
     ticket_id: Annotated[int | None, typer.Argument(help="Ticket ID (optional)")] = None,
     field_name: Annotated[
         str | None,
@@ -555,50 +620,15 @@ def helpdesk_fields(  # noqa: PLR0912
 ) -> None:
     """List available fields or show field values for a specific ticket."""
     client = get_client()
-
     try:
-        if ticket_id:
-            # Show fields for a specific ticket
-            ticket = get_ticket(client, ticket_id)
-            console.print(f"\n[bold cyan]Fields for Ticket #{ticket_id}[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field
-                if field_name in ticket:
-                    console.print(f"[bold]{field_name}:[/bold] {ticket[field_name]}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # Show all fields
-                for key, value in sorted(ticket.items()):
-                    console.print(f"[bold]{key}:[/bold] {value}")
-        else:
-            # List all available fields
-            fields = list_ticket_fields(client)
-            console.print("\n[bold cyan]Available Helpdesk Ticket Fields[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field definition
-                if field_name in fields:
-                    field_def = fields[field_name]
-                    console.print(f"[bold]{field_name}[/bold]")
-                    console.print(f"  Type: {field_def.get('type', 'N/A')}")
-                    console.print(f"  String: {field_def.get('string', 'N/A')}")
-                    console.print(f"  Required: {field_def.get('required', False)}")
-                    console.print(f"  Readonly: {field_def.get('readonly', False)}")
-                    if field_def.get("help"):
-                        console.print(f"  Help: {field_def['help']}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # List all field names and types
-                for name, definition in sorted(fields.items()):
-                    field_type = definition.get("type", "unknown")
-                    field_label = definition.get("string", name)
-                    console.print(f"[cyan]{name}[/cyan] ({field_type}) - {field_label}")
-
-                console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
-                console.print("[dim]Use --field-name to see details for a specific field[/dim]")
+        _show_fields(
+            client,
+            "Helpdesk Ticket",
+            get_ticket,
+            list_ticket_fields,
+            record_id=ticket_id,
+            field_name=field_name,
+        )
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
@@ -1017,48 +1047,23 @@ def project_download_all(
 ) -> None:
     """Download all attachments from a task."""
     client = get_client()
-
     try:
-        # First check if there are any attachments
-        attachments = list_task_attachments(client, task_id)
-        if not attachments:
-            console.print(f"[yellow]No attachments found for task {task_id}[/yellow]")
-            return
-
-        # Filter by extension if provided
-        if extension:
-            ext = extension.lower().lstrip(".")
-            filtered_attachments = [
-                att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")
-            ]
-            if not filtered_attachments:
-                console.print(f"[yellow]No {ext} attachments found for task {task_id}[/yellow]")
-                return
-            console.print(
-                f"[cyan]Downloading {len(filtered_attachments)} .{ext} attachments...[/cyan]"
-            )
-        else:
-            console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
-
-        downloaded_files = download_task_attachments(
-            client, task_id, output_dir, extension=extension
+        _download_all(
+            client,
+            "task",
+            task_id,
+            list_task_attachments,
+            download_task_attachments,
+            output_dir=output_dir,
+            extension=extension,
         )
-
-        if downloaded_files:
-            console.print(
-                f"\n[green]Successfully downloaded {len(downloaded_files)} files:[/green]"
-            )
-            for file_path in downloaded_files:
-                console.print(f"  - {file_path}")
-        else:
-            console.print("[yellow]No files were downloaded[/yellow]")
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
 @project_task_app.command("fields")
-def project_fields(  # noqa: PLR0912
+def project_fields(
     task_id: Annotated[int | None, typer.Argument(help="Task ID (optional)")] = None,
     field_name: Annotated[
         str | None,
@@ -1067,50 +1072,15 @@ def project_fields(  # noqa: PLR0912
 ) -> None:
     """List available fields or show field values for a specific task."""
     client = get_client()
-
     try:
-        if task_id:
-            # Show fields for a specific task
-            task = get_task(client, task_id)
-            console.print(f"\n[bold cyan]Fields for Task #{task_id}[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field
-                if field_name in task:
-                    console.print(f"[bold]{field_name}:[/bold] {task[field_name]}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # Show all fields
-                for key, value in sorted(task.items()):
-                    console.print(f"[bold]{key}:[/bold] {value}")
-        else:
-            # List all available fields
-            fields = list_task_fields(client)
-            console.print("\n[bold cyan]Available Project Task Fields[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field definition
-                if field_name in fields:
-                    field_def = fields[field_name]
-                    console.print(f"[bold]{field_name}[/bold]")
-                    console.print(f"  Type: {field_def.get('type', 'N/A')}")
-                    console.print(f"  String: {field_def.get('string', 'N/A')}")
-                    console.print(f"  Required: {field_def.get('required', False)}")
-                    console.print(f"  Readonly: {field_def.get('readonly', False)}")
-                    if field_def.get("help"):
-                        console.print(f"  Help: {field_def['help']}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # List all field names and types
-                for name, definition in sorted(fields.items()):
-                    field_type = definition.get("type", "unknown")
-                    field_label = definition.get("string", name)
-                    console.print(f"[cyan]{name}[/cyan] ({field_type}) - {field_label}")
-
-                console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
-                console.print("[dim]Use --field-name to see details for a specific field[/dim]")
+        _show_fields(
+            client,
+            "Project Task",
+            get_task,
+            list_task_fields,
+            record_id=task_id,
+            field_name=field_name,
+        )
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
@@ -1378,7 +1348,7 @@ def project_project_attachments(
 
 
 @project_project_app.command("fields")
-def project_project_fields(  # noqa: PLR0912
+def project_project_fields(
     project_id: Annotated[int | None, typer.Argument(help="Project ID (optional)")] = None,
     field_name: Annotated[
         str | None,
@@ -1387,50 +1357,15 @@ def project_project_fields(  # noqa: PLR0912
 ) -> None:
     """List available fields or show field values for a specific project."""
     client = get_client()
-
     try:
-        if project_id:
-            # Show fields for a specific project
-            project = get_project(client, project_id)
-            console.print(f"\n[bold cyan]Fields for Project #{project_id}[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field
-                if field_name in project:
-                    console.print(f"[bold]{field_name}:[/bold] {project[field_name]}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # Show all fields
-                for key, value in sorted(project.items()):
-                    console.print(f"[bold]{key}:[/bold] {value}")
-        else:
-            # List all available fields
-            fields = list_project_fields(client)
-            console.print("\n[bold cyan]Available Project Fields[/bold cyan]\n")
-
-            if field_name:
-                # Show specific field definition
-                if field_name in fields:
-                    field_def = fields[field_name]
-                    console.print(f"[bold]{field_name}[/bold]")
-                    console.print(f"  Type: {field_def.get('type', 'N/A')}")
-                    console.print(f"  String: {field_def.get('string', 'N/A')}")
-                    console.print(f"  Required: {field_def.get('required', False)}")
-                    console.print(f"  Readonly: {field_def.get('readonly', False)}")
-                    if field_def.get("help"):
-                        console.print(f"  Help: {field_def['help']}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                # List all field names and types
-                for name, definition in sorted(fields.items()):
-                    field_type = definition.get("type", "unknown")
-                    field_label = definition.get("string", name)
-                    console.print(f"[cyan]{name}[/cyan] ({field_type}) - {field_label}")
-
-                console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
-                console.print("[dim]Use --field-name to see details for a specific field[/dim]")
+        _show_fields(
+            client,
+            "Project",
+            get_project,
+            list_project_fields,
+            record_id=project_id,
+            field_name=field_name,
+        )
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
@@ -2403,73 +2338,37 @@ def crm_download_all(
 ) -> None:
     """Download all attachments from a lead."""
     client = get_client()
-
     try:
-        attachments = list_lead_attachments(client, lead_id)
-        if not attachments:
-            console.print(f"[yellow]No attachments found for lead {lead_id}[/yellow]")
-            return
-
-        if extension:
-            ext = extension.lower().lstrip(".")
-            attachments = [a for a in attachments if a.get("name", "").lower().endswith(f".{ext}")]
-            if not attachments:
-                console.print(f"[yellow]No {ext} attachments found for lead {lead_id}[/yellow]")
-                return
-
-        console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
-        downloaded = download_lead_attachments(client, lead_id, output_dir, extension=extension)
-
-        if downloaded:
-            console.print(f"\n[green]Downloaded {len(downloaded)} files:[/green]")
-            for f in downloaded:
-                console.print(f"  - {f}")
-        else:
-            console.print("[yellow]No files were downloaded[/yellow]")
+        _download_all(
+            client,
+            "lead",
+            lead_id,
+            list_lead_attachments,
+            download_lead_attachments,
+            output_dir=output_dir,
+            extension=extension,
+        )
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
 @crm_app.command("fields")
-def crm_fields(  # noqa: PLR0912
+def crm_fields(
     lead_id: Annotated[int | None, typer.Argument(help="Lead ID (optional)")] = None,
     field_name: Annotated[str | None, typer.Option(help="Show specific field")] = None,
 ) -> None:
     """List available fields or show field values for a specific lead."""
     client = get_client()
-
     try:
-        if lead_id:
-            lead = get_lead(client, lead_id)
-            console.print(f"\n[bold cyan]Fields for Lead #{lead_id}[/bold cyan]\n")
-            if field_name:
-                if field_name in lead:
-                    console.print(f"[bold]{field_name}:[/bold] {lead[field_name]}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                for key, value in sorted(lead.items()):
-                    console.print(f"[bold]{key}:[/bold] {value}")
-        else:
-            fields = list_lead_fields(client)
-            console.print("\n[bold cyan]Available CRM Lead Fields[/bold cyan]\n")
-            if field_name:
-                if field_name in fields:
-                    fd = fields[field_name]
-                    console.print(f"[bold]{field_name}[/bold]")
-                    console.print(f"  Type: {fd.get('type', 'N/A')}")
-                    console.print(f"  String: {fd.get('string', 'N/A')}")
-                    console.print(f"  Required: {fd.get('required', False)}")
-                    console.print(f"  Readonly: {fd.get('readonly', False)}")
-                else:
-                    console.print(f"[yellow]Field '{field_name}' not found[/yellow]")
-            else:
-                for name, defn in sorted(fields.items()):
-                    console.print(
-                        f"[cyan]{name}[/cyan] ({defn.get('type')}) - {defn.get('string')}"
-                    )
-                console.print(f"\n[dim]Total: {len(fields)} fields[/dim]")
+        _show_fields(
+            client,
+            "CRM Lead",
+            get_lead,
+            list_lead_fields,
+            record_id=lead_id,
+            field_name=field_name,
+        )
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
