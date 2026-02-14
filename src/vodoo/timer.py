@@ -6,12 +6,10 @@ Handles version-specific differences:
 - Odoo 14-18: timers live in timer.timer; start/stop via source model
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from vodoo.client import OdooClient
@@ -28,7 +26,7 @@ BASE_FIELDS = [
 ]
 
 
-class TimerState(str, Enum):
+class TimerState(StrEnum):
     """Timer state."""
 
     RUNNING = "running"
@@ -145,32 +143,7 @@ class LegacyTimerBackend(TimerBackend):
         uid: int,
     ) -> list[Timesheet]:
         running_timers = self._fetch_running_timers(client, uid)
-        result = list(timesheets)
-
-        for timer in running_timers:
-            source_id = timer.source.id
-            match_idx: int | None = None
-
-            for i, ts in enumerate(result):
-                if ts.source.kind == timer.source.kind and ts.source.id == source_id:
-                    match_idx = i
-                    break
-
-            if match_idx is not None:
-                existing = result[match_idx]
-                result[match_idx] = Timesheet(
-                    id=existing.id,
-                    name=existing.name,
-                    project_name=existing.project_name,
-                    source=existing.source,
-                    unit_amount=existing.unit_amount,
-                    timer_start=timer.timer_start,
-                    date=existing.date,
-                )
-            else:
-                result.append(timer)
-
-        return result
+        return merge_running_timers(timesheets, running_timers)
 
     def start_timer(self, timesheet: Timesheet, client: OdooClient) -> None:
         if timesheet.source.kind == "task":
@@ -192,12 +165,8 @@ class LegacyTimerBackend(TimerBackend):
         try:
             records = client.search_read(
                 "timer.timer",
-                domain=[
-                    ["user_id", "=", uid],
-                    ["timer_start", "!=", False],
-                    ["timer_pause", "=", False],
-                ],
-                fields=["timer_start", "res_model", "res_id"],
+                domain=[["user_id", "=", uid], *TIMER_TIMER_DOMAIN],
+                fields=TIMER_TIMER_FIELDS,
             )
         except Exception:
             return []
@@ -255,19 +224,7 @@ class LegacyTimerBackend(TimerBackend):
             else:
                 continue
 
-            timer_id = -(record.get("id", res_id))
-            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            timesheets.append(
-                Timesheet(
-                    id=timer_id,
-                    name="",
-                    project_name=project_name,
-                    source=source,
-                    unit_amount=0,
-                    timer_start=timer_start,
-                    date=today,
-                )
-            )
+            timesheets.append(build_running_timer(record, source, project_name, timer_start))
 
         return timesheets
 
@@ -284,15 +241,20 @@ def get_timer_backend(client: OdooClient) -> TimerBackend:
     Returns:
         TimerBackend for the detected Odoo version
     """
-    from vodoo.transport import JSON2Transport
-
-    if isinstance(client.transport, JSON2Transport):
+    if client.is_json2:
         return Odoo19TimerBackend()
     return LegacyTimerBackend()
 
 
+# Cache keyed by client id to avoid repeated RPC probes within a session
+_helpdesk_field_cache: dict[int, bool] = {}
+
+
 def _has_helpdesk_field(client: OdooClient) -> bool:
-    """Check if helpdesk_ticket_id field exists on timesheets."""
+    """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
+    key = id(client)
+    if key in _helpdesk_field_cache:
+        return _helpdesk_field_cache[key]
     try:
         client.search_read(
             TIMESHEET_MODEL,
@@ -300,9 +262,11 @@ def _has_helpdesk_field(client: OdooClient) -> bool:
             fields=["id", "helpdesk_ticket_id"],
             limit=1,
         )
+        result = True
     except Exception:
-        return False
-    return True
+        result = False
+    _helpdesk_field_cache[key] = result
+    return result
 
 
 def _get_fields(client: OdooClient) -> list[str]:
@@ -311,6 +275,69 @@ def _get_fields(client: OdooClient) -> list[str]:
     if _has_helpdesk_field(client):
         fields.append("helpdesk_ticket_id")
     return fields
+
+
+TIMER_TIMER_DOMAIN = [
+    ["timer_start", "!=", False],
+    ["timer_pause", "=", False],
+]
+TIMER_TIMER_FIELDS = ["timer_start", "res_model", "res_id"]
+
+
+def merge_running_timers(
+    timesheets: list[Timesheet],
+    running_timers: list[Timesheet],
+) -> list[Timesheet]:
+    """Merge running timer info into existing timesheets.
+
+    Shared by both sync and async legacy backends.
+    """
+    result = list(timesheets)
+
+    for timer in running_timers:
+        source_id = timer.source.id
+        match_idx: int | None = None
+
+        for i, ts in enumerate(result):
+            if ts.source.kind == timer.source.kind and ts.source.id == source_id:
+                match_idx = i
+                break
+
+        if match_idx is not None:
+            existing = result[match_idx]
+            result[match_idx] = Timesheet(
+                id=existing.id,
+                name=existing.name,
+                project_name=existing.project_name,
+                source=existing.source,
+                unit_amount=existing.unit_amount,
+                timer_start=timer.timer_start,
+                date=existing.date,
+            )
+        else:
+            result.append(timer)
+
+    return result
+
+
+def build_running_timer(
+    record: dict[str, Any],
+    source: TimerSource,
+    project_name: str | None,
+    timer_start: datetime,
+) -> Timesheet:
+    """Build a Timesheet representing a running timer from timer.timer data."""
+    timer_id = -(record.get("id", source.id))
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    return Timesheet(
+        id=timer_id,
+        name="",
+        project_name=project_name,
+        source=source,
+        unit_amount=0,
+        timer_start=timer_start,
+        date=today,
+    )
 
 
 def _parse_many2one(value: Any) -> tuple[int, str] | None:

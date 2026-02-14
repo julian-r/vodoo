@@ -91,7 +91,9 @@ run_tests() {
 
   if (cd "$PROJECT_ROOT" && \
       VODOO_TEST_ENV="$env_file" \
-      uv run python -m pytest tests/integration/test_suite.py \
+      uv run python -m pytest \
+        tests/integration/test_suite.py \
+        tests/integration/test_async_suite.py \
         -v --tb=short -x \
         --odoo-version "$ver"); then
     echo "✅ Odoo ${ver} ${edition}: all tests passed"

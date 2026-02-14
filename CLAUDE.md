@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Vodoo is a Python CLI tool for interacting with Odoo via JSON-RPC (Odoo 14-18) and JSON-2 (Odoo 19+). It supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
+Vodoo is a Python CLI tool for interacting with Odoo via JSON-RPC (Odoo 17-18) and JSON-2 (Odoo 19+). It supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets.
 
 ## Commands
 
@@ -30,6 +30,24 @@ uv run mypy src/vodoo
 
 # Build package
 uv build
+
+# Integration tests (requires Docker)
+./tests/integration/run.sh                    # all community editions (17, 18, 19)
+./tests/integration/run.sh 19                 # community 19 only
+./tests/integration/run.sh 17 18              # community 17 + 18
+ENTERPRISE=1 ./tests/integration/run.sh 19    # also run enterprise 19
+KEEP=1 ./tests/integration/run.sh 19          # don't tear down containers
+
+# Unit tests
+uv run pytest tests/test_exceptions.py -v
+
+# Documentation (MkDocs Material + mike versioning)
+uv sync --extra docs
+uv run python scripts/gen_cli_docs.py  # regenerate CLI reference from Typer app
+uv run mkdocs serve          # local dev server at http://127.0.0.1:8000
+uv run mkdocs build          # build static site to site/
+uv run mkdocs build --strict # strict mode (fail on warnings)
+uv run mike serve            # serve versioned docs locally
 ```
 
 ## Architecture
@@ -37,16 +55,21 @@ uv build
 ### Module Structure
 
 - **client.py** - High-level client delegating to the transport layer
+- **transport.py** - Transport abstraction (JSON-2 + legacy JSON-RPC)
 - **config.py** - Pydantic-based configuration from environment variables/.env files
+- **exceptions.py** - Exception hierarchy (VodooError and subclasses)
 - **auth.py** - Authentication utilities and sudo operations
 - **base.py** - Shared operations (CRUD, display, attachments, messages) used by all domain modules
 - **helpdesk.py** - Helpdesk ticket operations (model: `helpdesk.ticket`)
 - **project.py** - Project task operations (model: `project.task`)
 - **project_project.py** - Project operations (model: `project.project`)
 - **crm.py** - CRM lead/opportunity operations (model: `crm.lead`)
+- **knowledge.py** - Knowledge article operations (model: `knowledge.article`)
+- **timer.py** - Timer/timesheet operations (start, stop, status)
 - **generic.py** - Generic CRUD operations for any Odoo model
 - **security.py** - Security group utilities and service-account helpers
-- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `model`, `security`
+- **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `knowledge`, `model`, `security`, `timer`
+- **aio/** - Async versions of all modules above (AsyncOdooClient, async domain helpers)
 
 ### Design Pattern
 
@@ -65,6 +88,30 @@ Required: `ODOO_URL`, `ODOO_DATABASE`, `ODOO_USERNAME`, `ODOO_PASSWORD`
 Optional: `ODOO_DEFAULT_USER_ID`
 
 Recommended: Use `~/.config/vodoo/config.env` for credentials (outside project dirs).
+
+## Versioning
+
+Version is derived from **git tags** via `hatch-vcs` — single source of truth.
+
+- **Do not** hardcode version strings anywhere
+- `__init__.py` reads version at runtime via `importlib.metadata`
+- `_version.py` is auto-generated at build time (gitignored)
+- To release: `git tag v0.4.0 && git push origin v0.4.0` → create GitHub release
+
+## GitHub
+
+Use `gh` CLI for all GitHub interactions (issues, PRs, releases, etc.):
+
+```bash
+gh issue list
+gh issue view 14
+gh issue comment 14 --body "comment text"
+gh pr create --title "..." --body "..."
+gh pr list
+gh release create v0.4.0 --generate-notes
+```
+
+Do NOT use browser automation for GitHub — `gh` is authenticated and faster.
 
 ## Code Style
 

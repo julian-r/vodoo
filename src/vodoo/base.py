@@ -1,35 +1,84 @@
 """Base operations for Odoo models - shared functionality."""
 
+from __future__ import annotations
+
 import base64
+import html.parser as _html_parser_mod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rich.table import Table
-
 from vodoo.auth import message_post_sudo
 from vodoo.client import OdooClient
+from vodoo.exceptions import RecordNotFoundError
 
 if TYPE_CHECKING:
     from rich.console import Console
 
+# ---------------------------------------------------------------------------
+# Output configuration
+# ---------------------------------------------------------------------------
+# The CLI layer (main.py) calls ``configure_output()`` to set the active
+# console and simple-output flag.  When Vodoo is used as a library these
+# defaults are used instead, so no import of main.py is needed.
+#
+# These are module-level globals rather than contextvars.  Concurrent output
+# configurations in the same process would stomp each other, but that scenario
+# is unrealistic: the Odoo server itself is the shared mutable state, so tests
+# and CLI sessions are inherently sequential.
 
-def _get_console() -> "Console":
-    """Get console instance from main module.
+# Field lists shared with aio.base
+_TAG_FIELDS: list[str] = ["id", "name", "color"]
+_MESSAGE_FIELDS: list[str] = [
+    "id",
+    "date",
+    "author_id",
+    "body",
+    "subject",
+    "message_type",
+    "subtype_id",
+    "email_from",
+]
+_ATTACHMENT_LIST_FIELDS: list[str] = ["id", "name", "file_size", "mimetype", "create_date"]
+_ATTACHMENT_READ_FIELDS: list[str] = ["name", "datas"]
 
-    Returns:
-        Console instance
+_output_console: Console | None = None
+_output_simple: bool = False
+
+
+def configure_output(*, console: Console | None = None, simple: bool = False) -> None:
+    """Configure the output console and mode.
+
+    Called by the CLI layer.  Library users may call this to customise
+    display behaviour, or simply ignore it (sensible defaults apply).
+
+    Requires the ``cli`` extra (``rich``) when *console* is provided or
+    *simple* is ``False`` and display functions are subsequently called.
+
+    Args:
+        console: Rich Console instance to use for output.
+        simple: If ``True``, display functions emit plain TSV instead of
+            rich tables.
 
     """
-    from vodoo.main import console
+    global _output_console, _output_simple  # noqa: PLW0603
+    if console is not None:
+        _output_console = console
+    _output_simple = simple
 
-    return console
+
+def _get_console() -> Console:
+    """Return the currently configured console, creating one if needed."""
+    global _output_console  # noqa: PLW0603
+    if _output_console is None:
+        from rich.console import Console as _Console
+
+        _output_console = _Console()
+    return _output_console
 
 
 def _is_simple_output() -> bool:
-    """Check if simple (TSV) output is requested via --no-color flag."""
-    from vodoo.main import _console_config
-
-    return _console_config.get("no_color", False)
+    """Return ``True`` when plain/TSV output is requested."""
+    return _output_simple
 
 
 def list_records(
@@ -109,6 +158,8 @@ def display_records(records: list[dict[str, Any]], title: str = "Records") -> No
             print("\t".join(row))
     else:
         # Rich table output
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title=title)
 
@@ -151,13 +202,12 @@ def get_record(
         Record dictionary
 
     Raises:
-        ValueError: If record not found
+        RecordNotFoundError: If record not found
 
     """
     records = client.read(model, [record_id], fields=fields)
     if not records:
-        msg = f"Record {record_id} not found in {model}"
-        raise ValueError(msg)
+        raise RecordNotFoundError(model, record_id)
     return records[0]
 
 
@@ -203,7 +253,7 @@ def set_record_fields(
 
 def display_record_detail(  # noqa: PLR0912
     record: dict[str, Any],
-    model: str,  # noqa: ARG001
+    *,
     show_html: bool = False,
     record_type: str = "Record",
 ) -> None:
@@ -211,7 +261,6 @@ def display_record_detail(  # noqa: PLR0912
 
     Args:
         record: Record dictionary
-        model: Model name
         show_html: If True, show raw HTML description, else convert to markdown
         record_type: Human-readable record type (e.g., "Ticket", "Task")
 
@@ -347,14 +396,101 @@ def _convert_to_html(text: str, use_markdown: bool = False) -> str:
 
     """
     if use_markdown:
-        import markdown
+        from vodoo.content import _markdown_to_html
 
-        return markdown.markdown(
-            text,
-            extensions=["extra", "nl2br", "sane_lists"],
-        )
+        return _markdown_to_html(text)
     # Plain text - wrap in paragraph tags with newline support
     return f"<p>{text}</p>"
+
+
+class _HTMLToMarkdown(_html_parser_mod.HTMLParser):
+    """Simple HTML to Markdown converter."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.result: list[str] = []
+        self.in_bold = False
+        self.in_italic = False
+        self.in_code = False
+        self.in_pre = False
+        self.in_heading = 0
+        self.in_list_item = False
+        self.list_stack: list[str] = []  # Track ul/ol nesting
+        self.current_href: str = ""
+
+    def handle_starttag(  # noqa: PLR0912
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag in ("b", "strong"):
+            self.in_bold = True
+            self.result.append("**")
+        elif tag in ("i", "em"):
+            self.in_italic = True
+            self.result.append("*")
+        elif tag == "code":
+            self.in_code = True
+            self.result.append("`")
+        elif tag == "pre":
+            self.in_pre = True
+            self.result.append("\n```\n")
+        elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            self.in_heading = int(tag[1])
+            self.result.append("\n" + "#" * self.in_heading + " ")
+        elif tag == "br":
+            self.result.append("\n")
+        elif tag == "p":
+            self.result.append("\n\n")
+        elif tag == "a":
+            self.current_href = dict(attrs).get("href") or ""
+            self.result.append("[")
+        elif tag == "ul":
+            self.list_stack.append("ul")
+            self.result.append("\n")
+        elif tag == "ol":
+            self.list_stack.append("ol")
+            self.result.append("\n")
+        elif tag == "li":
+            self.in_list_item = True
+            indent = "  " * (len(self.list_stack) - 1)
+            if self.list_stack and self.list_stack[-1] == "ul":
+                self.result.append(f"{indent}- ")
+            else:
+                self.result.append(f"{indent}1. ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("b", "strong"):
+            self.in_bold = False
+            self.result.append("**")
+        elif tag in ("i", "em"):
+            self.in_italic = False
+            self.result.append("*")
+        elif tag == "code":
+            self.in_code = False
+            self.result.append("`")
+        elif tag == "pre":
+            self.in_pre = False
+            self.result.append("\n```\n")
+        elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            self.in_heading = 0
+            self.result.append("\n")
+        elif tag == "a":
+            self.result.append(f"]({self.current_href})")
+        elif tag in ("ul", "ol"):
+            if self.list_stack:
+                self.list_stack.pop()
+            self.result.append("\n")
+        elif tag == "li":
+            self.in_list_item = False
+            self.result.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if data.strip() or self.in_pre:
+            self.result.append(data)
+
+    def get_markdown(self) -> str:
+        return "".join(self.result).strip()
 
 
 def _html_to_markdown(html: str) -> str:
@@ -368,96 +504,8 @@ def _html_to_markdown(html: str) -> str:
 
     """
     from html import unescape
-    from html.parser import HTMLParser
 
-    class HTMLToMarkdown(HTMLParser):
-        """Simple HTML to Markdown converter."""
-
-        def __init__(self) -> None:
-            super().__init__()
-            self.result: list[str] = []
-            self.in_bold = False
-            self.in_italic = False
-            self.in_code = False
-            self.in_pre = False
-            self.in_heading = 0
-            self.in_list_item = False
-            self.list_stack: list[str] = []  # Track ul/ol nesting
-
-        def handle_starttag(  # noqa: PLR0912
-            self,
-            tag: str,
-            attrs: list[tuple[str, str | None]],  # noqa: ARG002
-        ) -> None:
-            if tag in ("b", "strong"):
-                self.in_bold = True
-                self.result.append("**")
-            elif tag in ("i", "em"):
-                self.in_italic = True
-                self.result.append("*")
-            elif tag == "code":
-                self.in_code = True
-                self.result.append("`")
-            elif tag == "pre":
-                self.in_pre = True
-                self.result.append("\n```\n")
-            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                self.in_heading = int(tag[1])
-                self.result.append("\n" + "#" * self.in_heading + " ")
-            elif tag == "br":
-                self.result.append("\n")
-            elif tag == "p":
-                self.result.append("\n\n")
-            elif tag == "a":
-                self.result.append("[")
-            elif tag == "ul":
-                self.list_stack.append("ul")
-                self.result.append("\n")
-            elif tag == "ol":
-                self.list_stack.append("ol")
-                self.result.append("\n")
-            elif tag == "li":
-                self.in_list_item = True
-                indent = "  " * (len(self.list_stack) - 1)
-                if self.list_stack and self.list_stack[-1] == "ul":
-                    self.result.append(f"{indent}- ")
-                else:
-                    self.result.append(f"{indent}1. ")
-
-        def handle_endtag(self, tag: str) -> None:
-            if tag in ("b", "strong"):
-                self.in_bold = False
-                self.result.append("**")
-            elif tag in ("i", "em"):
-                self.in_italic = False
-                self.result.append("*")
-            elif tag == "code":
-                self.in_code = False
-                self.result.append("`")
-            elif tag == "pre":
-                self.in_pre = False
-                self.result.append("\n```\n")
-            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                self.in_heading = 0
-                self.result.append("\n")
-            elif tag == "a":
-                self.result.append("]")
-            elif tag in ("ul", "ol"):
-                if self.list_stack:
-                    self.list_stack.pop()
-                self.result.append("\n")
-            elif tag == "li":
-                self.in_list_item = False
-                self.result.append("\n")
-
-        def handle_data(self, data: str) -> None:
-            if data.strip() or self.in_pre:
-                self.result.append(data)
-
-        def get_markdown(self) -> str:
-            return "".join(self.result).strip()
-
-    parser = HTMLToMarkdown()
+    parser = _HTMLToMarkdown()
     parser.feed(unescape(html))
     return parser.get_markdown()
 
@@ -473,7 +521,7 @@ def list_tags(client: OdooClient, model: str) -> list[dict[str, Any]]:
         List of tag dictionaries
 
     """
-    fields = ["id", "name", "color"]
+    fields = _TAG_FIELDS
     return client.search_read(model, fields=fields, order="name")
 
 
@@ -490,6 +538,8 @@ def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
         for tag in tags:
             print(f"{tag['id']}\t{tag['name']}\t{tag.get('color', '')}")
     else:
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title=title)
         table.add_column("ID", style="cyan")
@@ -524,8 +574,7 @@ def add_tag_to_record(
         True if successful
 
     """
-    # Get current tags
-    record = get_record(client, model, record_id)
+    record = get_record(client, model, record_id, fields=["tag_ids"])
     current_tags = record.get("tag_ids", [])
 
     # Add new tag if not already present
@@ -562,16 +611,7 @@ def list_messages(
         ("model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = [
-        "id",
-        "date",
-        "author_id",
-        "body",
-        "subject",
-        "message_type",
-        "subtype_id",
-        "email_from",
-    ]
+    fields = _MESSAGE_FIELDS
 
     return client.search_read(
         "mail.message",
@@ -688,7 +728,7 @@ def list_attachments(
         ("res_model", "=", model),
         ("res_id", "=", record_id),
     ]
-    fields = ["id", "name", "file_size", "mimetype", "create_date"]
+    fields = _ATTACHMENT_LIST_FIELDS
 
     return client.search_read("ir.attachment", domain=domain, fields=fields)
 
@@ -710,6 +750,8 @@ def display_attachments(attachments: list[dict[str, Any]]) -> None:
             created = att.get("create_date", "")
             print(f"{att['id']}\t{name}\t{size_kb}\t{mime}\t{created}")
     else:
+        from rich.table import Table
+
         console = _get_console()
         table = Table(title="Attachments")
         table.add_column("ID", style="cyan")
@@ -749,14 +791,13 @@ def download_attachment(
         Path to downloaded file
 
     Raises:
-        ValueError: If attachment not found
+        RecordNotFoundError: If attachment not found
 
     """
-    attachments = client.read("ir.attachment", [attachment_id], ["name", "datas"])
+    attachments = client.read("ir.attachment", [attachment_id], _ATTACHMENT_READ_FIELDS)
 
     if not attachments:
-        msg = f"Attachment {attachment_id} not found"
-        raise ValueError(msg)
+        raise RecordNotFoundError("ir.attachment", attachment_id)
 
     attachment = attachments[0]
     filename = attachment.get("name", f"attachment_{attachment_id}")
@@ -771,8 +812,7 @@ def download_attachment(
         data = base64.b64decode(attachment["datas"])
         output_path.write_bytes(data)
     else:
-        msg = f"Attachment {attachment_id} has no data"
-        raise ValueError(msg)
+        raise RecordNotFoundError("ir.attachment", attachment_id)
 
     return output_path
 
@@ -811,13 +851,12 @@ def download_record_attachments(
             att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")
         ]
 
-    downloaded_files = []
-    console = _get_console()
+    downloaded_files: list[Path] = []
 
     for attachment in attachments:
+        filename = attachment.get("name", f"attachment_{attachment['id']}")
         try:
-            # Read the full attachment with data
-            att_data = client.read("ir.attachment", [attachment["id"]], ["name", "datas"])
+            att_data = client.read("ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS)
             if not att_data:
                 continue
 
@@ -825,13 +864,14 @@ def download_record_attachments(
             filename = att.get("name", f"attachment_{attachment['id']}")
             output_path = output_dir / filename
 
-            # Decode base64 data and write to file
             if att.get("datas"):
                 data = base64.b64decode(att["datas"])
                 output_path.write_bytes(data)
                 downloaded_files.append(output_path)
         except Exception as e:
-            console.print(f"[yellow]Warning: Failed to download {filename}: {e}[/yellow]")
+            import logging
+
+            logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
             continue
 
     return downloaded_files
@@ -893,11 +933,14 @@ def create_attachment(
     return client.create("ir.attachment", values)
 
 
-def get_record_url(client: OdooClient, model: str, record_id: int) -> str:
+def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
     """Get the web URL for a record.
 
+    Works with both sync ``OdooClient`` and async ``AsyncOdooClient`` —
+    only ``client.config.url`` is accessed.
+
     Args:
-        client: Odoo client
+        client: Odoo client (sync or async)
         model: Model name
         record_id: Record ID
 
@@ -911,116 +954,3 @@ def get_record_url(client: OdooClient, model: str, record_id: int) -> str:
     """
     base_url = client.config.url.rstrip("/")
     return f"{base_url}/web#id={record_id}&model={model}&view_type=form"
-
-
-def parse_field_assignment(  # noqa: PLR0912, PLR0915
-    client: OdooClient,
-    model: str,
-    record_id: int,
-    field_assignment: str,
-    no_markdown: bool = False,
-) -> tuple[str, Any]:
-    """Parse a field assignment and return field name and computed value.
-
-    Supports operators: =, +=, -=, *=, /=
-    HTML fields automatically get markdown conversion unless no_markdown=True.
-
-    Args:
-        client: Odoo client
-        model: Model name
-        record_id: Record ID
-        field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
-        no_markdown: If True, disable automatic markdown conversion for HTML fields
-
-    Returns:
-        Tuple of (field_name, value)
-
-    Raises:
-        ValueError: If assignment format is invalid
-
-    Examples:
-        >>> parse_field_assignment(client, "project.task", 42, "name=New Title")
-        ('name', 'New Title')
-        >>> parse_field_assignment(client, "project.task", 42, "priority+=1")
-        ('priority', 3)  # if current priority is 2
-
-    """
-    import contextlib
-    import json
-    import re
-
-    # Match assignment operators: =, +=, -=, *=, /=
-    match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
-    if not match:
-        msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
-        raise ValueError(msg)
-
-    field = match.group(1).strip()
-    operator = match.group(2).strip()
-    value = match.group(3).strip()
-
-    # Parse the value
-    parsed_value: Any = value
-
-    # Check for JSON prefix
-    if value.startswith("json:"):
-        try:
-            parsed_value = json.loads(value[5:])
-        except json.JSONDecodeError as e:
-            msg = f"Invalid JSON for field '{field}': {e}"
-            raise ValueError(msg) from e
-    # Try to parse as integer
-    elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-        parsed_value = int(value)
-    # Try to parse as float
-    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-        with contextlib.suppress(ValueError):
-            parsed_value = float(value)
-    # Try to parse as boolean
-    elif value.lower() in ("true", "false"):
-        parsed_value = value.lower() == "true"
-    # Keep as string otherwise (remove surrounding quotes if present)
-    elif (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        parsed_value = value[1:-1]
-
-    # Auto-convert markdown to HTML for HTML fields
-    if isinstance(parsed_value, str) and not no_markdown:
-        fields_info = list_fields(client, model)
-        if field in fields_info and fields_info[field].get("type") == "html":
-            parsed_value = _convert_to_html(parsed_value, use_markdown=True)
-
-    # Handle operators that require current value
-    if operator in ("+=", "-=", "*=", "/="):
-        # Get current value
-        record = get_record(client, model, record_id, fields=[field])
-        current_value = record.get(field)
-
-        if current_value is None:
-            msg = f"Field '{field}' not found or is None"
-            raise ValueError(msg)
-
-        # Ensure both values are numeric
-        if not isinstance(current_value, (int, float)):
-            msg = f"Field '{field}' has non-numeric value: {current_value}"
-            raise ValueError(msg)
-
-        if not isinstance(parsed_value, (int, float)):
-            msg = f"Operator '{operator}' requires numeric value, got: {value}"
-            raise ValueError(msg)
-
-        # Perform operation
-        if operator == "+=":
-            parsed_value = current_value + parsed_value
-        elif operator == "-=":
-            parsed_value = current_value - parsed_value
-        elif operator == "*=":
-            parsed_value = current_value * parsed_value
-        elif operator == "/=":
-            if parsed_value == 0:
-                msg = "Division by zero"
-                raise ValueError(msg)
-            parsed_value = current_value / parsed_value
-
-    return field, parsed_value

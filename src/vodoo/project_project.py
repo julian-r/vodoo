@@ -1,5 +1,6 @@
 """Project (project.project) operations for Vodoo."""
 
+from pathlib import Path
 from typing import Any
 
 from vodoo.base import (
@@ -27,6 +28,38 @@ from vodoo.client import OdooClient
 # Model name constant
 MODEL = "project.project"
 
+# Default fields for list operations
+DEFAULT_LIST_FIELDS = [
+    "id",
+    "name",
+    "user_id",
+    "partner_id",
+    "date_start",
+    "date",
+    "task_count",
+    "color",
+]
+
+# Default fields for get (detail) operations — excludes gated fields like stage_id
+DEFAULT_DETAIL_FIELDS = [
+    "id",
+    "name",
+    "description",
+    "active",
+    "user_id",
+    "partner_id",
+    "company_id",
+    "date_start",
+    "date",
+    "task_count",
+    "tag_ids",
+    "color",
+    "write_date",
+]
+
+# Fields for stage listing
+STAGE_FIELDS = ["id", "name", "sequence", "fold", "project_ids"]
+
 
 def list_projects(
     client: OdooClient,
@@ -47,16 +80,7 @@ def list_projects(
 
     """
     if fields is None:
-        fields = [
-            "id",
-            "name",
-            "user_id",
-            "partner_id",
-            "date_start",
-            "date",
-            "task_count",
-            "color",
-        ]
+        fields = list(DEFAULT_LIST_FIELDS)
 
     return list_records(client, MODEL, domain=domain, limit=limit, fields=fields)
 
@@ -81,7 +105,7 @@ def get_project(
     Args:
         client: Odoo client
         project_id: Project ID
-        fields: List of field names to read (None = all fields)
+        fields: List of field names to read (None = default detail fields)
 
     Returns:
         Project dictionary
@@ -90,6 +114,8 @@ def get_project(
         ValueError: If project not found
 
     """
+    if fields is None:
+        fields = list(DEFAULT_DETAIL_FIELDS)
     return get_record(client, MODEL, project_id, fields=fields)
 
 
@@ -137,7 +163,7 @@ def display_project_detail(project: dict[str, Any], show_html: bool = False) -> 
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(project, MODEL, show_html=show_html, record_type="Project")
+    display_record_detail(project, show_html=show_html, record_type="Project")
 
 
 def add_comment(
@@ -225,7 +251,7 @@ def list_project_attachments(
 def create_project_attachment(
     client: OdooClient,
     project_id: int,
-    file_path: Any,
+    file_path: Path | str,
     name: str | None = None,
 ) -> int:
     """Create an attachment for a project.
@@ -275,11 +301,10 @@ def list_stages(
     if project_id is not None:
         domain.append(("project_ids", "in", [project_id]))
 
-    fields = ["id", "name", "sequence", "fold", "project_ids"]
     return client.search_read(
         "project.task.type",
         domain=domain,
-        fields=fields,
+        fields=STAGE_FIELDS,
         order="sequence",
     )
 
