@@ -46,7 +46,6 @@ from vodoo.exceptions import (
     AuthenticationError,
     ConfigurationError,
     FieldParsingError,
-    InsecureURLError,
     OdooAccessDeniedError,
     OdooAccessError,
     OdooMissingError,
@@ -57,6 +56,7 @@ from vodoo.exceptions import (
     TransportError,
     VodooError,
 )
+from vodoo.transport import RetryConfig
 
 __all__ = [
     "HTML",
@@ -64,7 +64,6 @@ __all__ = [
     "AuthenticationError",
     "ConfigurationError",
     "FieldParsingError",
-    "InsecureURLError",
     "Markdown",
     "OdooAccessDeniedError",
     "OdooAccessError",
@@ -75,6 +74,7 @@ __all__ = [
     "OdooValidationError",
     "RecordNotFoundError",
     "RecordOperationError",
+    "RetryConfig",
     "TransportError",
     "VodooError",
 ]

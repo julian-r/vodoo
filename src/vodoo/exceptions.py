@@ -14,7 +14,7 @@ Hierarchy overview::
 
     VodooError
     ├── ConfigurationError
-    │   └── InsecureURLError
+    ├── ConfigurationError
     ├── AuthenticationError
     ├── RecordNotFoundError
     ├── RecordOperationError
@@ -39,10 +39,6 @@ class VodooError(Exception):
 
 class ConfigurationError(VodooError):
     """Raised when the configuration is invalid or incomplete."""
-
-
-class InsecureURLError(ConfigurationError):
-    """Raised when the Odoo URL does not use HTTPS."""
 
 
 class AuthenticationError(VodooError):
