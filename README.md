@@ -127,7 +127,6 @@ All exceptions inherit from `VodooError` so you can catch broadly or narrowly:
 ```
 VodooError
 ├── ConfigurationError
-│   └── InsecureURLError
 ├── AuthenticationError
 ├── RecordNotFoundError          ← .model, .record_id attributes
 ├── RecordOperationError
@@ -160,7 +159,7 @@ client = OdooClient(OdooConfig(
 
 # Project tasks
 from vodoo.project import list_tasks, get_task, add_comment
-tasks = list_tasks(client, stage="In Progress", limit=20)
+tasks = list_tasks(client, domain=[("stage_id.name", "=", "In Progress")], limit=20)
 task = get_task(client, 42)
 add_comment(client, 42, "Deployed to staging")
 
@@ -171,7 +170,7 @@ set_lead_fields(client, 123, {"expected_revenue": 50000, "probability": 75})
 
 # Helpdesk (enterprise)
 from vodoo.helpdesk import list_tickets
-tickets = list_tickets(client, stage="New", limit=10)
+tickets = list_tickets(client, domain=[("stage_id.name", "=", "New")], limit=10)
 
 # Timers
 from vodoo.timer import start_timer_on_task, stop_active_timers

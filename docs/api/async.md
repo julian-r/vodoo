@@ -96,4 +96,3 @@ async with AsyncOdooClient(config) as client:
         - AsyncOdooTransport
         - AsyncLegacyTransport
         - AsyncJSON2Transport
-        - make_async_transport

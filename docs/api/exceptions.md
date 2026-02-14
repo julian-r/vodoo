@@ -7,7 +7,6 @@ The Odoo server-side exceptions (`OdooUserError` and subclasses) mirror the hier
 ```
 VodooError
 ├── ConfigurationError
-│   └── InsecureURLError
 ├── AuthenticationError
 ├── RecordNotFoundError
 ├── RecordOperationError

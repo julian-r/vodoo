@@ -14,7 +14,7 @@ Hierarchy overview::
 
     VodooError
     ├── ConfigurationError
-    ├── ConfigurationError
+    ├── AuthenticationError
     ├── AuthenticationError
     ├── RecordNotFoundError
     ├── RecordOperationError

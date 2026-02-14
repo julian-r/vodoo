@@ -2135,8 +2135,14 @@ def crm_download(
 @crm_app.command("download-all")
 def crm_download_all(
     lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
-    output_dir: Annotated[Path | None, typer.Option("--output", "-o", help="Output dir")] = None,
-    extension: Annotated[str | None, typer.Option("--ext", help="Filter by extension")] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Output directory (defaults to current directory)"),
+    ] = None,
+    extension: Annotated[
+        str | None,
+        typer.Option("--extension", "--ext", help="Filter by file extension (e.g., pdf, jpg, png)"),
+    ] = None,
 ) -> None:
     """Download all attachments from a lead."""
     client = get_client()

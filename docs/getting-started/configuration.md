@@ -26,6 +26,9 @@ Environment variables always take precedence over file values.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ODOO_DEFAULT_USER_ID` | Default user ID for sudo/comment operations | `None` |
+| `ODOO_RETRY_COUNT` | Maximum retries for transient errors | `2` |
+| `ODOO_RETRY_BACKOFF` | Base backoff delay in seconds (exponential) | `0.5` |
+| `ODOO_RETRY_MAX_BACKOFF` | Maximum backoff delay in seconds | `30.0` |
 
 ## Example Config File
 

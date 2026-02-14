@@ -234,7 +234,6 @@ The full hierarchy:
 ```
 VodooError
 ├── ConfigurationError
-│   └── InsecureURLError
 ├── AuthenticationError
 ├── RecordNotFoundError
 ├── RecordOperationError
