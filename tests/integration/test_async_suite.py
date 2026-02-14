@@ -741,6 +741,50 @@ class TestAsyncHelpdesk:
         finally:
             await delete_record(async_client, "helpdesk.tag", tag_id)
 
+    async def test_create_ticket(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.generic import delete_record
+        from vodoo.aio.helpdesk import create_ticket, get_ticket
+
+        ticket_id = await create_ticket(
+            async_client,
+            "Vodoo Async Create Test Ticket",
+            team_id=self.team_id,
+            description="<p>Async test description</p>",
+        )
+        try:
+            assert ticket_id > 0
+            ticket = await get_ticket(async_client, ticket_id)
+            assert ticket["name"] == "Vodoo Async Create Test Ticket"
+            assert "Async test description" in str(ticket.get("description", ""))
+        finally:
+            with contextlib.suppress(Exception):
+                await delete_record(async_client, "helpdesk.ticket", ticket_id)
+
+    async def test_create_ticket_with_tags(self, async_client: AsyncOdooClient) -> None:
+        from vodoo.aio.generic import create_record, delete_record
+        from vodoo.aio.helpdesk import create_ticket, get_ticket
+
+        tag_id = await create_record(
+            async_client, "helpdesk.tag", {"name": "vodoo-async-create-test-tag"}
+        )
+        ticket_id = None
+        try:
+            ticket_id = await create_ticket(
+                async_client,
+                "Vodoo Async Tag Test Ticket",
+                team_id=self.team_id,
+                tag_ids=[tag_id],
+            )
+            assert ticket_id > 0
+            ticket = await get_ticket(async_client, ticket_id, fields=["tag_ids"])
+            assert tag_id in ticket.get("tag_ids", [])
+        finally:
+            if ticket_id is not None:
+                with contextlib.suppress(Exception):
+                    await delete_record(async_client, "helpdesk.ticket", ticket_id)
+            with contextlib.suppress(Exception):
+                await delete_record(async_client, "helpdesk.tag", tag_id)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Knowledge (enterprise only)
