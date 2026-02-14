@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feature/library-readiness]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -40,7 +40,7 @@ jobs:
 
   integration-test:
     name: Integration – Odoo ${{ matrix.odoo-version }}
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/library-readiness'
+    if: github.ref == 'refs/heads/main'
     needs: lint-and-test
     runs-on: ubuntu-latest
     strategy:
