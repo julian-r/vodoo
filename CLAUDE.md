@@ -43,6 +43,7 @@ uv run pytest tests/test_exceptions.py -v
 
 # Documentation (MkDocs Material + mike versioning)
 uv sync --extra docs
+uv run python scripts/gen_cli_docs.py  # regenerate CLI reference from Typer app
 uv run mkdocs serve          # local dev server at http://127.0.0.1:8000
 uv run mkdocs build          # build static site to site/
 uv run mkdocs build --strict # strict mode (fail on warnings)
