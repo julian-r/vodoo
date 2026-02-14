@@ -78,7 +78,7 @@ async def set_project_fields(
 
 def display_project_detail(project: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed project information."""
-    display_record_detail(project, MODEL, show_html=show_html, record_type="Project")
+    display_record_detail(project, show_html=show_html, record_type="Project")
 
 
 async def add_comment(

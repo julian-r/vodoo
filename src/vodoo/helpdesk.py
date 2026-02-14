@@ -153,7 +153,7 @@ def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> No
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(ticket, MODEL, show_html=show_html, record_type="Ticket")
+    display_record_detail(ticket, show_html=show_html, record_type="Ticket")
 
 
 def add_comment(

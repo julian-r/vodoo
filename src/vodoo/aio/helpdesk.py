@@ -80,7 +80,7 @@ async def set_ticket_fields(
 
 def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed ticket information."""
-    display_record_detail(ticket, MODEL, show_html=show_html, record_type="Ticket")
+    display_record_detail(ticket, show_html=show_html, record_type="Ticket")
 
 
 async def add_comment(

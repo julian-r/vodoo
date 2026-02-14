@@ -44,7 +44,15 @@ from vodoo.crm import (
 from vodoo.crm import (
     list_tags as list_lead_tags,
 )
-from vodoo.exceptions import FieldParsingError
+from vodoo.exceptions import (
+    AuthenticationError,
+    FieldParsingError,
+    OdooAccessDeniedError,
+    OdooAccessError,
+    RecordNotFoundError,
+    TransportError,
+    VodooError,
+)
 from vodoo.generic import (
     call_method,
     create_record,
@@ -396,8 +404,20 @@ def helpdesk_list(
         tickets = list_tickets(client, domain=domain, limit=limit, fields=fields)
         display_tickets(tickets)
         console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -426,8 +446,23 @@ def helpdesk_show(
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
             display_ticket_detail(ticket, show_html=show_html)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -455,8 +490,23 @@ def helpdesk_comment(
         else:
             console.print(f"[red]Failed to add comment to ticket {ticket_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -482,8 +532,23 @@ def helpdesk_note(
         else:
             console.print(f"[red]Failed to add note to ticket {ticket_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -496,8 +561,20 @@ def helpdesk_tags() -> None:
         tags = list_tags(client)
         display_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -512,8 +589,23 @@ def helpdesk_tag(
     try:
         add_tag_to_ticket(client, ticket_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to ticket {ticket_id}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -538,8 +630,23 @@ def helpdesk_chatter(
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for ticket {ticket_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -557,8 +664,23 @@ def helpdesk_attachments(
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
             console.print(f"[yellow]No attachments found for ticket {ticket_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -576,8 +698,23 @@ def helpdesk_download(
     try:
         output_path = download_attachment(client, attachment_id, output)
         console.print(f"[green]Downloaded attachment to {output_path}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -605,8 +742,23 @@ def helpdesk_download_all(
             output_dir=output_dir,
             extension=extension,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -629,8 +781,23 @@ def helpdesk_fields(
             record_id=ticket_id,
             field_name=field_name,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -682,8 +849,23 @@ def helpdesk_set(
         else:
             console.print(f"[red]Failed to set fields on ticket {ticket_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -709,8 +891,23 @@ def helpdesk_attach(
         # Show ticket URL for verification
         url = get_ticket_url(client, ticket_id)
         console.print(f"\n[cyan]View ticket:[/cyan] {url}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -724,8 +921,23 @@ def helpdesk_url(
     try:
         url = get_ticket_url(client, ticket_id)
         console.print(url)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -759,8 +971,20 @@ def project_list(
         tasks = list_tasks(client, domain=domain, limit=limit, fields=fields)
         display_tasks(tasks)
         console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -805,8 +1029,23 @@ def project_task_create(
         # Show the URL
         url = get_task_url(client, task_id)
         console.print(f"\n[cyan]View task:[/cyan] {url}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -835,8 +1074,23 @@ def project_show(
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
             display_task_detail(task, show_html=show_html)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -864,8 +1118,23 @@ def project_comment(
         else:
             console.print(f"[red]Failed to add comment to task {task_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -893,8 +1162,23 @@ def project_note(
         else:
             console.print(f"[red]Failed to add note to task {task_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -907,8 +1191,20 @@ def project_tags() -> None:
         tags = list_task_tags(client)
         display_task_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -923,8 +1219,23 @@ def project_tag(
     try:
         add_tag_to_task(client, task_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -939,8 +1250,23 @@ def project_tag_create(
     try:
         tag_id = create_project_tag(client, name, color=color)
         console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -964,8 +1290,23 @@ def project_tag_delete(
         else:
             console.print(f"[red]Failed to delete tag {tag_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -990,8 +1331,23 @@ def project_chatter(
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for task {task_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1009,8 +1365,23 @@ def project_attachments(
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
             console.print(f"[yellow]No attachments found for task {task_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1028,8 +1399,23 @@ def project_download(
     try:
         output_path = download_attachment(client, attachment_id, output)
         console.print(f"[green]Downloaded attachment to {output_path}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1057,8 +1443,23 @@ def project_download_all(
             output_dir=output_dir,
             extension=extension,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1081,8 +1482,23 @@ def project_fields(
             record_id=task_id,
             field_name=field_name,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1134,8 +1550,23 @@ def project_set(
         else:
             console.print(f"[red]Failed to set fields on task {task_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1159,8 +1590,23 @@ def project_attach(
         # Show task URL for verification
         url = get_task_url(client, task_id)
         console.print(f"\n[cyan]View task:[/cyan] {url}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1174,8 +1620,23 @@ def project_url(
     try:
         url = get_task_url(client, task_id)
         console.print(url)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1209,8 +1670,20 @@ def project_project_list(
         projects = list_projects(client, domain=domain, limit=limit, fields=fields)
         display_projects(projects)
         console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1239,8 +1712,23 @@ def project_project_show(
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
             display_project_detail(project, show_html=show_html)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1268,8 +1756,23 @@ def project_project_comment(
         else:
             console.print(f"[red]Failed to add comment to project {project_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1297,8 +1800,23 @@ def project_project_note(
         else:
             console.print(f"[red]Failed to add note to project {project_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1323,8 +1841,23 @@ def project_project_chatter(
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for project {project_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1342,8 +1875,23 @@ def project_project_attachments(
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
             console.print(f"[yellow]No attachments found for project {project_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1366,8 +1914,23 @@ def project_project_fields(
             record_id=project_id,
             field_name=field_name,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1416,8 +1979,23 @@ def project_project_set(
         else:
             console.print(f"[red]Failed to set fields on project {project_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1443,8 +2021,23 @@ def project_project_attach(
         # Show project URL for verification
         url = get_project_url(client, project_id)
         console.print(f"\n[cyan]View project:[/cyan] {url}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1458,8 +2051,23 @@ def project_project_url(
     try:
         url = get_project_url(client, project_id)
         console.print(url)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1489,8 +2097,20 @@ def project_project_stages(
             console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
         else:
             console.print("[yellow]No stages found[/yellow]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1521,8 +2141,20 @@ def knowledge_list(
         articles = list_articles(client, domain=domain, limit=limit)
         display_articles(articles)
         console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1539,8 +2171,23 @@ def knowledge_show(
     try:
         article = get_article(client, article_id)
         display_article_detail(article, show_html=show_html)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1567,8 +2214,23 @@ def knowledge_comment(
         else:
             console.print(f"[red]Failed to add comment to article {article_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1595,8 +2257,23 @@ def knowledge_note(
         else:
             console.print(f"[red]Failed to add note to article {article_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1617,8 +2294,23 @@ def knowledge_chatter(
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for article {article_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1636,8 +2328,23 @@ def knowledge_attachments(
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
             console.print(f"[yellow]No attachments found for article {article_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1651,8 +2358,23 @@ def knowledge_url(
     try:
         url = get_article_url(client, article_id)
         console.print(url)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1674,8 +2396,20 @@ def security_create_groups() -> None:
             console.print("\n[yellow]Warnings:[/yellow]")
             for warning in warnings:
                 console.print(f"- {warning}")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1736,13 +2470,28 @@ def security_assign_bot(
             console.print("\n[yellow]Warnings:[/yellow]")
             for warning in warnings:
                 console.print(f"- {warning}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
 @security_app.command("create-user")
-def security_create_user(
+def security_create_user(  # noqa: PLR0912
     name: Annotated[str, typer.Argument(help="User's display name")],
     login: Annotated[str, typer.Argument(help="User's login (usually email)")],
     password: Annotated[
@@ -1833,8 +2582,23 @@ def security_create_user(
                 for warning in warnings:
                     console.print(f"  - {warning}")
 
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1881,8 +2645,23 @@ def security_set_password(
         else:
             console.print("[green]Password set to provided value.[/green]")
 
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1925,8 +2704,23 @@ def model_create(
         console.print(f"Model: {model}")
         for field, value in values.items():
             console.print(f"  {field} = {value}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -1985,8 +2779,23 @@ def model_read(
             else:
                 console.print("[yellow]No records found[/yellow]")
 
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2036,8 +2845,23 @@ def model_update(
         else:
             console.print(f"[red]Failed to update record {record_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2060,8 +2884,23 @@ def model_delete(
         else:
             console.print(f"[red]Failed to delete record {record_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2098,8 +2937,23 @@ def model_call(
     except json.JSONDecodeError as e:
         console.print(f"[red]Invalid JSON: {e}[/red]")
         raise typer.Exit(1) from e
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
     except Exception as e:
-        console.print(f"[red]Error executing method: {e}[/red]")
+        console.print(f"[red]Unexpected error executing method:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2107,7 +2961,7 @@ def model_call(
 
 
 @crm_app.command("list")
-def crm_list(
+def crm_list(  # noqa: PLR0912
     search: Annotated[
         str | None,
         typer.Option("--search", "-s", help="Search in name, email, phone, description"),
@@ -2156,8 +3010,20 @@ def crm_list(
         leads = list_leads(client, domain=domain, limit=limit, fields=fields)
         display_leads(leads)
         console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2184,8 +3050,23 @@ def crm_show(
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
             display_lead_detail(lead, show_html=show_html)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2212,8 +3093,23 @@ def crm_comment(
         else:
             console.print(f"[red]Failed to add comment to lead {lead_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2240,8 +3136,23 @@ def crm_note(
         else:
             console.print(f"[red]Failed to add note to lead {lead_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2254,8 +3165,20 @@ def crm_tags() -> None:
         tags = list_lead_tags(client)
         display_lead_tags(tags)
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2270,8 +3193,23 @@ def crm_tag(
     try:
         add_tag_to_lead(client, lead_id, tag_id)
         console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2290,8 +3228,23 @@ def crm_chatter(
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for lead {lead_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2309,8 +3262,23 @@ def crm_attachments(
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
             console.print(f"[yellow]No attachments found for lead {lead_id}[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2325,8 +3293,23 @@ def crm_download(
     try:
         output_path = download_attachment(client, attachment_id, output)
         console.print(f"[green]Downloaded attachment to {output_path}[/green]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2348,8 +3331,23 @@ def crm_download_all(
             output_dir=output_dir,
             extension=extension,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2369,8 +3367,23 @@ def crm_fields(
             record_id=lead_id,
             field_name=field_name,
         )
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2409,8 +3422,23 @@ def crm_set(
         else:
             console.print(f"[red]Failed to update lead {lead_id}[/red]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2429,8 +3457,23 @@ def crm_attach(
         console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
         url = get_lead_url(client, lead_id)
         console.print(f"\n[cyan]View lead:[/cyan] {url}")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2444,8 +3487,23 @@ def crm_url(
     try:
         url = get_lead_url(client, lead_id)
         console.print(url)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2489,8 +3547,20 @@ def timer_status() -> None:
 
         active = [ts for ts in timesheets if ts.state.value == "running"]
         console.print(f"\n[dim]{len(timesheets)} timesheets, {len(active)} running[/dim]")
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2530,8 +3600,23 @@ def timer_start(
             console.print(f"[red]Unknown source type: {source}[/red]")
             console.print("[dim]Use: task, ticket, or timesheet[/dim]")
             raise typer.Exit(1)
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2564,8 +3649,23 @@ def timer_stop(
                     console.print(f"  - {ts.display_label} ({ts.elapsed_formatted})")
             else:
                 console.print("[yellow]No running timers to stop[/yellow]")
-    except Exception as e:
+    except RecordNotFoundError as e:
+        console.print(f"[red]Not found:[/red] {e}")
+        raise typer.Exit(1) from e
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -2597,8 +3697,20 @@ def timer_active() -> None:
             )
 
         console.print(table)
-    except Exception as e:
+    except (OdooAccessError, OdooAccessDeniedError) as e:
+        console.print(f"[red]Access denied:[/red] {e}")
+        raise typer.Exit(1) from e
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed:[/red] {e}")
+        raise typer.Exit(1) from e
+    except TransportError as e:
+        console.print(f"[red]Server error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except VodooError as e:
         console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 

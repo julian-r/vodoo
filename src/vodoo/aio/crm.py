@@ -80,7 +80,7 @@ async def set_lead_fields(
 
 def display_lead_detail(lead: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed lead information."""
-    display_record_detail(lead, MODEL, show_html=show_html, record_type="Lead")
+    display_record_detail(lead, show_html=show_html, record_type="Lead")
 
 
 async def add_comment(

@@ -91,7 +91,7 @@ async def set_task_fields(
 
 def display_task_detail(task: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed task information."""
-    display_record_detail(task, MODEL, show_html=show_html, record_type="Task")
+    display_record_detail(task, show_html=show_html, record_type="Task")
 
 
 async def add_comment(

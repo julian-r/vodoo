@@ -236,7 +236,7 @@ def set_record_fields(
 
 def display_record_detail(  # noqa: PLR0912
     record: dict[str, Any],
-    model: str,  # noqa: ARG001
+    *,
     show_html: bool = False,
     record_type: str = "Record",
 ) -> None:
@@ -403,11 +403,12 @@ class _HTMLToMarkdown(_html_parser_mod.HTMLParser):
         self.in_heading = 0
         self.in_list_item = False
         self.list_stack: list[str] = []  # Track ul/ol nesting
+        self.current_href: str = ""
 
     def handle_starttag(  # noqa: PLR0912
         self,
         tag: str,
-        attrs: list[tuple[str, str | None]],  # noqa: ARG002
+        attrs: list[tuple[str, str | None]],
     ) -> None:
         if tag in ("b", "strong"):
             self.in_bold = True
@@ -429,6 +430,7 @@ class _HTMLToMarkdown(_html_parser_mod.HTMLParser):
         elif tag == "p":
             self.result.append("\n\n")
         elif tag == "a":
+            self.current_href = dict(attrs).get("href") or ""
             self.result.append("[")
         elif tag == "ul":
             self.list_stack.append("ul")
@@ -461,7 +463,7 @@ class _HTMLToMarkdown(_html_parser_mod.HTMLParser):
             self.in_heading = 0
             self.result.append("\n")
         elif tag == "a":
-            self.result.append("]")
+            self.result.append(f"]({self.current_href})")
         elif tag in ("ul", "ol"):
             if self.list_stack:
                 self.list_stack.pop()
@@ -1019,7 +1021,10 @@ def _apply_operator(field: str, operator: str, parsed_value: Any, current_value:
     if parsed_value == 0:
         msg = "Division by zero"
         raise FieldParsingError(msg)
-    return current_value / parsed_value
+    result = current_value / parsed_value
+    if isinstance(current_value, int) and isinstance(parsed_value, int) and result == int(result):
+        return int(result)
+    return result
 
 
 def parse_field_assignment(

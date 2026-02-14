@@ -162,7 +162,7 @@ def display_project_detail(project: dict[str, Any], show_html: bool = False) -> 
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(project, MODEL, show_html=show_html, record_type="Project")
+    display_record_detail(project, show_html=show_html, record_type="Project")
 
 
 def add_comment(

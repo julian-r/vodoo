@@ -157,7 +157,7 @@ def display_lead_detail(lead: dict[str, Any], show_html: bool = False) -> None:
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(lead, MODEL, show_html=show_html, record_type="Lead")
+    display_record_detail(lead, show_html=show_html, record_type="Lead")
 
 
 def add_comment(

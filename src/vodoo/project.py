@@ -218,7 +218,7 @@ def display_task_detail(task: dict[str, Any], show_html: bool = False) -> None:
         show_html: If True, show raw HTML description, else convert to markdown
 
     """
-    display_record_detail(task, MODEL, show_html=show_html, record_type="Task")
+    display_record_detail(task, show_html=show_html, record_type="Task")
 
 
 def add_comment(
