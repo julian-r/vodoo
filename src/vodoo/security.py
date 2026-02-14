@@ -42,6 +42,24 @@ class GroupDefinition:
 
 GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
     GroupDefinition(
+        name="API Mail Gateway",
+        comment="Standalone access for mail gateway (message_process via XML-RPC)",
+        access=(
+            # Core mail routing (message_process, message_route)
+            AccessDefinition("mail.message", True, False, False, False),
+            AccessDefinition("mail.message.subtype", True, False, False, False),
+            AccessDefinition("mail.alias", True, True, False, False),
+            AccessDefinition("mail.alias.domain", True, False, False, False),
+            # Author/user resolution (_mail_find_user_for_gateway, _mail_find_partner_from_emails)
+            AccessDefinition("mail.followers", True, False, False, False),
+            AccessDefinition("res.users", True, False, False, False),
+            AccessDefinition("res.partner", True, False, False, False),
+            # Model/data lookups (routing, _xmlid_to_res_id for subtypes)
+            AccessDefinition("ir.model", True, False, False, False),
+            AccessDefinition("ir.model.data", True, False, False, False),
+        ),
+    ),
+    GroupDefinition(
         name="API Base",
         comment="Core API access - required for all service accounts",
         access=(
