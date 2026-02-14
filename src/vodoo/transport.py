@@ -12,15 +12,7 @@ import urllib.request
 from abc import ABC, abstractmethod
 from typing import Any
 
-
-class OdooTransportError(Exception):
-    """Base exception for transport-level errors."""
-
-    def __init__(self, message: str, code: int = -1, data: dict[str, Any] | None = None) -> None:
-        self.code = code
-        self.message = message
-        self.data = data or {}
-        super().__init__(f"[{code}] {message}")
+from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
 
 
 class OdooTransport(ABC):
@@ -59,7 +51,7 @@ class OdooTransport(ABC):
         """Authenticate and return the user ID.
 
         Raises:
-            OdooTransportError: If authentication fails.
+            AuthenticationError: If authentication fails.
         """
 
     @abstractmethod
@@ -82,7 +74,7 @@ class OdooTransport(ABC):
             Method result
 
         Raises:
-            OdooTransportError: On RPC/HTTP errors.
+            TransportError: On RPC/HTTP errors.
         """
 
     @abstractmethod
@@ -103,7 +95,7 @@ class OdooTransport(ABC):
             Result
 
         Raises:
-            OdooTransportError: On RPC/HTTP errors.
+            TransportError: On RPC/HTTP errors.
         """
 
     # -- Convenience helpers (built on top of execute_kw) --
@@ -230,7 +222,7 @@ class LegacyTransport(OdooTransport):
             [self.database, self.username, self.password, {}],
         )
         if not isinstance(result, int) or result <= 0:
-            raise OdooTransportError("Authentication failed", code=401)
+            raise AuthenticationError("Authentication failed")
         self._uid = result
         return self._uid
 
@@ -285,11 +277,13 @@ class LegacyTransport(OdooTransport):
 
         if "error" in result:
             error = result["error"]
-            raise OdooTransportError(
-                message=error.get("message", "Unknown error"),
-                code=error.get("code", -1),
-                data=error.get("data"),
-            )
+            err_code = error.get("code", -1)
+            err_data = error.get("data")
+            err_msg = error.get("message", "Unknown error")
+            # Prefer the user-facing message from data when available
+            if isinstance(err_data, dict) and err_data.get("message"):
+                err_msg = err_data["message"]
+            raise transport_error_from_data(err_msg, code=err_code, data=err_data)
 
         return result.get("result")
 
@@ -312,10 +306,10 @@ class JSON2Transport(OdooTransport):
             limit=1,
         )
         if not records:
-            raise OdooTransportError("Authentication failed — user not found", code=401)
+            raise AuthenticationError("Authentication failed — user not found")
         uid = records[0].get("id")
         if not isinstance(uid, int):
-            raise OdooTransportError("Authentication failed — invalid user ID", code=401)
+            raise AuthenticationError("Authentication failed — invalid user ID")
         self._uid = uid
         return self._uid
 
@@ -337,9 +331,8 @@ class JSON2Transport(OdooTransport):
     ) -> Any:
         # JSON-2 doesn't have a service endpoint; fall back to legacy for service calls
         # This is only used for things like version_info which aren't model methods
-        raise OdooTransportError(
+        raise TransportError(
             "call_service is not supported on JSON-2 transport; use execute_kw",
-            code=-1,
         )
 
     def _request(self, model: str, method: str, body: dict[str, Any]) -> Any:
@@ -363,13 +356,17 @@ class JSON2Transport(OdooTransport):
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 resp_data = response.read()
         except urllib.error.HTTPError as e:
-            # Try to parse error body
+            # Try to parse error body for structured Odoo error info
+            err_data: dict[str, Any] | None = None
             try:
                 err_body = json.loads(e.read().decode("utf-8"))
                 msg = err_body.get("message", f"HTTP {e.code}")
+                # JSON-2 may include error detail in the body
+                if isinstance(err_body, dict):
+                    err_data = err_body.get("data") or err_body
             except Exception:
                 msg = f"HTTP {e.code}"
-            raise OdooTransportError(msg, code=e.code) from e
+            raise transport_error_from_data(msg, code=e.code, data=err_data) from e
 
         if not resp_data:
             return None

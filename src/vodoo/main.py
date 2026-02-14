@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from vodoo.base import (
+    configure_output,
     display_attachments,
     display_messages,
     display_records,
@@ -42,6 +43,7 @@ from vodoo.crm import (
 from vodoo.crm import (
     list_tags as list_lead_tags,
 )
+from vodoo.exceptions import FieldParsingError
 from vodoo.generic import (
     call_method,
     create_record,
@@ -214,7 +216,7 @@ timer_app = typer.Typer(
 app.add_typer(timer_app, name="timer")
 
 # Global state for console configuration
-_console_config = {"no_color": False}
+_console_config: dict[str, bool] = {"no_color": False}
 
 console = Console()
 
@@ -261,6 +263,9 @@ def main_callback(
     _console_config["no_color"] = no_color
     global console  # noqa: PLW0603
     console = get_console()
+    # Synchronise the base module's output configuration so that display
+    # functions use the same console / simple-output mode.
+    configure_output(console=console, simple=no_color)
 
 
 def get_client() -> OdooClient:
@@ -634,7 +639,7 @@ def helpdesk_set(
                 client, "helpdesk.ticket", ticket_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
@@ -1146,7 +1151,7 @@ def project_set(
                 client, "project.task", task_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
@@ -1463,7 +1468,7 @@ def project_project_set(
                 client, "project.project", project_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
@@ -1975,7 +1980,7 @@ def model_create(
             # Parse using existing helper
             field, value = parse_field_assignment(client, model, 0, field_assignment)
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
@@ -2082,7 +2087,7 @@ def model_update(
                 client, model, record_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
@@ -2427,7 +2432,7 @@ def crm_download_all(
 
 
 @crm_app.command("fields")
-def crm_fields(
+def crm_fields(  # noqa: PLR0912
     lead_id: Annotated[int | None, typer.Argument(help="Lead ID (optional)")] = None,
     field_name: Annotated[str | None, typer.Option(help="Show specific field")] = None,
 ) -> None:
@@ -2492,7 +2497,7 @@ def crm_set(
                 client, "crm.lead", lead_id, fa, no_markdown=no_markdown
             )
             values[field] = value
-    except ValueError as e:
+    except (ValueError, FieldParsingError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 

@@ -1,8 +1,9 @@
 """Configuration management for Vodoo."""
 
+import warnings
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,23 @@ class OdooConfig(BaseSettings):
     username: str = Field(..., description="Odoo username")
     password: str = Field(..., description="Odoo password or API key")
     default_user_id: int | None = Field(None, description="Default user ID for sudo operations")
+
+    @model_validator(mode="after")
+    def _warn_insecure_url(self) -> "OdooConfig":
+        """Emit a warning when the Odoo URL does not use HTTPS.
+
+        This intentionally warns rather than raises so that local
+        development setups (``http://localhost``) still work.
+        """
+        if self.url and not self.url.startswith("https://"):
+            warnings.warn(
+                f"ODOO_URL ({self.url}) does not use HTTPS. "
+                "Credentials will be sent in cleartext. "
+                "Use https:// in production.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
 
     @classmethod
     def from_file(cls, config_path: Path | None = None) -> "OdooConfig":

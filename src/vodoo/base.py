@@ -4,32 +4,53 @@ import base64
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from rich.console import Console
 from rich.table import Table
 
 from vodoo.auth import message_post_sudo
 from vodoo.client import OdooClient
+from vodoo.exceptions import FieldParsingError, RecordNotFoundError
 
 if TYPE_CHECKING:
-    from rich.console import Console
+    pass
+
+# ---------------------------------------------------------------------------
+# Output configuration
+# ---------------------------------------------------------------------------
+# The CLI layer (main.py) calls ``configure_output()`` to set the active
+# console and simple-output flag.  When Vodoo is used as a library these
+# defaults are used instead, so no import of main.py is needed.
+
+_output_console: Console = Console()
+_output_simple: bool = False
 
 
-def _get_console() -> "Console":
-    """Get console instance from main module.
+def configure_output(*, console: Console | None = None, simple: bool = False) -> None:
+    """Configure the output console and mode.
 
-    Returns:
-        Console instance
+    Called by the CLI layer.  Library users may call this to customise
+    display behaviour, or simply ignore it (sensible defaults apply).
+
+    Args:
+        console: Rich Console instance to use for output.
+        simple: If ``True``, display functions emit plain TSV instead of
+            rich tables.
 
     """
-    from vodoo.main import console
+    global _output_console, _output_simple  # noqa: PLW0603
+    if console is not None:
+        _output_console = console
+    _output_simple = simple
 
-    return console
+
+def _get_console() -> Console:
+    """Return the currently configured console."""
+    return _output_console
 
 
 def _is_simple_output() -> bool:
-    """Check if simple (TSV) output is requested via --no-color flag."""
-    from vodoo.main import _console_config
-
-    return _console_config.get("no_color", False)
+    """Return ``True`` when plain/TSV output is requested."""
+    return _output_simple
 
 
 def list_records(
@@ -151,13 +172,12 @@ def get_record(
         Record dictionary
 
     Raises:
-        ValueError: If record not found
+        RecordNotFoundError: If record not found
 
     """
     records = client.read(model, [record_id], fields=fields)
     if not records:
-        msg = f"Record {record_id} not found in {model}"
-        raise ValueError(msg)
+        raise RecordNotFoundError(model, record_id)
     return records[0]
 
 
@@ -749,14 +769,13 @@ def download_attachment(
         Path to downloaded file
 
     Raises:
-        ValueError: If attachment not found
+        RecordNotFoundError: If attachment not found
 
     """
     attachments = client.read("ir.attachment", [attachment_id], ["name", "datas"])
 
     if not attachments:
-        msg = f"Attachment {attachment_id} not found"
-        raise ValueError(msg)
+        raise RecordNotFoundError("ir.attachment", attachment_id)
 
     attachment = attachments[0]
     filename = attachment.get("name", f"attachment_{attachment_id}")
@@ -771,8 +790,7 @@ def download_attachment(
         data = base64.b64decode(attachment["datas"])
         output_path.write_bytes(data)
     else:
-        msg = f"Attachment {attachment_id} has no data"
-        raise ValueError(msg)
+        raise RecordNotFoundError("ir.attachment", attachment_id)
 
     return output_path
 
@@ -936,7 +954,7 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
         Tuple of (field_name, value)
 
     Raises:
-        ValueError: If assignment format is invalid
+        FieldParsingError: If assignment format is invalid
 
     Examples:
         >>> parse_field_assignment(client, "project.task", 42, "name=New Title")
@@ -953,7 +971,7 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
     match = re.match(r"^([^=+\-*/]+)([\+\-*/]?=)(.+)$", field_assignment, re.DOTALL)
     if not match:
         msg = f"Invalid format '{field_assignment}'. Use field=value or field+=value"
-        raise ValueError(msg)
+        raise FieldParsingError(msg)
 
     field = match.group(1).strip()
     operator = match.group(2).strip()
@@ -968,7 +986,7 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
             parsed_value = json.loads(value[5:])
         except json.JSONDecodeError as e:
             msg = f"Invalid JSON for field '{field}': {e}"
-            raise ValueError(msg) from e
+            raise FieldParsingError(msg) from e
     # Try to parse as integer
     elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
         parsed_value = int(value)
@@ -999,16 +1017,16 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
 
         if current_value is None:
             msg = f"Field '{field}' not found or is None"
-            raise ValueError(msg)
+            raise FieldParsingError(msg)
 
         # Ensure both values are numeric
         if not isinstance(current_value, (int, float)):
             msg = f"Field '{field}' has non-numeric value: {current_value}"
-            raise ValueError(msg)
+            raise FieldParsingError(msg)
 
         if not isinstance(parsed_value, (int, float)):
             msg = f"Operator '{operator}' requires numeric value, got: {value}"
-            raise ValueError(msg)
+            raise FieldParsingError(msg)
 
         # Perform operation
         if operator == "+=":
@@ -1020,7 +1038,7 @@ def parse_field_assignment(  # noqa: PLR0912, PLR0915
         elif operator == "/=":
             if parsed_value == 0:
                 msg = "Division by zero"
-                raise ValueError(msg)
+                raise FieldParsingError(msg)
             parsed_value = current_value / parsed_value
 
     return field, parsed_value

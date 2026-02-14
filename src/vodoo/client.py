@@ -11,11 +11,7 @@ from vodoo.transport import (
     JSON2Transport,
     LegacyTransport,
     OdooTransport,
-    OdooTransportError,
 )
-
-# Re-export for backwards compatibility
-OdooRPCError = OdooTransportError
 
 
 class OdooClient:

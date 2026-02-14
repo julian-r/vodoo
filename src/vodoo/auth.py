@@ -3,6 +3,7 @@
 from typing import Any
 
 from vodoo.client import OdooClient
+from vodoo.exceptions import ConfigurationError, RecordNotFoundError
 
 
 def get_default_user_id(client: OdooClient, username: str | None = None) -> int:
@@ -16,15 +17,14 @@ def get_default_user_id(client: OdooClient, username: str | None = None) -> int:
         User ID
 
     Raises:
-        ValueError: If user not found
+        RecordNotFoundError: If user not found
 
     """
     search_username = username or client.username
     user_ids = client.search("res.users", domain=[("login", "=", search_username)], limit=1)
 
     if not user_ids:
-        msg = f"User '{search_username}' not found"
-        raise ValueError(msg)
+        raise RecordNotFoundError("res.users", 0)
 
     return user_ids[0]
 
@@ -43,18 +43,16 @@ def get_partner_id_from_user(client: OdooClient, user_id: int) -> int:
         Partner ID (res.partner)
 
     Raises:
-        ValueError: If user not found or has no partner
+        RecordNotFoundError: If user not found or has no partner
 
     """
     users = client.read("res.users", [user_id], ["partner_id"])
     if not users:
-        msg = f"User {user_id} not found"
-        raise ValueError(msg)
+        raise RecordNotFoundError("res.users", user_id)
 
     partner_id = users[0].get("partner_id")
     if not partner_id:
-        msg = f"User {user_id} has no associated partner"
-        raise ValueError(msg)
+        raise RecordNotFoundError("res.partner", 0)
 
     # partner_id is returned as [id, name] tuple
     if isinstance(partner_id, list):
@@ -89,13 +87,13 @@ def message_post_sudo(
         True if successful
 
     Raises:
-        ValueError: If no default user configured
+        ConfigurationError: If no default user configured
 
     """
     if user_id is None:
         if client.config.default_user_id is None:
             msg = "No default user ID configured"
-            raise ValueError(msg)
+            raise ConfigurationError(msg)
         user_id = client.config.default_user_id
 
     # Convert user_id (res.users) to partner_id (res.partner)
@@ -129,4 +127,3 @@ def message_post_sudo(
     # Create the message
     message_id = client.create("mail.message", message_vals)
     return bool(message_id)
-

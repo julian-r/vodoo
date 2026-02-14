@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from vodoo.client import OdooClient
 
@@ -451,7 +452,7 @@ def set_user_password(
     return password
 
 
-def get_user_info(client: OdooClient, user_id: int) -> dict:
+def get_user_info(client: OdooClient, user_id: int) -> dict[str, Any]:
     """Get user information.
 
     Args:
