@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/library-readiness]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy src/vodoo
+
+      - name: Unit tests
+        run: uv run pytest tests/test_exceptions.py tests/test_generic.py -v
+
+  integration-test:
+    name: Integration – Odoo ${{ matrix.odoo-version }}
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/library-readiness'
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo-version: [17, 18, 19]
+        include:
+          - odoo-version: 17
+            port: 17069
+          - odoo-version: 18
+            port: 18069
+          - odoo-version: 19
+            port: 19069
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Start Odoo ${{ matrix.odoo-version }}
+        working-directory: tests/integration
+        run: |
+          ODOO_IMAGE="odoo:${{ matrix.odoo-version }}.0" \
+          ODOO_PORT="${{ matrix.port }}" \
+          ODOO_CONF="odoo.conf" \
+          docker compose -p "vodoo-test-${{ matrix.odoo-version }}" \
+            -f docker-compose.yml up -d --wait --wait-timeout 180
+
+      - name: Provision Odoo ${{ matrix.odoo-version }}
+        run: |
+          uv run python tests/integration/setup_odoo.py \
+            --port ${{ matrix.port }} \
+            --version ${{ matrix.odoo-version }} \
+            --project "vodoo-test-${{ matrix.odoo-version }}" \
+            --db-name "vodoo_test_${{ matrix.odoo-version }}"
+
+      - name: Run integration tests
+        run: |
+          VODOO_TEST_ENV="tests/integration/.env.test.${{ matrix.odoo-version }}" \
+          uv run python -m pytest tests/integration/test_suite.py \
+            -v --tb=short -x \
+            --odoo-version ${{ matrix.odoo-version }}
+
+      - name: Dump logs on failure
+        if: failure()
+        working-directory: tests/integration
+        run: |
+          docker compose -p "vodoo-test-${{ matrix.odoo-version }}" logs --tail=100
+
+      - name: Tear down
+        if: always()
+        working-directory: tests/integration
+        run: |
+          docker compose -p "vodoo-test-${{ matrix.odoo-version }}" down -v --remove-orphans
