@@ -30,6 +30,12 @@ uv run mypy src/vodoo
 
 # Build package
 uv build
+
+# Documentation (MkDocs Material)
+uv sync --extra docs
+uv run mkdocs serve          # local dev server at http://127.0.0.1:8000
+uv run mkdocs build          # build static site to site/
+uv run mkdocs build --strict # strict mode (fail on warnings)
 ```
 
 ## Architecture
@@ -65,6 +71,15 @@ Required: `ODOO_URL`, `ODOO_DATABASE`, `ODOO_USERNAME`, `ODOO_PASSWORD`
 Optional: `ODOO_DEFAULT_USER_ID`
 
 Recommended: Use `~/.config/vodoo/config.env` for credentials (outside project dirs).
+
+## Versioning
+
+Version is derived from **git tags** via `hatch-vcs` — single source of truth.
+
+- **Do not** hardcode version strings anywhere
+- `__init__.py` reads version at runtime via `importlib.metadata`
+- `_version.py` is auto-generated at build time (gitignored)
+- To release: `git tag v0.4.0 && git push origin v0.4.0` → create GitHub release
 
 ## Code Style
 

@@ -1,0 +1,143 @@
+site_name: Vodoo
+site_url: https://julian-r.github.io/vodoo
+site_description: Modern Python library and CLI for Odoo — JSON-RPC & JSON-2
+site_author: Semadox GmbH
+repo_url: https://github.com/julian-r/vodoo
+repo_name: julian-r/vodoo
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2025 Semadox GmbH
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+  logo: material/book-open-variant
+  favicon: material/book-open-variant
+
+not_in_nav: |
+  /INTEGRATION_TESTS.md
+  /SECURITY.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            docstring_style: google
+            docstring_section_style: spacy
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            unwrap_annotated: true
+            filters:
+              - "!^_"  # exclude private members
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/julian-r/vodoo
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/vodoo/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - Quick Start: getting-started/quickstart.md
+  - CLI Reference:
+      - Overview: cli/index.md
+      - helpdesk: cli/helpdesk.md
+      - project-task: cli/project-task.md
+      - project: cli/project.md
+      - crm: cli/crm.md
+      - knowledge: cli/knowledge.md
+      - timer: cli/timer.md
+      - model: cli/model.md
+      - security: cli/security.md
+  - Library Guide:
+      - Using as a Library: guide/library.md
+      - AI Assistant Integration: guide/ai-assistants.md
+  - API Reference:
+      - Overview: api/index.md
+      - OdooClient: api/client.md
+      - OdooConfig: api/config.md
+      - Transport: api/transport.md
+      - Exceptions: api/exceptions.md
+      - Helpdesk: api/helpdesk.md
+      - Project Tasks: api/project.md
+      - Projects: api/project_project.md
+      - CRM: api/crm.md
+      - Knowledge: api/knowledge.md
+      - Timers: api/timer.md
+      - Generic CRUD: api/generic.md
+      - Security: api/security.md
+      - Base Operations: api/base.md
+      - Auth: api/auth.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Architecture: development/architecture.md
+      - Integration Tests: development/integration-tests.md
+      - Security Guide: development/security.md

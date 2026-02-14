@@ -2,12 +2,16 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/vodoo)](https://pypi.org/project/vodoo/)
+[![Documentation](https://img.shields.io/badge/docs-julian--r.github.io%2Fvodoo-blue)](https://julian-r.github.io/vodoo)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 
 A modern Python CLI tool for Odoo with support for helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets. Features include comments, notes, tags, attachments, timers, and more.
 
 **🤖 AI-First Design**: Designed to be used with Claude Code or similar AI coding assistants to streamline Odoo workflows through natural language commands.
+
+**📖 [Full Documentation](https://julian-r.github.io/vodoo)** — Getting started, CLI reference, Python library guide, and API docs.
 
 ## Odoo Version Support
 
@@ -103,7 +107,7 @@ export ODOO_PASSWORD="your_password"
 
 For production use, run Vodoo with a dedicated least-privilege service account instead of a personal user. This keeps access scoped to the models your automation needs and avoids accidental exposure of customer data.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for a concise setup checklist and recommended access rules.
+See the [Security Guide](https://julian-r.github.io/vodoo/development/security/) for a concise setup checklist and recommended access rules.
 
 ```bash
 # Create standard API groups
@@ -246,7 +250,7 @@ vodoo model delete res.partner 123 --confirm
 vodoo model call res.partner name_search --args='["Acme"]'
 ```
 
-For safety, use a least-privilege service account (see [docs/SECURITY.md](docs/SECURITY.md)).
+For safety, use a least-privilege service account (see the [Security Guide](https://julian-r.github.io/vodoo/development/security/)).
 
 ### List Tickets
 
@@ -314,6 +318,24 @@ vodoo helpdesk download 456 --output /path/to/file.pdf
 vodoo helpdesk download 456 --output /path/to/directory/
 ```
 
+## Documentation
+
+Full documentation is available at **[julian-r.github.io/vodoo](https://julian-r.github.io/vodoo)**:
+
+- [Getting Started](https://julian-r.github.io/vodoo/getting-started/installation/) — Installation, configuration, quick start
+- [CLI Reference](https://julian-r.github.io/vodoo/cli/) — All commands with examples
+- [Library Guide](https://julian-r.github.io/vodoo/guide/library/) — Using Vodoo as a Python library
+- [API Reference](https://julian-r.github.io/vodoo/api/) — Auto-generated from docstrings
+- [Security Guide](https://julian-r.github.io/vodoo/development/security/) — Service account setup
+
+Documentation is built with [MkDocs Material](https://squidfun.github.io/mkdocs-material/) and deployed to GitHub Pages on every release.
+
+```bash
+# Build and serve docs locally
+uv sync --extra docs
+uv run mkdocs serve
+```
+
 ## Development
 
 ### Code Quality
@@ -359,10 +381,14 @@ vodoo/
 │   ├── security.py          # Security groups, user management
 │   └── timer.py             # Timer/timesheet start, stop, status
 ├── tests/
-│   └── integration/         # Docker-based integration tests (see docs/)
-├── docs/
-│   ├── SECURITY.md          # Service account setup guide
-│   └── INTEGRATION_TESTS.md # Integration test documentation
+│   └── integration/         # Docker-based integration tests
+├── docs/                    # MkDocs documentation source
+│   ├── getting-started/     # Installation, configuration, quick start
+│   ├── cli/                 # CLI command reference
+│   ├── guide/               # Library usage and AI assistant guides
+│   ├── api/                 # API reference (auto-generated from docstrings)
+│   └── development/         # Contributing, architecture, security
+├── mkdocs.yml               # MkDocs Material configuration
 ├── pyproject.toml
 └── README.md
 ```
@@ -398,7 +424,7 @@ Automated tests run against real Odoo instances (17, 18, 19) in Docker — both 
 ENTERPRISE=1 ./tests/integration/run.sh 19
 ```
 
-See [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md) for details.
+See the [Integration Tests](https://julian-r.github.io/vodoo/development/integration-tests/) documentation for details.
 
 ## Requirements
 
@@ -457,11 +483,11 @@ This project is configured to automatically publish to PyPI using GitHub Actions
 
 ### Releasing a new version
 
-1. Update the version in `pyproject.toml` and `src/vodoo/__init__.py`
-2. Commit the version bump: `git commit -am "Bump version to X.Y.Z"`
-3. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. Create a GitHub release from the tag
-5. The GitHub Action will automatically build and publish to PyPI
+The version is derived automatically from **git tags** via `hatch-vcs` — no files to edit.
+
+1. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+2. Create a GitHub release from the tag
+3. The GitHub Action will automatically build and publish to PyPI and deploy docs to GitHub Pages
 
 ### Manual testing with TestPyPI
 
@@ -499,3 +525,4 @@ Built with:
 - [uv](https://github.com/astral-sh/uv) - Package management
 - [Ruff](https://github.com/astral-sh/ruff) - Linting and formatting
 - [mypy](http://mypy-lang.org/) - Type checking
+- [MkDocs Material](https://squidfun.github.io/mkdocs-material/) - Documentation
