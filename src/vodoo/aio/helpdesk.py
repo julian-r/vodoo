@@ -27,6 +27,12 @@ from vodoo.aio.base import (
     display_tags as base_display_tags,
 )
 from vodoo.aio.base import (
+    get_attachment_data as base_get_attachment_data,
+)
+from vodoo.aio.base import (
+    get_record_attachment_data as base_get_record_attachment_data,
+)
+from vodoo.aio.base import (
     list_attachments as base_list_attachments,
 )
 from vodoo.aio.base import (
@@ -196,3 +202,19 @@ async def create_ticket(
         **extra_fields,
     )
     return await create_record(client, MODEL, values)
+
+
+async def get_ticket_attachment_data(
+    client: AsyncOdooClient,
+    attachment_id: int,
+) -> bytes:
+    """Read a ticket attachment and return its raw binary content in-memory."""
+    return await base_get_attachment_data(client, attachment_id)
+
+
+async def get_ticket_attachments_data(
+    client: AsyncOdooClient,
+    ticket_id: int,
+) -> list[tuple[int, str, bytes]]:
+    """Read all attachments for a ticket and return their binary content in-memory."""
+    return await base_get_record_attachment_data(client, MODEL, ticket_id)
