@@ -10,6 +10,7 @@ from typing import Any
 
 from vodoo.config import OdooConfig
 from vodoo.content import process_values
+from vodoo.exceptions import VodooError
 from vodoo.transport import (
     JSON2Transport,
     LegacyTransport,
@@ -81,7 +82,7 @@ class OdooClient:
         try:
             json2.authenticate()
             return json2
-        except Exception:
+        except VodooError:
             json2.close()
             return LegacyTransport(
                 url=self.url,

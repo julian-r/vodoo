@@ -13,6 +13,7 @@ from vodoo.aio.transport import (
 )
 from vodoo.config import OdooConfig
 from vodoo.content import process_values
+from vodoo.exceptions import VodooError
 
 
 class AsyncOdooClient:
@@ -103,7 +104,7 @@ class AsyncOdooClient:
         try:
             await json2.authenticate()
             return json2
-        except Exception:
+        except VodooError:
             await json2.close()
             return AsyncLegacyTransport(
                 url=self.url,
