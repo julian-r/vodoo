@@ -11,14 +11,11 @@ from typing import Any
 from vodoo.aio.auth import message_post_sudo
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.base import (
-    _apply_operator,
     _convert_to_html,
     _format_field_value,
     _get_console,
     _html_to_markdown,
     _is_simple_output,
-    _match_field_assignment,
-    _parse_raw_value,
     configure_output,
     display_attachments,
     display_messages,
@@ -28,6 +25,11 @@ from vodoo.base import (
     get_record_url,
 )
 from vodoo.exceptions import RecordNotFoundError
+from vodoo.fields import (
+    _apply_operator,
+    _match_field_assignment,
+    _parse_raw_value,
+)
 
 # Re-export pure functions so async domain modules can import everything from here
 __all__ = [
