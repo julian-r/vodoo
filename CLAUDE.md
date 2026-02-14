@@ -31,6 +31,16 @@ uv run mypy src/vodoo
 # Build package
 uv build
 
+# Integration tests (requires Docker)
+./tests/integration/run.sh                    # all community editions (17, 18, 19)
+./tests/integration/run.sh 19                 # community 19 only
+./tests/integration/run.sh 17 18              # community 17 + 18
+ENTERPRISE=1 ./tests/integration/run.sh 19    # also run enterprise 19
+KEEP=1 ./tests/integration/run.sh 19          # don't tear down containers
+
+# Unit tests
+uv run pytest tests/test_exceptions.py tests/test_generic.py -v
+
 # Documentation (MkDocs Material + mike versioning)
 uv sync --extra docs
 uv run mkdocs serve          # local dev server at http://127.0.0.1:8000

@@ -1,27 +1,25 @@
-"""Odoo JSON-RPC transport abstraction.
+"""Async Odoo JSON-RPC transport abstraction.
 
-Provides two implementations:
-- LegacyTransport: Odoo 14-18 using POST /jsonrpc with service/method/args envelope
-- JSON2Transport: Odoo 19+ using POST /json/2/<model>/<method> with bearer token auth
+Provides two async implementations:
+- AsyncLegacyTransport: Odoo 14-18 using POST /jsonrpc with service/method/args envelope
+- AsyncJSON2Transport: Odoo 19+ using POST /json/2/<model>/<method> with bearer token auth
 
-The factory function `make_transport()` auto-detects the Odoo version.
+Mirrors :mod:`vodoo.transport` but uses ``httpx.AsyncClient`` for non-blocking I/O.
 """
 
-import json
 from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
 
 from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
+from vodoo.transport import _build_json2_body, _parse_json2_response, _parse_name_search
 
 
-class OdooTransport(ABC):
-    """Abstract base for Odoo RPC transports.
+class AsyncOdooTransport(ABC):
+    """Abstract base for async Odoo RPC transports.
 
-    Each transport knows how to authenticate, call model methods, and perform
-    CRUD operations. The public API is identical regardless of the underlying
-    protocol (legacy JSON-RPC or JSON-2 REST).
+    Mirrors :class:`vodoo.transport.OdooTransport` with async methods.
     """
 
     def __init__(
@@ -39,17 +37,16 @@ class OdooTransport(ABC):
         self.password = password.strip()
         self.timeout = timeout
         self._uid: int | None = None
-        self._http = httpx.Client(timeout=timeout)
+        self._http = httpx.AsyncClient(timeout=timeout)
 
-    @property
-    def uid(self) -> int:
+    async def get_uid(self) -> int:
         """Get authenticated user ID, authenticating if needed."""
         if self._uid is None:
-            self._uid = self.authenticate()
+            self._uid = await self.authenticate()
         return self._uid
 
     @abstractmethod
-    def authenticate(self) -> int:
+    async def authenticate(self) -> int:
         """Authenticate and return the user ID.
 
         Raises:
@@ -57,56 +54,37 @@ class OdooTransport(ABC):
         """
 
     @abstractmethod
-    def execute_kw(
+    async def execute_kw(
         self,
         model: str,
         method: str,
         args: list[Any],
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute a method on an Odoo model (execute_kw equivalent).
-
-        Args:
-            model: Odoo model name (e.g., 'project.task')
-            method: Method name (e.g., 'search_read')
-            args: Positional arguments
-            kwargs: Keyword arguments
-
-        Returns:
-            Method result
-
-        Raises:
-            TransportError: On RPC/HTTP errors.
-        """
+        """Execute a method on an Odoo model (execute_kw equivalent)."""
 
     @abstractmethod
-    def call_service(
+    async def call_service(
         self,
         service: str,
         method: str,
         args: list[Any],
     ) -> Any:
-        """Call a JSON-RPC service method (e.g. common/authenticate).
+        """Call a JSON-RPC service method (e.g. common/authenticate)."""
 
-        Args:
-            service: Service name ('common', 'object', 'db')
-            method: Method name
-            args: Arguments
-
-        Returns:
-            Result
-
-        Raises:
-            TransportError: On RPC/HTTP errors.
-        """
-
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the underlying HTTP client."""
-        self._http.close()
+        await self._http.aclose()
+
+    async def __aenter__(self) -> "AsyncOdooTransport":
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.close()
 
     # -- Convenience helpers (built on top of execute_kw) --
 
-    def search_read(
+    async def search_read(
         self,
         model: str,
         domain: list[Any] | None = None,
@@ -125,10 +103,12 @@ class OdooTransport(ABC):
             kw["offset"] = offset
         if order is not None:
             kw["order"] = order
-        result: list[dict[str, Any]] = self.execute_kw(model, "search_read", [domain or []], kw)
+        result: list[dict[str, Any]] = await self.execute_kw(
+            model, "search_read", [domain or []], kw
+        )
         return result
 
-    def search(
+    async def search(
         self,
         model: str,
         domain: list[Any] | None = None,
@@ -144,10 +124,10 @@ class OdooTransport(ABC):
             kw["offset"] = offset
         if order is not None:
             kw["order"] = order
-        result: list[int] = self.execute_kw(model, "search", [domain or []], kw)
+        result: list[int] = await self.execute_kw(model, "search", [domain or []], kw)
         return result
 
-    def read(
+    async def read(
         self,
         model: str,
         ids: list[int],
@@ -155,12 +135,12 @@ class OdooTransport(ABC):
     ) -> list[dict[str, Any]]:
         """Read records by IDs."""
         if fields is not None:
-            result: list[dict[str, Any]] = self.execute_kw(model, "read", [ids, fields])
+            result: list[dict[str, Any]] = await self.execute_kw(model, "read", [ids, fields])
         else:
-            result = self.execute_kw(model, "read", [ids])
+            result = await self.execute_kw(model, "read", [ids])
         return result
 
-    def create(
+    async def create(
         self,
         model: str,
         values: dict[str, Any],
@@ -170,32 +150,31 @@ class OdooTransport(ABC):
         kw: dict[str, Any] = {}
         if context:
             kw["context"] = context
-        result = self.execute_kw(model, "create", [values], kw if kw else None)
-        # JSON-2 returns a list of IDs (vals_list), unwrap single-record creates
+        result = await self.execute_kw(model, "create", [values], kw if kw else None)
         if isinstance(result, list) and len(result) == 1:
             return int(result[0])
         return int(result)
 
-    def write(
+    async def write(
         self,
         model: str,
         ids: list[int],
         values: dict[str, Any],
     ) -> bool:
         """Update records."""
-        result: bool = self.execute_kw(model, "write", [ids, values])
+        result: bool = await self.execute_kw(model, "write", [ids, values])
         return result
 
-    def unlink(
+    async def unlink(
         self,
         model: str,
         ids: list[int],
     ) -> bool:
         """Delete records."""
-        result: bool = self.execute_kw(model, "unlink", [ids])
+        result: bool = await self.execute_kw(model, "unlink", [ids])
         return result
 
-    def name_search(
+    async def name_search(
         self,
         model: str,
         name: str,
@@ -203,7 +182,7 @@ class OdooTransport(ABC):
         limit: int = 7,
     ) -> list[tuple[int, str]]:
         """Autocomplete search returning (id, display_name) pairs."""
-        result = self.execute_kw(
+        result = await self.execute_kw(
             model,
             "name_search",
             [],
@@ -212,17 +191,14 @@ class OdooTransport(ABC):
         return _parse_name_search(result)
 
 
-class LegacyTransport(OdooTransport):
-    """Odoo 14-18 legacy JSON-RPC transport.
+class AsyncLegacyTransport(AsyncOdooTransport):
+    """Async Odoo 14-18 legacy JSON-RPC transport."""
 
-    Uses POST /jsonrpc with service/method/args envelope.
-    """
-
-    def authenticate(self) -> int:
+    async def authenticate(self) -> int:
         if self._uid is not None:
             return self._uid
 
-        result = self.call_service(
+        result = await self.call_service(
             "common",
             "authenticate",
             [self.database, self.username, self.password, {}],
@@ -232,15 +208,15 @@ class LegacyTransport(OdooTransport):
         self._uid = result
         return self._uid
 
-    def execute_kw(
+    async def execute_kw(
         self,
         model: str,
         method: str,
         args: list[Any],
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
-        uid = self.uid
-        return self.call_service(
+        uid = await self.get_uid()
+        return await self.call_service(
             "object",
             "execute_kw",
             [
@@ -254,7 +230,7 @@ class LegacyTransport(OdooTransport):
             ],
         )
 
-    def call_service(
+    async def call_service(
         self,
         service: str,
         method: str,
@@ -271,7 +247,7 @@ class LegacyTransport(OdooTransport):
             "id": None,
         }
 
-        response = self._http.post(
+        response = await self._http.post(
             f"{self.url}/jsonrpc",
             json=payload,
         )
@@ -283,7 +259,6 @@ class LegacyTransport(OdooTransport):
             err_code = error.get("code", -1)
             err_data = error.get("data")
             err_msg = error.get("message", "Unknown error")
-            # Prefer the user-facing message from data when available
             if isinstance(err_data, dict) and err_data.get("message"):
                 err_msg = err_data["message"]
             raise transport_error_from_data(err_msg, code=err_code, data=err_data)
@@ -291,18 +266,14 @@ class LegacyTransport(OdooTransport):
         return result.get("result")
 
 
-class JSON2Transport(OdooTransport):
-    """Odoo 19+ JSON-2 API transport.
+class AsyncJSON2Transport(AsyncOdooTransport):
+    """Async Odoo 19+ JSON-2 API transport."""
 
-    Uses POST /json/2/<model>/<method> with bearer token auth.
-    """
-
-    def authenticate(self) -> int:
+    async def authenticate(self) -> int:
         if self._uid is not None:
             return self._uid
 
-        # JSON-2 authenticates by looking up the current user via search_read
-        records = self.search_read(
+        records = await self.search_read(
             "res.users",
             domain=[["login", "=", self.username]],
             fields=["id"],
@@ -316,7 +287,7 @@ class JSON2Transport(OdooTransport):
         self._uid = uid
         return self._uid
 
-    def execute_kw(
+    async def execute_kw(
         self,
         model: str,
         method: str,
@@ -324,21 +295,19 @@ class JSON2Transport(OdooTransport):
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
         body = _build_json2_body(method, args, kwargs)
-        return self._request(model, method, body)
+        return await self._request(model, method, body)
 
-    def call_service(
+    async def call_service(
         self,
         service: str,  # noqa: ARG002
         method: str,  # noqa: ARG002
         args: list[Any],  # noqa: ARG002
     ) -> Any:
-        # JSON-2 doesn't have a service endpoint; fall back to legacy for service calls
-        # This is only used for things like version_info which aren't model methods
         raise TransportError(
             "call_service is not supported on JSON-2 transport; use execute_kw",
         )
 
-    def _request(self, model: str, method: str, body: dict[str, Any]) -> Any:
+    async def _request(self, model: str, method: str, body: dict[str, Any]) -> Any:
         """Send a JSON-2 API request."""
         endpoint = f"{self.url}/json/2/{model}/{method}"
 
@@ -351,11 +320,10 @@ class JSON2Transport(OdooTransport):
             headers["X-Odoo-Database"] = self.database
 
         try:
-            response = self._http.post(endpoint, json=body, headers=headers)
+            response = await self._http.post(endpoint, json=body, headers=headers)
             response.raise_for_status()
             resp_data = response.content
         except httpx.HTTPStatusError as e:
-            # Try to parse error body for structured Odoo error info
             err_data: dict[str, Any] | None = None
             try:
                 err_body = e.response.json()
@@ -372,29 +340,19 @@ class JSON2Transport(OdooTransport):
         return _parse_json2_response(resp_data)
 
 
-def make_transport(
+async def make_async_transport(
     url: str,
     database: str,
     username: str,
     password: str,
     *,
     timeout: int = 30,
-) -> OdooTransport:
-    """Auto-detect Odoo version and return the appropriate transport.
+) -> AsyncOdooTransport:
+    """Auto-detect Odoo version and return the appropriate async transport.
 
     Probes the JSON-2 endpoint first (Odoo 19+); falls back to legacy JSON-RPC.
-
-    Args:
-        url: Odoo instance URL
-        database: Database name
-        username: Username
-        password: Password or API key
-        timeout: Request timeout in seconds
-
-    Returns:
-        OdooTransport instance (JSON2Transport or LegacyTransport)
     """
-    json2 = JSON2Transport(
+    json2 = AsyncJSON2Transport(
         url=url,
         database=database,
         username=username,
@@ -402,97 +360,13 @@ def make_transport(
         timeout=timeout,
     )
     try:
-        json2.authenticate()
+        await json2.authenticate()
         return json2
     except Exception:
-        return LegacyTransport(
+        return AsyncLegacyTransport(
             url=url,
             database=database,
             username=username,
             password=password,
             timeout=timeout,
         )
-
-
-# -- Shared helpers -----------------------------------------------------------
-
-
-def _build_json2_body(  # noqa: PLR0912
-    method: str,
-    args: list[Any],
-    kwargs: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Map execute_kw arguments into a JSON-2 request body."""
-    body: dict[str, Any] = {}
-
-    # Methods where first arg is a domain
-    if method in ("search_read", "search"):
-        if args:
-            body["domain"] = args[0]
-    elif method == "read":
-        if args:
-            body["ids"] = args[0]
-            if len(args) > 1:
-                body["fields"] = args[1]
-    elif method == "create":
-        if args:
-            val = args[0]
-            # JSON-2 expects vals_list (a list of dicts), not a single dict
-            body["vals_list"] = val if isinstance(val, list) else [val]
-    elif method == "write":
-        if args:
-            body["ids"] = args[0]
-            if len(args) > 1:
-                body["vals"] = args[1]
-    elif method == "unlink":
-        if args:
-            body["ids"] = args[0]
-    elif method not in ("name_search", "fields_get") and args and isinstance(args[0], list):
-        # Generic method call — pass ids if first arg is a list
-        body["ids"] = args[0]
-
-    if kwargs:
-        body.update(kwargs)
-        # Remap 'args' kwarg to 'domain' for JSON-2 (used by name_search)
-        if "args" in body:
-            body["domain"] = body.pop("args")
-
-    return body
-
-
-def _parse_json2_response(resp_data: bytes) -> Any:
-    """Parse a JSON-2 response body."""
-    raw = resp_data.decode("utf-8").strip()
-    if raw in ("null", "false"):
-        return None
-    if raw == "true":
-        return True
-
-    # Try JSON parse
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
-
-    # Bare number
-    try:
-        return float(raw) if "." in raw else int(raw)
-    except ValueError:
-        pass
-
-    # Bare string
-    return raw
-
-
-def _parse_name_search(result: Any) -> list[tuple[int, str]]:
-    """Parse Odoo's name_search result: [[id, "display_name"], ...]."""
-    if not isinstance(result, list):
-        return []
-    pairs: list[tuple[int, str]] = []
-    for pair in result:
-        if isinstance(pair, list) and len(pair) >= 2:
-            rec_id = pair[0]
-            name = pair[1]
-            if isinstance(rec_id, int) and isinstance(name, str):
-                pairs.append((rec_id, name))
-    return pairs

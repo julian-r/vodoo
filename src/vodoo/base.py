@@ -911,11 +911,14 @@ def create_attachment(
     return client.create("ir.attachment", values)
 
 
-def get_record_url(client: OdooClient, model: str, record_id: int) -> str:
+def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
     """Get the web URL for a record.
 
+    Works with both sync ``OdooClient`` and async ``AsyncOdooClient`` —
+    only ``client.config.url`` is accessed.
+
     Args:
-        client: Odoo client
+        client: Odoo client (sync or async)
         model: Model name
         record_id: Record ID
 

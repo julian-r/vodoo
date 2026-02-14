@@ -1,6 +1,6 @@
 """Vodoo — Python library and CLI for Odoo.
 
-Quick start as a library::
+Quick start as a library (sync)::
 
     from vodoo import OdooClient, OdooConfig
 
@@ -18,6 +18,16 @@ Quick start as a library::
 
     # … or the generic client directly
     partners = client.search_read("res.partner", fields=["name", "email"], limit=5)
+
+Quick start (async)::
+
+    from vodoo import AsyncOdooClient, OdooConfig
+
+    config = OdooConfig(...)
+
+    async with AsyncOdooClient(config) as client:
+        from vodoo.aio.helpdesk import list_tickets
+        tickets = await list_tickets(client, limit=10)
 """
 
 from importlib.metadata import PackageNotFoundError, version
@@ -28,6 +38,7 @@ except PackageNotFoundError:
     # Editable install without a tag, or running from source checkout
     __version__ = "0.0.0.dev0"
 
+from vodoo.aio.client import AsyncOdooClient
 from vodoo.client import OdooClient
 from vodoo.config import OdooConfig
 from vodoo.exceptions import (
@@ -46,6 +57,7 @@ from vodoo.exceptions import (
 )
 
 __all__ = [
+    "AsyncOdooClient",
     "AuthenticationError",
     "ConfigurationError",
     "FieldParsingError",

@@ -1,7 +1,5 @@
 """Security group utilities for Vodoo."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

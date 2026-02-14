@@ -6,8 +6,6 @@ Handles version-specific differences:
 - Odoo 14-18: timers live in timer.timer; start/stop via source model
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta

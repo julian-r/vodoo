@@ -4,8 +4,6 @@ Community tests (project, project-task, crm, model, security) run on all version
 Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 """
 
-from __future__ import annotations
-
 import contextlib
 import tempfile
 from pathlib import Path

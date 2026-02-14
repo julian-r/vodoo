@@ -3,8 +3,6 @@
 Provides fixtures and CLI options for running tests against live Odoo instances.
 """
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 

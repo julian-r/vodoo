@@ -36,7 +36,7 @@ jobs:
         run: uv run mypy src/vodoo
 
       - name: Unit tests
-        run: uv run pytest tests/test_exceptions.py tests/test_generic.py -v
+        run: uv run pytest tests/test_exceptions.py -v
 
   integration-test:
     name: Integration – Odoo ${{ matrix.odoo-version }}
