@@ -36,7 +36,8 @@ from vodoo.aio.base import (
     list_tags as base_list_tags,
 )
 from vodoo.aio.client import AsyncOdooClient
-from vodoo.helpdesk import DEFAULT_LIST_FIELDS, MODEL, TAG_MODEL
+from vodoo.aio.generic import create_record
+from vodoo.helpdesk import DEFAULT_LIST_FIELDS, MODEL, TAG_MODEL, _build_ticket_values
 
 
 async def list_tickets(
@@ -171,3 +172,25 @@ async def create_attachment(
 def get_ticket_url(client: AsyncOdooClient, ticket_id: int) -> str:
     """Get the web URL for a ticket."""
     return get_record_url(client, MODEL, ticket_id)
+
+
+async def create_ticket(
+    client: AsyncOdooClient,
+    name: str,
+    *,
+    description: str | None = None,
+    partner_id: int | None = None,
+    tag_ids: list[int] | None = None,
+    team_id: int | None = None,
+    **extra_fields: Any,
+) -> int:
+    """Create a helpdesk ticket."""
+    values = _build_ticket_values(
+        name,
+        description=description,
+        partner_id=partner_id,
+        tag_ids=tag_ids,
+        team_id=team_id,
+        **extra_fields,
+    )
+    return await create_record(client, MODEL, values)

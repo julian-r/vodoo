@@ -695,6 +695,48 @@ class TestHelpdesk:
         finally:
             delete_record(client, "helpdesk.tag", tag_id)
 
+    def test_create_ticket(self, client: OdooClient) -> None:
+        from vodoo.generic import delete_record
+        from vodoo.helpdesk import create_ticket, get_ticket
+
+        ticket_id = create_ticket(
+            client,
+            "Vodoo Create Test Ticket",
+            team_id=self.team_id,
+            description="<p>Test description</p>",
+        )
+        try:
+            assert ticket_id > 0
+            ticket = get_ticket(client, ticket_id)
+            assert ticket["name"] == "Vodoo Create Test Ticket"
+            assert "Test description" in str(ticket.get("description", ""))
+        finally:
+            with contextlib.suppress(Exception):
+                delete_record(client, "helpdesk.ticket", ticket_id)
+
+    def test_create_ticket_with_tags(self, client: OdooClient) -> None:
+        from vodoo.generic import create_record, delete_record
+        from vodoo.helpdesk import create_ticket, get_ticket
+
+        tag_id = create_record(client, "helpdesk.tag", {"name": "vodoo-create-test-tag"})
+        ticket_id = None
+        try:
+            ticket_id = create_ticket(
+                client,
+                "Vodoo Tag Test Ticket",
+                team_id=self.team_id,
+                tag_ids=[tag_id],
+            )
+            assert ticket_id > 0
+            ticket = get_ticket(client, ticket_id, fields=["tag_ids"])
+            assert tag_id in ticket.get("tag_ids", [])
+        finally:
+            if ticket_id is not None:
+                with contextlib.suppress(Exception):
+                    delete_record(client, "helpdesk.ticket", ticket_id)
+            with contextlib.suppress(Exception):
+                delete_record(client, "helpdesk.tag", tag_id)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Knowledge (enterprise only)

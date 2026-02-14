@@ -44,6 +44,7 @@ from vodoo.base import (
     list_tags as base_list_tags,
 )
 from vodoo.client import OdooClient
+from vodoo.generic import create_record
 
 # Model name constant
 MODEL = "helpdesk.ticket"
@@ -355,3 +356,67 @@ def get_ticket_url(client: OdooClient, ticket_id: int) -> str:
 
     """
     return get_record_url(client, MODEL, ticket_id)
+
+
+def create_ticket(
+    client: OdooClient,
+    name: str,
+    *,
+    description: str | None = None,
+    partner_id: int | None = None,
+    tag_ids: list[int] | None = None,
+    team_id: int | None = None,
+    **extra_fields: Any,
+) -> int:
+    """Create a helpdesk ticket.
+
+    Args:
+        client: Odoo client
+        name: Ticket title/name
+        description: Ticket description (HTML or plain text)
+        partner_id: Customer partner ID
+        tag_ids: List of tag IDs to apply
+        team_id: Helpdesk team ID
+        **extra_fields: Additional fields to set on the ticket
+
+    Returns:
+        ID of created ticket
+
+    Examples:
+        >>> create_ticket(client, "Login broken", partner_id=42)
+        123
+        >>> create_ticket(client, "Bug", tag_ids=[1, 2], team_id=5)
+        124
+
+    """
+    values = _build_ticket_values(
+        name,
+        description=description,
+        partner_id=partner_id,
+        tag_ids=tag_ids,
+        team_id=team_id,
+        **extra_fields,
+    )
+    return create_record(client, MODEL, values)
+
+
+def _build_ticket_values(
+    name: str,
+    *,
+    description: str | None = None,
+    partner_id: int | None = None,
+    tag_ids: list[int] | None = None,
+    team_id: int | None = None,
+    **extra_fields: Any,
+) -> dict[str, Any]:
+    """Build the values dict for helpdesk.ticket creation."""
+    values: dict[str, Any] = {"name": name, **extra_fields}
+    if description is not None:
+        values["description"] = description
+    if partner_id is not None:
+        values["partner_id"] = partner_id
+    if tag_ids is not None:
+        values["tag_ids"] = [(6, 0, tag_ids)]
+    if team_id is not None:
+        values["team_id"] = team_id
+    return values
