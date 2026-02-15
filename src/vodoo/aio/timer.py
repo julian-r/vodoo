@@ -4,8 +4,12 @@ Mirrors :mod:`vodoo.timer` with async methods.
 Reuses all data classes and parsing logic from the sync module.
 """
 
+from __future__ import annotations
+
+import builtins
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vodoo.aio.client import AsyncOdooClient
@@ -17,7 +21,9 @@ from vodoo.timer import (
     TimerSource,
     Timesheet,
     _parse_odoo_datetime,
+    _parse_stop_wizard,
     _parse_timesheet,
+    _resolve_timer_target,
     build_running_timer,
     merge_running_timers,
 )
@@ -77,21 +83,12 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         return merge_running_timers(timesheets, running_timers)
 
     async def start_timer(self, timesheet: Timesheet, client: AsyncOdooClient) -> None:
-        if timesheet.source.kind == "task":
-            await client.execute("project.task", "action_timer_start", [timesheet.source.id])
-        elif timesheet.source.kind == "ticket":
-            await client.execute("helpdesk.ticket", "action_timer_start", [timesheet.source.id])
-        else:
-            await client.execute(TIMESHEET_MODEL, "action_timer_start", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        await client.execute(model, "action_timer_start", [rec_id])
 
     async def stop_timer(self, timesheet: Timesheet, client: AsyncOdooClient) -> Any:
-        if timesheet.source.kind == "task":
-            return await client.execute("project.task", "action_timer_stop", [timesheet.source.id])
-        if timesheet.source.kind == "ticket":
-            return await client.execute(
-                "helpdesk.ticket", "action_timer_stop", [timesheet.source.id]
-            )
-        return await client.execute(TIMESHEET_MODEL, "action_timer_stop", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        return await client.execute(model, "action_timer_stop", [rec_id])
 
     async def _fetch_running_timers(self, client: AsyncOdooClient, uid: int) -> list[Timesheet]:
         """Fetch running timers from timer.timer model."""
@@ -162,157 +159,176 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         return timesheets
 
 
-# -- Async timer service --
+# -- Async timer namespace --
 
 
-def get_timer_backend(client: AsyncOdooClient) -> AsyncTimerBackend:
-    """Get the appropriate async timer backend based on the Odoo version."""
-    if client.is_json2:
-        return AsyncOdoo19TimerBackend()
-    return AsyncLegacyTimerBackend()
+@dataclass
+class AsyncTimerHandle:
+    """Handle returned by ``start_*()`` — call :meth:`stop` to stop this specific timer."""
+
+    _namespace: AsyncTimerNamespace
+    _source_kind: str
+    _source_id: int
+
+    async def stop(self) -> None:
+        """Stop the timer that was started with this handle."""
+        active = await self._namespace.active()
+        for ts in active:
+            if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
+                await self._namespace._stop_one(ts)
+                return
+        if self._source_kind == "standalone":
+            await self._namespace.stop_timesheet(self._source_id)
+            return
+        msg = f"No running timer found for {self._source_kind} {self._source_id}"
+        raise ValueError(msg)
 
 
-# Cache keyed by client id to avoid repeated RPC probes within a session
-_helpdesk_field_cache: dict[int, bool] = {}
+class AsyncTimerNamespace:
+    """Async namespace for timer (timesheet) operations."""
 
+    def __init__(self, client: AsyncOdooClient) -> None:
+        self._client = client
+        self._helpdesk_field: bool | None = None
 
-async def _has_helpdesk_field(client: AsyncOdooClient) -> bool:
-    """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
-    key = id(client)
-    if key in _helpdesk_field_cache:
-        return _helpdesk_field_cache[key]
-    try:
-        await client.search_read(
+    async def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
+        """Fetch timesheets for the current user.
+
+        Args:
+            days: How many days back to include.  ``0`` (default) means today
+                only, ``7`` means the past week, etc.  Pass ``-1`` for all time.
+            limit: Maximum number of records to return (``None`` = unlimited).
+
+        Returns:
+            Timesheets sorted by date descending.
+        """
+        uid = await self._client.get_uid()
+        fields = await self._get_fields()
+        domain: list[Any] = [["user_id", "=", uid]]
+        if days >= 0:
+            since = (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
+            domain.append(["date", ">=", since])
+        records = await self._client.search_read(
             TIMESHEET_MODEL,
-            domain=[],
-            fields=["id", "helpdesk_ticket_id"],
+            domain=domain,
+            fields=fields,
+            order="date desc",
+            limit=limit,
+        )
+
+        timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
+        backend = self._get_backend()
+        return await backend.enrich_with_running_state(timesheets, self._client, uid)
+
+    async def active(self) -> builtins.list[Timesheet]:
+        """Fetch currently running timesheets."""
+        return [ts for ts in await self.list() if ts.timer_start is not None]
+
+    async def start_task(self, task_id: int) -> AsyncTimerHandle:
+        """Start a timer on a project task."""
+        await self._client.execute("project.task", "action_timer_start", [task_id])
+        return AsyncTimerHandle(self, "task", task_id)
+
+    async def start_ticket(self, ticket_id: int) -> AsyncTimerHandle:
+        """Start a timer on a helpdesk ticket."""
+        await self._client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
+        return AsyncTimerHandle(self, "ticket", ticket_id)
+
+    async def start_timesheet(self, timesheet_id: int) -> AsyncTimerHandle:
+        """Start a timer on an existing timesheet."""
+        fields = await self._get_fields()
+        records = await self._client.search_read(
+            TIMESHEET_MODEL,
+            domain=[["id", "=", timesheet_id]],
+            fields=fields,
             limit=1,
         )
-        result = True
-    except Exception:
-        result = False
-    _helpdesk_field_cache[key] = result
-    return result
+        if not records:
+            msg = f"Timesheet {timesheet_id} not found"
+            raise ValueError(msg)
+        ts = _parse_timesheet(records[0])
+        if ts is None:
+            msg = f"Failed to parse timesheet {timesheet_id}"
+            raise ValueError(msg)
+        backend = self._get_backend()
+        await backend.start_timer(ts, self._client)
+        source_id = ts.source.id if ts.source.kind != "standalone" else timesheet_id
+        return AsyncTimerHandle(self, ts.source.kind, source_id)
 
-
-async def _get_fields(client: AsyncOdooClient) -> list[str]:
-    """Get timesheet fields to fetch, including helpdesk if available."""
-    fields = list(BASE_FIELDS)
-    if await _has_helpdesk_field(client):
-        fields.append("helpdesk_ticket_id")
-    return fields
-
-
-async def fetch_today_timesheets(client: AsyncOdooClient) -> list[Timesheet]:
-    """Fetch today's timesheets for the current user."""
-    uid = await client.get_uid()
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    fields = await _get_fields(client)
-
-    records = await client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["user_id", "=", uid], ["date", "=", today]],
-        fields=fields,
-    )
-
-    timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
-
-    backend = get_timer_backend(client)
-    return await backend.enrich_with_running_state(timesheets, client, uid)
-
-
-async def fetch_active_timesheets(client: AsyncOdooClient) -> list[Timesheet]:
-    """Fetch currently running timesheets."""
-    return [ts for ts in await fetch_today_timesheets(client) if ts.timer_start is not None]
-
-
-async def start_timer_on_task(client: AsyncOdooClient, task_id: int) -> None:
-    """Start a timer on a project task."""
-    await client.execute("project.task", "action_timer_start", [task_id])
-
-
-async def start_timer_on_ticket(client: AsyncOdooClient, ticket_id: int) -> None:
-    """Start a timer on a helpdesk ticket."""
-    await client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
-
-
-async def start_timer_on_timesheet(client: AsyncOdooClient, timesheet_id: int) -> None:
-    """Start a timer on an existing timesheet."""
-    fields = await _get_fields(client)
-    records = await client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["id", "=", timesheet_id]],
-        fields=fields,
-        limit=1,
-    )
-    if not records:
-        msg = f"Timesheet {timesheet_id} not found"
-        raise ValueError(msg)
-
-    ts = _parse_timesheet(records[0])
-    if ts is None:
-        msg = f"Failed to parse timesheet {timesheet_id}"
-        raise ValueError(msg)
-
-    backend = get_timer_backend(client)
-    await backend.start_timer(ts, client)
-
-
-async def stop_timer_on_timesheet(client: AsyncOdooClient, timesheet_id: int) -> None:
-    """Stop a timer on an existing timesheet."""
-    fields = await _get_fields(client)
-    records = await client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["id", "=", timesheet_id]],
-        fields=fields,
-        limit=1,
-    )
-    if not records:
-        msg = f"Timesheet {timesheet_id} not found"
-        raise ValueError(msg)
-
-    ts = _parse_timesheet(records[0])
-    if ts is None:
-        msg = f"Failed to parse timesheet {timesheet_id}"
-        raise ValueError(msg)
-
-    backend = get_timer_backend(client)
-    result = await backend.stop_timer(ts, client)
-    await _handle_stop_wizard(client, result)
-
-
-async def stop_active_timers(client: AsyncOdooClient) -> list[Timesheet]:
-    """Stop all currently running timers."""
-    active = await fetch_active_timesheets(client)
-    backend = get_timer_backend(client)
-
-    for ts in active:
-        result = await backend.stop_timer(ts, client)
-        await _handle_stop_wizard(client, result)
-
-    return active
-
-
-async def _handle_stop_wizard(client: AsyncOdooClient, result: Any) -> None:
-    """Handle stop wizard if returned by action_timer_stop."""
-    if not isinstance(result, dict):
-        return
-
-    res_model = result.get("res_model")
-    if result.get("type") != "ir.actions.act_window" or not res_model:
-        return
-
-    context = result.get("context", {})
-
-    if res_model == "project.task.create.timesheet":
-        task_id = context.get("active_id", 0)
-        time_spent = context.get("default_time_spent", 0)
-        wizard_id = await client.create(
-            res_model,
-            {"task_id": task_id, "description": "/", "time_spent": time_spent},
+    async def stop_timesheet(self, timesheet_id: int) -> None:
+        """Stop a timer on an existing timesheet."""
+        fields = await self._get_fields()
+        records = await self._client.search_read(
+            TIMESHEET_MODEL,
+            domain=[["id", "=", timesheet_id]],
+            fields=fields,
+            limit=1,
         )
-        await client.execute(res_model, "save_timesheet", [wizard_id], context=context)
-    elif res_model == "hr.timesheet.stop.timer.confirmation.wizard":
-        timesheet_id = context.get("default_timesheet_id", 0)
-        wizard_id = await client.create(res_model, {"timesheet_id": timesheet_id})
-        await client.execute(res_model, "action_stop_timer", [wizard_id], context=context)
+        if not records:
+            msg = f"Timesheet {timesheet_id} not found"
+            raise ValueError(msg)
+
+        ts = _parse_timesheet(records[0])
+        if ts is None:
+            msg = f"Failed to parse timesheet {timesheet_id}"
+            raise ValueError(msg)
+
+        backend = self._get_backend()
+        result = await backend.stop_timer(ts, self._client)
+        await self._handle_stop_wizard(result)
+
+    async def _stop_one(self, ts: Timesheet) -> None:
+        """Stop a single timer using the version-appropriate backend."""
+        backend = self._get_backend()
+        result = await backend.stop_timer(ts, self._client)
+        await self._handle_stop_wizard(result)
+
+    async def stop(self) -> builtins.list[Timesheet]:
+        """Stop all currently running timers."""
+        active = await self.active()
+        backend = self._get_backend()
+
+        for ts in active:
+            result = await backend.stop_timer(ts, self._client)
+            await self._handle_stop_wizard(result)
+
+        return active
+
+    def _get_backend(self) -> AsyncTimerBackend:
+        """Get the appropriate async timer backend based on the Odoo version."""
+        if self._client.is_json2:
+            return AsyncOdoo19TimerBackend()
+        return AsyncLegacyTimerBackend()
+
+    async def _has_helpdesk_field(self) -> bool:
+        """Check if helpdesk_ticket_id field exists on timesheets."""
+        if self._helpdesk_field is not None:
+            return self._helpdesk_field
+        try:
+            await self._client.search_read(
+                TIMESHEET_MODEL,
+                domain=[],
+                fields=["id", "helpdesk_ticket_id"],
+                limit=1,
+            )
+            self._helpdesk_field = True
+        except Exception:
+            self._helpdesk_field = False
+        return self._helpdesk_field
+
+    async def _get_fields(self) -> builtins.list[str]:
+        """Get timesheet fields to fetch, including helpdesk if available."""
+        fields = list(BASE_FIELDS)
+        if await self._has_helpdesk_field():
+            fields.append("helpdesk_ticket_id")
+        return fields
+
+    async def _handle_stop_wizard(self, result: Any) -> None:
+        """Handle stop wizard if returned by action_timer_stop."""
+        params = _parse_stop_wizard(result)
+        if params is None:
+            return
+        wizard_id = await self._client.create(params.res_model, params.values)
+        await self._client.execute(
+            params.res_model, params.method, [wizard_id], context=params.context
+        )

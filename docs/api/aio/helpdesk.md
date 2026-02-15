@@ -1,6 +1,6 @@
 # Async Helpdesk
 
-Async operations for the `helpdesk.ticket` model (Odoo Enterprise).
+`AsyncHelpdeskNamespace` for the `helpdesk.ticket` model (Odoo Enterprise), accessed as `client.helpdesk` on `AsyncOdooClient`.
 
 ::: vodoo.aio.helpdesk
     options:

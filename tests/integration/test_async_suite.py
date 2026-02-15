@@ -74,46 +74,39 @@ class TestAsyncGenericCRUD:
     """Test async generic model operations."""
 
     async def test_create_read_update_delete(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import create_record, delete_record, search_records, update_record
-
         # Create
-        rid = await create_record(
-            async_client,
+        rid = await async_client.generic.create(
             "res.partner",
             {"name": "Vodoo Async Test Partner", "email": "vodoo-async@example.com"},
         )
         assert rid > 0
 
         # Read
-        records = await search_records(async_client, "res.partner", domain=[["id", "=", rid]])
+        records = await async_client.generic.search("res.partner", domain=[["id", "=", rid]])
         assert len(records) == 1
         assert records[0]["name"] == "Vodoo Async Test Partner"
 
         # Update
-        result = await update_record(async_client, "res.partner", rid, {"phone": "+1-555-0199"})
+        result = await async_client.generic.update("res.partner", rid, {"phone": "+1-555-0199"})
         assert result is True
-        records = await search_records(
-            async_client, "res.partner", domain=[["id", "=", rid]], fields=["phone"]
+        records = await async_client.generic.search(
+            "res.partner", domain=[["id", "=", rid]], fields=["phone"]
         )
         assert records[0]["phone"] == "+1-555-0199"
 
         # Delete
-        assert await delete_record(async_client, "res.partner", rid) is True
-        assert await search_records(async_client, "res.partner", domain=[["id", "=", rid]]) == []
+        assert await async_client.generic.delete("res.partner", rid) is True
+        assert await async_client.generic.search("res.partner", domain=[["id", "=", rid]]) == []
 
     async def test_call_method(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import call_method
-
-        result = await call_method(
-            async_client, "res.partner", "name_search", args=["Administrator"]
+        result = await async_client.generic.call(
+            "res.partner", "name_search", args=["Administrator"]
         )
         assert isinstance(result, list)
 
     async def test_search_with_limit_and_order(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import search_records
-
-        records = await search_records(
-            async_client, "res.partner", limit=3, order="id asc", fields=["id", "name"]
+        records = await async_client.generic.search(
+            "res.partner", limit=3, order="id asc", fields=["id", "name"]
         )
         assert len(records) <= 3
         if len(records) >= 2:
@@ -135,94 +128,71 @@ class TestAsyncProject:
 
     @pytest.fixture(autouse=True)
     async def _create_project(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-
-        self.project_id = await create_record(
-            async_client, "project.project", {"name": "Vodoo Async Test Project"}
+        self.project_id = await async_client.generic.create(
+            "project.project", {"name": "Vodoo Async Test Project"}
         )
         yield
         with contextlib.suppress(Exception):
-            await delete_record(async_client, "project.project", self.project_id)
+            await async_client.generic.delete("project.project", self.project_id)
 
     async def test_list_projects(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import list_projects
-
-        projects = await list_projects(async_client, domain=[["id", "=", self.project_id]])
+        projects = await async_client.projects.list(domain=[["id", "=", self.project_id]])
         assert len(projects) == 1
         assert projects[0]["name"] == "Vodoo Async Test Project"
 
     async def test_get_project(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import get_project
-
-        project = await get_project(async_client, self.project_id)
+        project = await async_client.projects.get(self.project_id)
         assert project["name"] == "Vodoo Async Test Project"
 
     async def test_set_project_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import get_project, set_project_fields
-
-        await set_project_fields(
-            async_client, self.project_id, {"description": "<p>Async Updated</p>"}
-        )
-        project = await get_project(async_client, self.project_id)
+        await async_client.projects.set(self.project_id, {"description": "<p>Async Updated</p>"})
+        project = await async_client.projects.get(self.project_id)
         assert "Async Updated" in str(project.get("description", ""))
 
     async def test_list_project_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import list_project_fields
-
-        fields = await list_project_fields(async_client)
+        fields = await async_client.projects.fields()
         assert "name" in fields
         assert "user_id" in fields
 
     async def test_project_url(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import get_project_url
-
-        url = get_project_url(async_client, self.project_id)
+        url = async_client.projects.url(self.project_id)
         assert str(self.project_id) in url
         assert "project.project" in url or "/web#" in url
 
     async def test_project_comment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import add_comment, list_project_messages
-
         uid = await async_client.get_uid()
-        success = await add_comment(
-            async_client, self.project_id, "Async test comment", user_id=uid
+        success = await async_client.projects.comment(
+            self.project_id, "Async test comment", user_id=uid
         )
         assert success is True
 
-        messages = await list_project_messages(async_client, self.project_id)
+        messages = await async_client.projects.messages(self.project_id)
         bodies = [m.get("body", "") for m in messages]
         assert any("Async test comment" in b for b in bodies)
 
     async def test_project_note(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import add_note
-
         uid = await async_client.get_uid()
-        success = await add_note(async_client, self.project_id, "Async internal note", user_id=uid)
+        success = await async_client.projects.note(
+            self.project_id, "Async internal note", user_id=uid
+        )
         assert success is True
 
     async def test_project_attachment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import (
-            create_project_attachment,
-            list_project_attachments,
-        )
-
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"async test attachment content")
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_project_attachment(async_client, self.project_id, tmp_path)
+            att_id = await async_client.projects.attach(self.project_id, tmp_path)
             assert att_id > 0
 
-            attachments = await list_project_attachments(async_client, self.project_id)
+            attachments = await async_client.projects.attachments(self.project_id)
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
 
     async def test_list_stages(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project_project import list_stages
-
-        stages = await list_stages(async_client)
+        stages = await async_client.projects.stages()
         assert isinstance(stages, list)
 
 
@@ -236,14 +206,11 @@ class TestAsyncProjectTask:
 
     @pytest.fixture(autouse=True)
     async def _create_project_and_task(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-        from vodoo.aio.project import create_task
-
-        self.project_id = await create_record(
-            async_client, "project.project", {"name": "Vodoo Async Task Test Project"}
+        self.project_id = await async_client.generic.create(
+            "project.project", {"name": "Vodoo Async Task Test Project"}
         )
-        self.task_id = await create_task(
-            async_client, "Vodoo Async Test Task", project_id=self.project_id
+        self.task_id = await async_client.tasks.create(
+            "Vodoo Async Test Task", project_id=self.project_id
         )
         yield
         for model, rid in [
@@ -251,86 +218,69 @@ class TestAsyncProjectTask:
             ("project.project", self.project_id),
         ]:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, model, rid)
+                await async_client.generic.delete(model, rid)
 
     async def test_list_tasks(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import list_tasks
-
-        tasks = await list_tasks(async_client, domain=[["id", "=", self.task_id]])
+        tasks = await async_client.tasks.list(domain=[["id", "=", self.task_id]])
         assert len(tasks) == 1
         assert tasks[0]["name"] == "Vodoo Async Test Task"
 
     async def test_get_task(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import get_task
-
-        task = await get_task(async_client, self.task_id)
+        task = await async_client.tasks.get(self.task_id)
         assert task["name"] == "Vodoo Async Test Task"
 
     async def test_set_task_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import get_task, set_task_fields
-
-        await set_task_fields(async_client, self.task_id, {"priority": "1"})
-        task = await get_task(async_client, self.task_id, fields=["priority"])
+        await async_client.tasks.set(self.task_id, {"priority": "1"})
+        task = await async_client.tasks.get(self.task_id, fields=["priority"])
         assert task["priority"] == "1"
 
     async def test_list_task_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import list_task_fields
-
-        fields = await list_task_fields(async_client)
+        fields = await async_client.tasks.fields()
         assert "name" in fields
         assert "project_id" in fields
         assert "stage_id" in fields
 
     async def test_task_url(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import get_task_url
-
-        url = get_task_url(async_client, self.task_id)
+        url = async_client.tasks.url(self.task_id)
         assert str(self.task_id) in url
 
     async def test_task_comment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import add_comment, list_task_messages
-
         uid = await async_client.get_uid()
-        success = await add_comment(async_client, self.task_id, "Async task comment", user_id=uid)
+        success = await async_client.tasks.comment(self.task_id, "Async task comment", user_id=uid)
         assert success is True
 
-        messages = await list_task_messages(async_client, self.task_id)
+        messages = await async_client.tasks.messages(self.task_id)
         bodies = [m.get("body", "") for m in messages]
         assert any("Async task comment" in b for b in bodies)
 
     async def test_task_note(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import add_note
-
         uid = await async_client.get_uid()
-        success = await add_note(async_client, self.task_id, "Async task note", user_id=uid)
+        success = await async_client.tasks.note(self.task_id, "Async task note", user_id=uid)
         assert success is True
 
     async def test_task_attachment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import create_task_attachment, list_task_attachments
-
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"async task attachment content")
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_task_attachment(async_client, self.task_id, tmp_path)
+            att_id = await async_client.tasks.attach(self.task_id, tmp_path)
             assert att_id > 0
 
-            attachments = await list_task_attachments(async_client, self.task_id)
+            attachments = await async_client.tasks.attachments(self.task_id)
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
 
     async def test_download_attachment(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.base import download_attachment
-        from vodoo.aio.project import create_task_attachment
 
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"async download test content")
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_task_attachment(async_client, self.task_id, tmp_path)
+            att_id = await async_client.tasks.attach(self.task_id, tmp_path)
 
             with tempfile.TemporaryDirectory() as outdir:
                 out = await download_attachment(
@@ -367,13 +317,10 @@ class TestAsyncProjectTask:
                 assert out.read_bytes() == content
         finally:
             with contextlib.suppress(Exception):
-                from vodoo.aio.generic import delete_record
-
-                await delete_record(async_client, "ir.attachment", att_id)
+                await async_client.generic.delete("ir.attachment", att_id)
 
     async def test_get_attachment_data(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.base import get_attachment_data
-        from vodoo.aio.project import create_task_attachment
 
         content = b"async get_attachment_data test content"
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
@@ -381,7 +328,7 @@ class TestAsyncProjectTask:
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_task_attachment(async_client, self.task_id, tmp_path)
+            att_id = await async_client.tasks.attach(self.task_id, tmp_path)
             data = await get_attachment_data(async_client, att_id)
             assert data == content
         finally:
@@ -389,7 +336,6 @@ class TestAsyncProjectTask:
 
     async def test_get_record_attachment_data(self, async_client: AsyncOdooClient) -> None:
         from vodoo.aio.base import get_record_attachment_data
-        from vodoo.aio.project import create_task_attachment
 
         content = b"async get_record_attachment_data test content"
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
@@ -397,7 +343,7 @@ class TestAsyncProjectTask:
             tmp_path = Path(f.name)
 
         try:
-            await create_task_attachment(async_client, self.task_id, tmp_path)
+            await async_client.tasks.attach(self.task_id, tmp_path)
             result = await get_record_attachment_data(async_client, "project.task", self.task_id)
             assert isinstance(result, list)
             assert len(result) >= 1
@@ -410,63 +356,47 @@ class TestAsyncProjectTask:
             tmp_path.unlink(missing_ok=True)
 
     async def test_create_task_with_options(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.project import create_task, get_task
-
-        task_id = await create_task(
-            async_client,
+        task_id = await async_client.tasks.create(
             "Async Task With Description",
             project_id=self.project_id,
             description="<p>Async description</p>",
         )
         try:
-            task = await get_task(async_client, task_id)
+            task = await async_client.tasks.get(task_id)
             assert "Async description" in str(task.get("description", ""))
         finally:
-            await delete_record(async_client, "project.task", task_id)
+            await async_client.generic.delete("project.task", task_id)
 
     async def test_tags_crud(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.project import (
-            add_tag_to_task,
-            create_tag,
-            delete_tag,
-            get_task,
-            list_task_tags,
-        )
-
-        tag_id = await create_tag(async_client, "vodoo-async-test-tag")
+        tag_id = await async_client.tasks.create_tag("vodoo-async-test-tag")
         assert tag_id > 0
 
         try:
-            tags = await list_task_tags(async_client)
+            tags = await async_client.tasks.tags()
             assert any(t["id"] == tag_id for t in tags)
 
-            await add_tag_to_task(async_client, self.task_id, tag_id)
+            await async_client.tasks.add_tag(self.task_id, tag_id)
 
-            task = await get_task(async_client, self.task_id, fields=["tag_ids"])
+            task = await async_client.tasks.get(self.task_id, fields=["tag_ids"])
             assert tag_id in task.get("tag_ids", [])
         finally:
-            await delete_tag(async_client, tag_id)
+            await async_client.tasks.delete_tag(tag_id)
 
     async def test_subtask(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.project import create_task, get_task
-
-        sub_id = await create_task(
-            async_client,
+        sub_id = await async_client.tasks.create(
             "Vodoo Async Subtask",
             project_id=self.project_id,
             parent_id=self.task_id,
         )
         try:
-            sub = await get_task(async_client, sub_id, fields=["parent_id"])
+            sub = await async_client.tasks.get(sub_id, fields=["parent_id"])
             parent = sub.get("parent_id")
             if isinstance(parent, list):
                 assert parent[0] == self.task_id
             else:
                 assert parent == self.task_id
         finally:
-            await delete_record(async_client, "project.task", sub_id)
+            await async_client.generic.delete("project.task", sub_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -479,10 +409,7 @@ class TestAsyncCRM:
 
     @pytest.fixture(autouse=True)
     async def _create_lead(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-
-        self.lead_id = await create_record(
-            async_client,
+        self.lead_id = await async_client.generic.create(
             "crm.lead",
             {
                 "name": "Vodoo Async Test Lead",
@@ -492,107 +419,84 @@ class TestAsyncCRM:
         )
         yield
         with contextlib.suppress(Exception):
-            await delete_record(async_client, "crm.lead", self.lead_id)
+            await async_client.generic.delete("crm.lead", self.lead_id)
 
     async def test_list_leads(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import list_leads
-
-        leads = await list_leads(async_client, domain=[["id", "=", self.lead_id]])
+        leads = await async_client.crm.list(domain=[["id", "=", self.lead_id]])
         assert len(leads) == 1
         assert leads[0]["name"] == "Vodoo Async Test Lead"
 
     async def test_get_lead(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import get_lead
-
-        lead = await get_lead(async_client, self.lead_id)
+        lead = await async_client.crm.get(self.lead_id)
         assert lead["name"] == "Vodoo Async Test Lead"
         assert lead["email_from"] == "async-lead@example.com"
 
     async def test_set_lead_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import get_lead, set_lead_fields
-
-        await set_lead_fields(async_client, self.lead_id, {"phone": "+1-555-0200"})
-        lead = await get_lead(async_client, self.lead_id, fields=["phone"])
+        await async_client.crm.set(self.lead_id, {"phone": "+1-555-0200"})
+        lead = await async_client.crm.get(self.lead_id, fields=["phone"])
         assert lead["phone"] == "+1-555-0200"
 
     async def test_list_lead_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import list_lead_fields
-
-        fields = await list_lead_fields(async_client)
+        fields = await async_client.crm.fields()
         assert "name" in fields
         assert "stage_id" in fields
         assert "email_from" in fields
 
     async def test_lead_url(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import get_lead_url
-
-        url = get_lead_url(async_client, self.lead_id)
+        url = async_client.crm.url(self.lead_id)
         assert str(self.lead_id) in url
 
     async def test_lead_comment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import add_comment, list_lead_messages
-
         uid = await async_client.get_uid()
-        success = await add_comment(async_client, self.lead_id, "Async lead comment", user_id=uid)
+        success = await async_client.crm.comment(self.lead_id, "Async lead comment", user_id=uid)
         assert success is True
 
-        messages = await list_lead_messages(async_client, self.lead_id)
+        messages = await async_client.crm.messages(self.lead_id)
         bodies = [m.get("body", "") for m in messages]
         assert any("Async lead comment" in b for b in bodies)
 
     async def test_lead_note(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import add_note
-
         uid = await async_client.get_uid()
-        success = await add_note(async_client, self.lead_id, "Async lead note", user_id=uid)
+        success = await async_client.crm.note(self.lead_id, "Async lead note", user_id=uid)
         assert success is True
 
     async def test_lead_attachment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import create_lead_attachment, list_lead_attachments
-
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"async lead attachment content")
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_lead_attachment(async_client, self.lead_id, tmp_path)
+            att_id = await async_client.crm.attach(self.lead_id, tmp_path)
             assert att_id > 0
 
-            attachments = await list_lead_attachments(async_client, self.lead_id)
+            attachments = await async_client.crm.attachments(self.lead_id)
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
 
     async def test_lead_tags(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import add_tag_to_lead, get_lead, list_tags
-        from vodoo.aio.generic import create_record, delete_record
-
-        tag_id = await create_record(async_client, "crm.tag", {"name": "vodoo-async-crm-tag"})
+        tag_id = await async_client.generic.create("crm.tag", {"name": "vodoo-async-crm-tag"})
         try:
-            tags = await list_tags(async_client)
+            tags = await async_client.crm.tags()
             assert any(t["id"] == tag_id for t in tags)
 
-            await add_tag_to_lead(async_client, self.lead_id, tag_id)
+            await async_client.crm.add_tag(self.lead_id, tag_id)
 
-            lead = await get_lead(async_client, self.lead_id, fields=["tag_ids"])
+            lead = await async_client.crm.get(self.lead_id, fields=["tag_ids"])
             assert tag_id in lead.get("tag_ids", [])
         finally:
-            await delete_record(async_client, "crm.tag", tag_id)
+            await async_client.generic.delete("crm.tag", tag_id)
 
     async def test_download_all_attachments(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.crm import create_lead_attachment, download_lead_attachments
-
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(b"%PDF-async-fake-content")
             tmp_path = Path(f.name)
 
         try:
-            await create_lead_attachment(async_client, self.lead_id, tmp_path)
+            await async_client.crm.attach(self.lead_id, tmp_path)
 
             with tempfile.TemporaryDirectory() as outdir:
-                downloaded = await download_lead_attachments(
-                    async_client, self.lead_id, Path(outdir)
-                )
+                downloaded = await async_client.crm.download(self.lead_id, Path(outdir))
                 assert len(downloaded) >= 1
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -607,75 +511,55 @@ class TestAsyncSecurity:
     """Test async security group utilities."""
 
     async def test_create_security_groups(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.security import create_security_groups
-
-        group_ids, _warnings = await create_security_groups(async_client)
+        group_ids, _warnings = await async_client.security.create_groups()
         assert len(group_ids) > 0
         # Should be idempotent
-        group_ids2, _ = await create_security_groups(async_client)
+        group_ids2, _ = await async_client.security.create_groups()
         assert group_ids == group_ids2
 
     async def test_create_user(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.security import create_user, get_user_info
-
-        user_id, _password = await create_user(
-            async_client,
+        user_id, _password = await async_client.security.create_user(
             name="Vodoo Async Test Bot",
             login="vodoo-async-bot@example.com",
             password="TestPassword123",
         )
         try:
             assert user_id > 0
-            info = await get_user_info(async_client, user_id)
+            info = await async_client.security.get_user(user_id)
             assert info["login"] == "vodoo-async-bot@example.com"
             assert info["name"] == "Vodoo Async Test Bot"
         finally:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, "res.users", user_id)
+                await async_client.generic.delete("res.users", user_id)
 
     async def test_resolve_user_id(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.security import resolve_user_id
-
-        uid = await resolve_user_id(async_client, user_id=None, login="admin")
+        uid = await async_client.security.resolve_user(user_id=None, login="admin")
         assert uid > 0
 
     async def test_set_user_password(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.security import create_user, set_user_password
-
-        user_id, _ = await create_user(
-            async_client,
+        user_id, _ = await async_client.security.create_user(
             name="Vodoo Async PW Test",
             login="vodoo-async-pw-test@example.com",
         )
         try:
-            new_pw = await set_user_password(async_client, user_id, "NewPassword456")
+            new_pw = await async_client.security.set_password(user_id, "NewPassword456")
             assert new_pw == "NewPassword456"
 
-            gen_pw = await set_user_password(async_client, user_id)
+            gen_pw = await async_client.security.set_password(user_id)
             assert len(gen_pw) > 8
         finally:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, "res.users", user_id)
+                await async_client.generic.delete("res.users", user_id)
 
     async def test_assign_bot_to_groups(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.security import (
-            assign_user_to_groups,
-            create_security_groups,
-            create_user,
-        )
-
-        group_ids, _ = await create_security_groups(async_client)
-        user_id, _ = await create_user(
-            async_client,
+        group_ids, _ = await async_client.security.create_groups()
+        user_id, _ = await async_client.security.create_user(
             name="Vodoo Async Group Test",
             login="vodoo-async-group-test@example.com",
         )
         try:
-            await assign_user_to_groups(
-                async_client, user_id, list(group_ids.values()), remove_default_groups=True
+            await async_client.security.assign(
+                user_id, list(group_ids.values()), remove_default_groups=True
             )
             for fname in ("group_ids", "groups_id"):
                 try:
@@ -690,7 +574,7 @@ class TestAsyncSecurity:
                 assert gid in user_groups
         finally:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, "res.users", user_id)
+                await async_client.generic.delete("res.users", user_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -704,132 +588,107 @@ class TestAsyncHelpdesk:
 
     @pytest.fixture(autouse=True)
     async def _create_ticket(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-
         teams = await async_client.search_read("helpdesk.team", limit=1, fields=["id"])
         if teams:
             self.team_id = teams[0]["id"]
         else:
-            self.team_id = await create_record(
-                async_client, "helpdesk.team", {"name": "Vodoo Async Test Team"}
+            self.team_id = await async_client.generic.create(
+                "helpdesk.team", {"name": "Vodoo Async Test Team"}
             )
 
-        self.ticket_id = await create_record(
-            async_client,
+        self.ticket_id = await async_client.generic.create(
             "helpdesk.ticket",
             {"name": "Vodoo Async Test Ticket", "team_id": self.team_id},
         )
         yield
         with contextlib.suppress(Exception):
-            await delete_record(async_client, "helpdesk.ticket", self.ticket_id)
+            await async_client.generic.delete("helpdesk.ticket", self.ticket_id)
 
     async def test_list_tickets(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import list_tickets
-
-        tickets = await list_tickets(async_client, domain=[["id", "=", self.ticket_id]])
+        tickets = await async_client.helpdesk.list(domain=[["id", "=", self.ticket_id]])
         assert len(tickets) == 1
         assert tickets[0]["name"] == "Vodoo Async Test Ticket"
 
     async def test_get_ticket(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import get_ticket
-
-        ticket = await get_ticket(async_client, self.ticket_id)
+        ticket = await async_client.helpdesk.get(self.ticket_id)
         assert ticket["name"] == "Vodoo Async Test Ticket"
 
     async def test_set_ticket_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import get_ticket, set_ticket_fields
-
-        await set_ticket_fields(async_client, self.ticket_id, {"priority": "2"})
-        ticket = await get_ticket(async_client, self.ticket_id, fields=["priority"])
+        await async_client.helpdesk.set(self.ticket_id, {"priority": "2"})
+        ticket = await async_client.helpdesk.get(self.ticket_id, fields=["priority"])
         assert ticket["priority"] == "2"
 
     async def test_list_ticket_fields(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import list_ticket_fields
-
-        fields = await list_ticket_fields(async_client)
+        fields = await async_client.helpdesk.fields()
         assert "name" in fields
         assert "team_id" in fields
 
     async def test_ticket_url(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import get_ticket_url
-
-        url = get_ticket_url(async_client, self.ticket_id)
+        url = async_client.helpdesk.url(self.ticket_id)
         assert str(self.ticket_id) in url
 
     async def test_ticket_comment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import add_comment, list_messages
-
         uid = await async_client.get_uid()
-        success = await add_comment(
-            async_client, self.ticket_id, "Async ticket comment", user_id=uid
+        success = await async_client.helpdesk.comment(
+            self.ticket_id, "Async ticket comment", user_id=uid
         )
         assert success is True
 
-        messages = await list_messages(async_client, self.ticket_id)
+        messages = await async_client.helpdesk.messages(self.ticket_id)
         bodies = [m.get("body", "") for m in messages]
         assert any("Async ticket comment" in b for b in bodies)
 
     async def test_ticket_note(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import add_note
-
         uid = await async_client.get_uid()
-        success = await add_note(async_client, self.ticket_id, "Async ticket note", user_id=uid)
+        success = await async_client.helpdesk.note(self.ticket_id, "Async ticket note", user_id=uid)
         assert success is True
 
     async def test_ticket_attachment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import create_attachment, list_attachments
-
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"async ticket attachment content")
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_attachment(async_client, self.ticket_id, tmp_path)
+            att_id = await async_client.helpdesk.attach(self.ticket_id, tmp_path)
             assert att_id > 0
 
-            attachments = await list_attachments(async_client, self.ticket_id)
+            attachments = await async_client.helpdesk.attachments(self.ticket_id)
             assert any(a["id"] == att_id for a in attachments)
         finally:
             tmp_path.unlink(missing_ok=True)
 
     async def test_ticket_attachment_from_bytes(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import create_attachment, list_attachments
-
-        att_id = await create_attachment(
-            async_client, self.ticket_id, data=b"bytes upload test", name="test.txt"
+        att_id = await async_client.helpdesk.attach(
+            self.ticket_id, data=b"bytes upload test", name="test.txt"
         )
         assert isinstance(att_id, int)
         assert att_id > 0
 
-        attachments = await list_attachments(async_client, self.ticket_id)
+        attachments = await async_client.helpdesk.attachments(self.ticket_id)
         assert any(a["id"] == att_id for a in attachments)
 
     async def test_get_ticket_attachment_data(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import create_attachment, get_ticket_attachment_data
-
         content = b"attachment bytes test content"
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(content)
             tmp_path = Path(f.name)
 
         try:
-            att_id = await create_attachment(async_client, self.ticket_id, tmp_path)
-            data = await get_ticket_attachment_data(async_client, att_id)
+            att_id = await async_client.helpdesk.attach(self.ticket_id, tmp_path)
+            data = await async_client.helpdesk.attachment_data(att_id)
             assert data == content
         finally:
             tmp_path.unlink(missing_ok=True)
 
     async def test_get_ticket_attachments_data(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.helpdesk import create_attachment, get_ticket_attachments_data
-
         content = b"attachments data test content"
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(content)
             tmp_path = Path(f.name)
 
         try:
-            await create_attachment(async_client, self.ticket_id, tmp_path)
-            result = await get_ticket_attachments_data(async_client, self.ticket_id)
+            await async_client.helpdesk.attach(self.ticket_id, tmp_path)
+            result = await async_client.helpdesk.all_attachment_data(self.ticket_id)
             assert isinstance(result, list)
             assert len(result) >= 1
             for att_id, name, data in result:
@@ -841,65 +700,54 @@ class TestAsyncHelpdesk:
             tmp_path.unlink(missing_ok=True)
 
     async def test_ticket_tags(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import create_record, delete_record
-        from vodoo.aio.helpdesk import add_tag_to_ticket, get_ticket, list_tags
-
-        tag_id = await create_record(
-            async_client, "helpdesk.tag", {"name": "vodoo-async-helpdesk-tag"}
+        tag_id = await async_client.generic.create(
+            "helpdesk.tag", {"name": "vodoo-async-helpdesk-tag"}
         )
         try:
-            tags = await list_tags(async_client)
+            tags = await async_client.helpdesk.tags()
             assert any(t["id"] == tag_id for t in tags)
 
-            await add_tag_to_ticket(async_client, self.ticket_id, tag_id)
-            ticket = await get_ticket(async_client, self.ticket_id, fields=["tag_ids"])
+            await async_client.helpdesk.add_tag(self.ticket_id, tag_id)
+            ticket = await async_client.helpdesk.get(self.ticket_id, fields=["tag_ids"])
             assert tag_id in ticket.get("tag_ids", [])
         finally:
-            await delete_record(async_client, "helpdesk.tag", tag_id)
+            await async_client.generic.delete("helpdesk.tag", tag_id)
 
     async def test_create_ticket(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import delete_record
-        from vodoo.aio.helpdesk import create_ticket, get_ticket
-
-        ticket_id = await create_ticket(
-            async_client,
+        ticket_id = await async_client.helpdesk.create(
             "Vodoo Async Create Test Ticket",
             team_id=self.team_id,
             description="<p>Async test description</p>",
         )
         try:
             assert ticket_id > 0
-            ticket = await get_ticket(async_client, ticket_id)
+            ticket = await async_client.helpdesk.get(ticket_id)
             assert ticket["name"] == "Vodoo Async Create Test Ticket"
             assert "Async test description" in str(ticket.get("description", ""))
         finally:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, "helpdesk.ticket", ticket_id)
+                await async_client.generic.delete("helpdesk.ticket", ticket_id)
 
     async def test_create_ticket_with_tags(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.generic import create_record, delete_record
-        from vodoo.aio.helpdesk import create_ticket, get_ticket
-
-        tag_id = await create_record(
-            async_client, "helpdesk.tag", {"name": "vodoo-async-create-test-tag"}
+        tag_id = await async_client.generic.create(
+            "helpdesk.tag", {"name": "vodoo-async-create-test-tag"}
         )
         ticket_id = None
         try:
-            ticket_id = await create_ticket(
-                async_client,
+            ticket_id = await async_client.helpdesk.create(
                 "Vodoo Async Tag Test Ticket",
                 team_id=self.team_id,
                 tag_ids=[tag_id],
             )
             assert ticket_id > 0
-            ticket = await get_ticket(async_client, ticket_id, fields=["tag_ids"])
+            ticket = await async_client.helpdesk.get(ticket_id, fields=["tag_ids"])
             assert tag_id in ticket.get("tag_ids", [])
         finally:
             if ticket_id is not None:
                 with contextlib.suppress(Exception):
-                    await delete_record(async_client, "helpdesk.ticket", ticket_id)
+                    await async_client.generic.delete("helpdesk.ticket", ticket_id)
             with contextlib.suppress(Exception):
-                await delete_record(async_client, "helpdesk.tag", tag_id)
+                await async_client.generic.delete("helpdesk.tag", tag_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -913,60 +761,47 @@ class TestAsyncKnowledge:
 
     @pytest.fixture(autouse=True)
     async def _create_article(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-
-        self.article_id = await create_record(
-            async_client,
+        self.article_id = await async_client.generic.create(
             "knowledge.article",
             {"name": "Vodoo Async Test Article", "body": "<p>Async test body</p>"},
         )
         yield
         with contextlib.suppress(Exception):
-            await delete_record(async_client, "knowledge.article", self.article_id)
+            await async_client.generic.delete("knowledge.article", self.article_id)
 
     async def test_list_articles(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import list_articles
-
-        articles = await list_articles(async_client, domain=[["id", "=", self.article_id]])
+        articles = await async_client.knowledge.list(domain=[["id", "=", self.article_id]])
         assert len(articles) == 1
         assert articles[0]["name"] == "Vodoo Async Test Article"
 
     async def test_get_article(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import get_article
-
-        article = await get_article(async_client, self.article_id)
+        article = await async_client.knowledge.get(self.article_id)
         assert article["name"] == "Vodoo Async Test Article"
 
     async def test_article_url(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import get_article_url
-
-        url = await get_article_url(async_client, self.article_id)
+        url = await async_client.knowledge.url(self.article_id)
         assert str(self.article_id) in url
 
     async def test_article_comment(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import add_comment, list_article_messages
-
         uid = await async_client.get_uid()
-        success = await add_comment(
-            async_client, self.article_id, "Async article comment", user_id=uid
+        success = await async_client.knowledge.comment(
+            self.article_id, "Async article comment", user_id=uid
         )
         assert success is True
 
-        messages = await list_article_messages(async_client, self.article_id)
+        messages = await async_client.knowledge.messages(self.article_id)
         bodies = [m.get("body", "") for m in messages]
         assert any("Async article comment" in b for b in bodies)
 
     async def test_article_note(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import add_note
-
         uid = await async_client.get_uid()
-        success = await add_note(async_client, self.article_id, "Async article note", user_id=uid)
+        success = await async_client.knowledge.note(
+            self.article_id, "Async article note", user_id=uid
+        )
         assert success is True
 
     async def test_article_attachments(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.knowledge import list_article_attachments
-
-        attachments = await list_article_attachments(async_client, self.article_id)
+        attachments = await async_client.knowledge.attachments(self.article_id)
         assert isinstance(attachments, list)
 
 
@@ -981,57 +816,73 @@ class TestAsyncTimer:
 
     @pytest.fixture(autouse=True)
     async def _create_project_and_task(self, async_client: AsyncOdooClient) -> Any:
-        from vodoo.aio.generic import create_record, delete_record
-        from vodoo.aio.project import create_task
-
-        self.project_id = await create_record(
-            async_client,
+        self.project_id = await async_client.generic.create(
             "project.project",
             {"name": "Vodoo Async Timer Test Project", "allow_timesheets": True},
         )
-        self.task_id = await create_task(
-            async_client, "Vodoo Async Timer Test Task", project_id=self.project_id
+        self.task_id = await async_client.tasks.create(
+            "Vodoo Async Timer Test Task", project_id=self.project_id
         )
         yield
         with contextlib.suppress(Exception):
-            from vodoo.aio.timer import stop_active_timers
-
-            await stop_active_timers(async_client)
+            await async_client.timer.stop()
         for model, rid in [
             ("project.task", self.task_id),
             ("project.project", self.project_id),
         ]:
             with contextlib.suppress(Exception):
-                await delete_record(async_client, model, rid)
+                await async_client.generic.delete(model, rid)
 
     async def test_start_stop_timer_on_task(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.timer import (
-            fetch_active_timesheets,
-            start_timer_on_task,
-            stop_active_timers,
-        )
+        await async_client.timer.start_task(self.task_id)
 
-        await start_timer_on_task(async_client, self.task_id)
-
-        active = await fetch_active_timesheets(async_client)
+        active = await async_client.timer.active()
         assert len(active) >= 1
 
-        stopped = await stop_active_timers(async_client)
+        stopped = await async_client.timer.stop()
         assert len(stopped) >= 1
 
-    async def test_today_timesheets(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.timer import (
-            fetch_today_timesheets,
-            start_timer_on_task,
-            stop_active_timers,
-        )
-
-        await start_timer_on_task(async_client, self.task_id)
+    async def test_list_timesheets(self, async_client: AsyncOdooClient) -> None:
+        await async_client.timer.start_task(self.task_id)
         try:
-            timesheets = await fetch_today_timesheets(async_client)
+            timesheets = await async_client.timer.list()
             assert len(timesheets) >= 1
         finally:
-            await stop_active_timers(async_client)
+            await async_client.timer.stop()
+
+    async def test_handle_returns_from_start_task(self, async_client: AsyncOdooClient) -> None:
+        """start_task() returns an AsyncTimerHandle."""
+        handle = await async_client.timer.start_task(self.task_id)
+        try:
+            assert handle is not None
+            assert handle._source_kind == "task"
+            assert handle._source_id == self.task_id
+        finally:
+            await async_client.timer.stop()
+
+    async def test_handle_stop_stops_only_target(self, async_client: AsyncOdooClient) -> None:
+        """AsyncTimerHandle.stop() stops only the timer it started."""
+        handle = await async_client.timer.start_task(self.task_id)
+
+        active_before = await async_client.timer.active()
+        assert any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_before
+        )
+
+        await handle.stop()
+
+        active_after = await async_client.timer.active()
+        assert not any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_after
+        )
+
+    async def test_handle_stop_raises_when_not_running(self, async_client: AsyncOdooClient) -> None:
+        """AsyncTimerHandle.stop() raises ValueError if the timer is no longer active."""
+        handle = await async_client.timer.start_task(self.task_id)
+        await handle.stop()
+
+        with pytest.raises(ValueError, match="No running timer found"):
+            await handle.stop()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1058,10 +909,7 @@ class TestAsyncExceptions:
             await get_record(async_client, "res.partner", 999999999)
 
     async def test_access_error_on_forbidden_model(self, async_client: AsyncOdooClient) -> None:
-        from vodoo.aio.security import create_user
-
-        user_id, password = await create_user(
-            async_client,
+        user_id, password = await async_client.security.create_user(
             name="Vodoo Async Exception Test User",
             login="vodoo-async-exc-test@example.com",
         )
@@ -1079,9 +927,7 @@ class TestAsyncExceptions:
                 assert isinstance(exc_info.value, VodooError)
         finally:
             with contextlib.suppress(Exception):
-                from vodoo.aio.generic import delete_record
-
-                await delete_record(async_client, "res.users", user_id)
+                await async_client.generic.delete("res.users", user_id)
 
     async def test_validation_error_on_bad_data(self, async_client: AsyncOdooClient) -> None:
         with pytest.raises(TransportError):

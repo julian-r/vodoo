@@ -1,6 +1,6 @@
 # Timers
 
-Timer and timesheet management operations.
+`TimerNamespace` for timer and timesheet management, accessed as `client.timer`.
 
 ::: vodoo.timer
     options:

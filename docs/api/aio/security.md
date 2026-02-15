@@ -1,6 +1,6 @@
 # Async Security
 
-Async security group management and service account utilities.
+`AsyncSecurityNamespace` for security group management and service account utilities, accessed as `client.security` on `AsyncOdooClient`.
 
 ::: vodoo.aio.security
     options:
