@@ -44,13 +44,6 @@ class KnowledgeNamespace(DomainNamespace):
         return super().url(record_id)
 
 
-def display_articles(articles: list[dict[str, Any]]) -> None:
-    """Display knowledge articles in a table."""
-    from vodoo.base import display_records
-
-    display_records(articles, title="Knowledge Articles")
-
-
 def display_article_detail(article: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed knowledge article information with body content."""
     if _is_simple_output():

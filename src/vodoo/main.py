@@ -12,6 +12,7 @@ from vodoo.base import (
     configure_output,
     display_attachments,
     display_messages,
+    display_record_detail,
     display_records,
     display_tags,
     download_attachment,
@@ -19,10 +20,6 @@ from vodoo.base import (
 )
 from vodoo.client import OdooClient
 from vodoo.config import get_config
-from vodoo.crm import (
-    display_lead_detail,
-    display_leads,
-)
 from vodoo.exceptions import (
     AuthenticationError,
     OdooAccessDeniedError,
@@ -32,24 +29,8 @@ from vodoo.exceptions import (
     VodooError,
 )
 from vodoo.fields import parse_field_assignment
-from vodoo.helpdesk import (
-    display_ticket_detail,
-    display_tickets,
-)
-from vodoo.knowledge import (
-    display_article_detail,
-    display_articles,
-)
-from vodoo.project_tasks import (
-    display_task_detail,
-    display_task_tags,
-    display_tasks,
-)
-from vodoo.projects import (
-    display_project_detail,
-    display_projects,
-    display_stages,
-)
+from vodoo.knowledge import display_article_detail
+from vodoo.projects import display_stages
 from vodoo.security import (
     GROUP_DEFINITIONS,
 )
@@ -318,7 +299,7 @@ def helpdesk_list(
 
     with _handle_errors():
         tickets = client.helpdesk.list(domain=domain, limit=limit, fields=fields)
-        display_tickets(tickets)
+        display_records(tickets, title="Helpdesk Tickets")
         console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
 
 
@@ -346,7 +327,7 @@ def helpdesk_show(
             for key, value in sorted(ticket.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
-            display_ticket_detail(ticket, show_html=show_html)
+            display_record_detail(ticket, show_html=show_html, record_type="Ticket")
 
 
 @helpdesk_app.command("comment")
@@ -634,7 +615,7 @@ def project_list(
 
     with _handle_errors():
         tasks = client.tasks.list(domain=domain, limit=limit, fields=fields)
-        display_tasks(tasks)
+        display_records(tasks, title="Project Tasks")
         console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
 
@@ -704,7 +685,7 @@ def project_show(
             for key, value in sorted(task.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
-            display_task_detail(task, show_html=show_html)
+            display_record_detail(task, show_html=show_html, record_type="Task")
 
 
 @project_task_app.command("comment")
@@ -764,7 +745,7 @@ def project_tags() -> None:
 
     with _handle_errors():
         tags = client.tasks.tags()
-        display_task_tags(tags)
+        display_tags(tags, title="Project Tags")
         console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
@@ -1023,7 +1004,7 @@ def project_project_list(
 
     with _handle_errors():
         projects = client.projects.list(domain=domain, limit=limit, fields=fields)
-        display_projects(projects)
+        display_records(projects, title="Projects")
         console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
 
 
@@ -1051,7 +1032,7 @@ def project_project_show(
             for key, value in sorted(project.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
-            display_project_detail(project, show_html=show_html)
+            display_record_detail(project, show_html=show_html, record_type="Project")
 
 
 @project_project_app.command("comment")
@@ -1296,7 +1277,7 @@ def knowledge_list(
 
     with _handle_errors():
         articles = client.knowledge.list(domain=domain, limit=limit)
-        display_articles(articles)
+        display_records(articles, title="Knowledge Articles")
         console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
 
 
@@ -1862,7 +1843,7 @@ def crm_list(
 
     with _handle_errors():
         leads = client.crm.list(domain=domain, limit=limit, fields=fields)
-        display_leads(leads)
+        display_records(leads, title="CRM Leads")
         console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
 
 
@@ -1888,7 +1869,7 @@ def crm_show(
             for key, value in sorted(lead.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
         else:
-            display_lead_detail(lead, show_html=show_html)
+            display_record_detail(lead, show_html=show_html, record_type="Lead")
 
 
 @crm_app.command("comment")

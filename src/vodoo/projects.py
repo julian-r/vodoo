@@ -63,31 +63,6 @@ class ProjectNamespace(DomainNamespace):
         )
 
 
-def display_projects(projects: list[dict[str, Any]]) -> None:
-    """Display projects in a rich table.
-
-    Args:
-        projects: List of project dictionaries
-
-    """
-    from vodoo.base import display_records
-
-    display_records(projects, title="Projects")
-
-
-def display_project_detail(project: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed project information.
-
-    Args:
-        project: Project dictionary
-        show_html: If True, show raw HTML description, else convert to markdown
-
-    """
-    from vodoo.base import display_record_detail
-
-    display_record_detail(project, show_html=show_html, record_type="Project")
-
-
 def display_stages(stages: list[dict[str, Any]]) -> None:
     """Display stages in a table or TSV format.
 

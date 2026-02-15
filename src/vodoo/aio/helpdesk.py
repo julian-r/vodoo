@@ -3,12 +3,7 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.helpdesk import (
-    HelpdeskNamespace,
-    _build_ticket_values,
-    display_ticket_detail,
-    display_tickets,
-)
+from vodoo.helpdesk import HelpdeskNamespace, _build_ticket_values
 
 
 class AsyncHelpdeskNamespace(AsyncDomainNamespace):
@@ -53,8 +48,4 @@ class AsyncHelpdeskNamespace(AsyncDomainNamespace):
         return await self._client.create(self._model, values)
 
 
-__all__ = [
-    "AsyncHelpdeskNamespace",
-    "display_ticket_detail",
-    "display_tickets",
-]
+__all__ = ["AsyncHelpdeskNamespace"]
