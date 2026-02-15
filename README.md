@@ -316,8 +316,8 @@ src/vodoo/
 ├── _domain.py            # DomainNamespace base — shared CRUD, messaging, attachments
 ├── main.py               # CLI entry point (Typer) — not loaded by library imports
 ├── helpdesk.py           # Helpdesk ticket operations (enterprise)
-├── project.py            # Project task operations
-├── project_project.py    # Project operations
+├── project_tasks.py      # Project task operations
+├── projects.py           # Project operations
 ├── crm.py                # CRM lead/opportunity operations
 ├── knowledge.py          # Knowledge article operations (enterprise)
 ├── generic.py            # Generic model CRUD
@@ -332,7 +332,7 @@ src/vodoo/
 
 ## Integration Tests
 
-60+ tests per Odoo version against real instances in Docker:
+75+ tests per Odoo version against real instances in Docker:
 
 ```bash
 ./tests/integration/run.sh           # All community editions (17, 18, 19)

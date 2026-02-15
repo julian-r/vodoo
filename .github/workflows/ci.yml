@@ -36,7 +36,7 @@ jobs:
         run: uv run mypy src/vodoo
 
       - name: Unit tests
-        run: uv run pytest tests/test_exceptions.py -v
+        run: uv run pytest tests/ --ignore=tests/integration -v
 
   integration-test:
     name: Integration – Odoo ${{ matrix.odoo-version }}
@@ -90,7 +90,7 @@ jobs:
       - name: Run integration tests
         run: |
           VODOO_TEST_ENV="tests/integration/.env.test.${{ matrix.odoo-version }}" \
-          uv run python -m pytest tests/integration/test_suite.py \
+          uv run python -m pytest tests/integration/test_suite.py tests/integration/test_async_suite.py \
             -v --tb=short -x \
             --odoo-version ${{ matrix.odoo-version }}
 
