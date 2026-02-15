@@ -54,31 +54,35 @@ uv run mike serve            # serve versioned docs locally
 
 ### Module Structure
 
-- **client.py** - High-level client delegating to the transport layer
+- **client.py** - OdooClient (sync) with domain namespace properties (`client.helpdesk`, `.crm`, etc.)
 - **transport.py** - Transport abstraction (JSON-2 + legacy JSON-RPC)
 - **config.py** - Pydantic-based configuration from environment variables/.env files
 - **exceptions.py** - Exception hierarchy (VodooError and subclasses)
 - **auth.py** - Authentication utilities and sudo operations
-- **base.py** - Shared operations (CRUD, display, attachments, messages) used by all domain modules
-- **helpdesk.py** - Helpdesk ticket operations (model: `helpdesk.ticket`)
-- **project.py** - Project task operations (model: `project.task`)
-- **project_project.py** - Project operations (model: `project.project`)
-- **crm.py** - CRM lead/opportunity operations (model: `crm.lead`)
-- **knowledge.py** - Knowledge article operations (model: `knowledge.article`)
-- **timer.py** - Timer/timesheet operations (start, stop, status)
-- **generic.py** - Generic CRUD operations for any Odoo model
-- **security.py** - Security group utilities and service-account helpers
+- **_domain.py** - `DomainNamespace` base class (CRUD, messaging, tags, attachments)
+- **base.py** - Field constants and display helpers (`display_records`, `display_record_detail`)
+- **helpdesk.py** - `HelpdeskNamespace` (DomainNamespace subclass, model: `helpdesk.ticket`)
+- **project.py** - `TaskNamespace` (model: `project.task`)
+- **project_project.py** - `ProjectNamespace` (model: `project.project`)
+- **crm.py** - `CrmNamespace` (model: `crm.lead`)
+- **knowledge.py** - `KnowledgeNamespace` (model: `knowledge.article`)
+- **timer.py** - `TimerNamespace` (start, stop, status)
+- **generic.py** - `GenericNamespace` (CRUD for any Odoo model)
+- **security.py** - `SecurityNamespace` (group creation, user management)
 - **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `knowledge`, `model`, `security`, `timer`
-- **aio/** - Async versions of all modules above (AsyncOdooClient, async domain helpers)
+- **aio/** - Async mirrors: `AsyncOdooClient`, `AsyncDomainNamespace` subclasses
 
 ### Design Pattern
-
-Domain modules delegate to `base.py` functions with a MODEL constant:
+Domain modules are `DomainNamespace` subclasses exposed as attributes on the client:
 ```python
-MODEL = "helpdesk.ticket"
-def add_comment(client, ticket_id, message, ...):
-    return base_add_comment(client, MODEL, ticket_id, message, ...)
+client.helpdesk.list(limit=10)
+client.helpdesk.get(42)
+client.helpdesk.comment(42, "Deployed to staging")
+
+# Async:
+await client.helpdesk.list(limit=10)
 ```
+Subclasses set `_model`, `_default_fields`, `_tag_model` etc. and add domain-specific methods (e.g. `create`). Display functions remain module-level: `from vodoo.helpdesk import display_tickets`.
 
 ### Configuration
 

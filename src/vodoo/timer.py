@@ -6,6 +6,9 @@ Handles version-specific differences:
 - Odoo 14-18: timers live in timer.timer; start/stop via source model
 """
 
+from __future__ import annotations
+
+import builtins
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -90,6 +93,28 @@ class Timesheet:
         return f"{self.source.icon} {label}"
 
 
+@dataclass
+class TimerHandle:
+    """Handle returned by ``start_*()`` — call :meth:`stop` to stop this specific timer."""
+
+    _namespace: TimerNamespace
+    _source_kind: str
+    _source_id: int
+
+    def stop(self) -> None:
+        """Stop the timer that was started with this handle."""
+        active = self._namespace.active()
+        for ts in active:
+            if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
+                self._namespace._stop_one(ts)
+                return
+        if self._source_kind == "standalone":
+            self._namespace.stop_timesheet(self._source_id)
+            return
+        msg = f"No running timer found for {self._source_kind} {self._source_id}"
+        raise ValueError(msg)
+
+
 # -- Timer backends --
 
 
@@ -146,19 +171,12 @@ class LegacyTimerBackend(TimerBackend):
         return merge_running_timers(timesheets, running_timers)
 
     def start_timer(self, timesheet: Timesheet, client: OdooClient) -> None:
-        if timesheet.source.kind == "task":
-            client.execute("project.task", "action_timer_start", [timesheet.source.id])
-        elif timesheet.source.kind == "ticket":
-            client.execute("helpdesk.ticket", "action_timer_start", [timesheet.source.id])
-        else:
-            client.execute(TIMESHEET_MODEL, "action_timer_start", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        client.execute(model, "action_timer_start", [rec_id])
 
     def stop_timer(self, timesheet: Timesheet, client: OdooClient) -> Any:
-        if timesheet.source.kind == "task":
-            return client.execute("project.task", "action_timer_stop", [timesheet.source.id])
-        if timesheet.source.kind == "ticket":
-            return client.execute("helpdesk.ticket", "action_timer_stop", [timesheet.source.id])
-        return client.execute(TIMESHEET_MODEL, "action_timer_stop", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        return client.execute(model, "action_timer_stop", [rec_id])
 
     def _fetch_running_timers(self, client: OdooClient, uid: int) -> list[Timesheet]:
         """Fetch running timers from timer.timer model."""
@@ -229,52 +247,7 @@ class LegacyTimerBackend(TimerBackend):
         return timesheets
 
 
-# -- Timer service --
-
-
-def get_timer_backend(client: OdooClient) -> TimerBackend:
-    """Get the appropriate timer backend based on the Odoo version.
-
-    Args:
-        client: OdooClient instance
-
-    Returns:
-        TimerBackend for the detected Odoo version
-    """
-    if client.is_json2:
-        return Odoo19TimerBackend()
-    return LegacyTimerBackend()
-
-
-# Cache keyed by client id to avoid repeated RPC probes within a session
-_helpdesk_field_cache: dict[int, bool] = {}
-
-
-def _has_helpdesk_field(client: OdooClient) -> bool:
-    """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
-    key = id(client)
-    if key in _helpdesk_field_cache:
-        return _helpdesk_field_cache[key]
-    try:
-        client.search_read(
-            TIMESHEET_MODEL,
-            domain=[],
-            fields=["id", "helpdesk_ticket_id"],
-            limit=1,
-        )
-        result = True
-    except Exception:
-        result = False
-    _helpdesk_field_cache[key] = result
-    return result
-
-
-def _get_fields(client: OdooClient) -> list[str]:
-    """Get timesheet fields to fetch, including helpdesk if available."""
-    fields = list(BASE_FIELDS)
-    if _has_helpdesk_field(client):
-        fields.append("helpdesk_ticket_id")
-    return fields
+# -- Pure helpers --
 
 
 TIMER_TIMER_DOMAIN = [
@@ -282,6 +255,65 @@ TIMER_TIMER_DOMAIN = [
     ["timer_pause", "=", False],
 ]
 TIMER_TIMER_FIELDS = ["timer_start", "res_model", "res_id"]
+
+
+def _resolve_timer_target(timesheet: Timesheet) -> tuple[str, int]:
+    """Return (model, record_id) for timer start/stop on legacy backends."""
+    if timesheet.source.kind == "task":
+        return "project.task", timesheet.source.id
+    if timesheet.source.kind == "ticket":
+        return "helpdesk.ticket", timesheet.source.id
+    return TIMESHEET_MODEL, timesheet.id
+
+
+@dataclass
+class _StopWizardParams:
+    """Parsed parameters for a stop-timer wizard action."""
+
+    res_model: str
+    values: dict[str, Any]
+    method: str
+    context: dict[str, Any]
+
+
+def _parse_stop_wizard(result: Any) -> _StopWizardParams | None:
+    """Parse a stop-timer wizard action dict, returning params or None."""
+    if not isinstance(result, dict):
+        return None
+    res_model = result.get("res_model")
+    if result.get("type") != "ir.actions.act_window" or not res_model:
+        return None
+    context = result.get("context", {})
+    if res_model == "project.task.create.timesheet":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={
+                "task_id": context.get("active_id", 0),
+                "description": "/",
+                "time_spent": context.get("default_time_spent", 0),
+            },
+            method="save_timesheet",
+            context=context,
+        )
+    if res_model == "helpdesk.ticket.create.timesheet":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={
+                "ticket_id": context.get("active_id", 0),
+                "description": "/",
+                "time_spent": context.get("default_time_spent", 0),
+            },
+            method="action_generate_timesheet",
+            context=context,
+        )
+    if res_model == "hr.timesheet.stop.timer.confirmation.wizard":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={"timesheet_id": context.get("default_timesheet_id", 0)},
+            method="action_stop_timer",
+            context=context,
+        )
+    return None
 
 
 def merge_running_timers(
@@ -389,165 +421,155 @@ def _parse_timesheet(record: dict[str, Any]) -> Timesheet | None:
     )
 
 
-def fetch_today_timesheets(client: OdooClient) -> list[Timesheet]:
-    """Fetch today's timesheets for the current user.
-
-    Args:
-        client: OdooClient instance
-
-    Returns:
-        List of Timesheet objects for today
-    """
-    uid = client.uid
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    fields = _get_fields(client)
-
-    records = client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["user_id", "=", uid], ["date", "=", today]],
-        fields=fields,
-    )
-
-    timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
-
-    backend = get_timer_backend(client)
-    return backend.enrich_with_running_state(timesheets, client, uid)
+# -- Timer namespace --
 
 
-def fetch_active_timesheets(client: OdooClient) -> list[Timesheet]:
-    """Fetch currently running timesheets.
+class TimerNamespace:
+    """Namespace for timer (timesheet) operations."""
 
-    Args:
-        client: OdooClient instance
+    def __init__(self, client: OdooClient) -> None:
+        self._client = client
+        self._helpdesk_field: bool | None = None
 
-    Returns:
-        List of running Timesheet objects
-    """
-    return [ts for ts in fetch_today_timesheets(client) if ts.timer_start is not None]
+    def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
+        """Fetch timesheets for the current user.
 
+        Args:
+            days: How many days back to include.  ``0`` (default) means today
+                only, ``7`` means the past week, etc.  Pass ``-1`` for all time.
+            limit: Maximum number of records to return (``None`` = unlimited).
 
-def start_timer_on_task(client: OdooClient, task_id: int) -> None:
-    """Start a timer on a project task.
-
-    Args:
-        client: OdooClient instance
-        task_id: Project task ID
-    """
-    client.execute("project.task", "action_timer_start", [task_id])
-
-
-def start_timer_on_ticket(client: OdooClient, ticket_id: int) -> None:
-    """Start a timer on a helpdesk ticket.
-
-    Args:
-        client: OdooClient instance
-        ticket_id: Helpdesk ticket ID
-    """
-    client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
-
-
-def start_timer_on_timesheet(client: OdooClient, timesheet_id: int) -> None:
-    """Start a timer on an existing timesheet.
-
-    Args:
-        client: OdooClient instance
-        timesheet_id: Timesheet ID (account.analytic.line)
-    """
-    # Fetch the timesheet to determine source
-    fields = _get_fields(client)
-    records = client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["id", "=", timesheet_id]],
-        fields=fields,
-        limit=1,
-    )
-    if not records:
-        msg = f"Timesheet {timesheet_id} not found"
-        raise ValueError(msg)
-
-    ts = _parse_timesheet(records[0])
-    if ts is None:
-        msg = f"Failed to parse timesheet {timesheet_id}"
-        raise ValueError(msg)
-
-    backend = get_timer_backend(client)
-    backend.start_timer(ts, client)
-
-
-def stop_timer_on_timesheet(client: OdooClient, timesheet_id: int) -> None:
-    """Stop a timer on an existing timesheet.
-
-    Handles stop wizards automatically (Odoo 14-18 and 19).
-
-    Args:
-        client: OdooClient instance
-        timesheet_id: Timesheet ID (account.analytic.line)
-    """
-    fields = _get_fields(client)
-    records = client.search_read(
-        TIMESHEET_MODEL,
-        domain=[["id", "=", timesheet_id]],
-        fields=fields,
-        limit=1,
-    )
-    if not records:
-        msg = f"Timesheet {timesheet_id} not found"
-        raise ValueError(msg)
-
-    ts = _parse_timesheet(records[0])
-    if ts is None:
-        msg = f"Failed to parse timesheet {timesheet_id}"
-        raise ValueError(msg)
-
-    backend = get_timer_backend(client)
-    result = backend.stop_timer(ts, client)
-    _handle_stop_wizard(client, result)
-
-
-def stop_active_timers(client: OdooClient) -> list[Timesheet]:
-    """Stop all currently running timers.
-
-    Args:
-        client: OdooClient instance
-
-    Returns:
-        List of timesheets that were stopped
-    """
-    active = fetch_active_timesheets(client)
-    backend = get_timer_backend(client)
-
-    for ts in active:
-        result = backend.stop_timer(ts, client)
-        _handle_stop_wizard(client, result)
-
-    return active
-
-
-def _handle_stop_wizard(client: OdooClient, result: Any) -> None:
-    """Handle stop wizard if returned by action_timer_stop.
-
-    Some Odoo versions return a wizard action instead of stopping directly.
-    """
-    if not isinstance(result, dict):
-        return
-
-    res_model = result.get("res_model")
-    if result.get("type") != "ir.actions.act_window" or not res_model:
-        return
-
-    context = result.get("context", {})
-
-    if res_model == "project.task.create.timesheet":
-        # Odoo 14-18 stop wizard
-        task_id = context.get("active_id", 0)
-        time_spent = context.get("default_time_spent", 0)
-        wizard_id = client.create(
-            res_model,
-            {"task_id": task_id, "description": "/", "time_spent": time_spent},
+        Returns:
+            Timesheets sorted by date descending.
+        """
+        uid = self._client.uid
+        fields = self._get_fields()
+        domain: list[Any] = [["user_id", "=", uid]]
+        if days >= 0:
+            since = (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
+            domain.append(["date", ">=", since])
+        records = self._client.search_read(
+            TIMESHEET_MODEL,
+            domain=domain,
+            fields=fields,
+            order="date desc",
+            limit=limit,
         )
-        client.execute(res_model, "save_timesheet", [wizard_id], context=context)
-    elif res_model == "hr.timesheet.stop.timer.confirmation.wizard":
-        # Odoo 19 stop wizard
-        timesheet_id = context.get("default_timesheet_id", 0)
-        wizard_id = client.create(res_model, {"timesheet_id": timesheet_id})
-        client.execute(res_model, "action_stop_timer", [wizard_id], context=context)
+
+        timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
+        backend = self._get_backend()
+        return backend.enrich_with_running_state(timesheets, self._client, uid)
+
+    def active(self) -> builtins.list[Timesheet]:
+        """Fetch currently running timesheets."""
+        return [ts for ts in self.list() if ts.timer_start is not None]
+
+    def start_task(self, task_id: int) -> TimerHandle:
+        """Start a timer on a project task."""
+        self._client.execute("project.task", "action_timer_start", [task_id])
+        return TimerHandle(self, "task", task_id)
+
+    def start_ticket(self, ticket_id: int) -> TimerHandle:
+        """Start a timer on a helpdesk ticket."""
+        self._client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
+        return TimerHandle(self, "ticket", ticket_id)
+
+    def start_timesheet(self, timesheet_id: int) -> TimerHandle:
+        """Start a timer on an existing timesheet."""
+        fields = self._get_fields()
+        records = self._client.search_read(
+            TIMESHEET_MODEL,
+            domain=[["id", "=", timesheet_id]],
+            fields=fields,
+            limit=1,
+        )
+        if not records:
+            msg = f"Timesheet {timesheet_id} not found"
+            raise ValueError(msg)
+        ts = _parse_timesheet(records[0])
+        if ts is None:
+            msg = f"Failed to parse timesheet {timesheet_id}"
+            raise ValueError(msg)
+        backend = self._get_backend()
+        backend.start_timer(ts, self._client)
+        source_id = ts.source.id if ts.source.kind != "standalone" else timesheet_id
+        return TimerHandle(self, ts.source.kind, source_id)
+
+    def stop_timesheet(self, timesheet_id: int) -> None:
+        """Stop a timer on an existing timesheet.
+
+        Handles stop wizards automatically (Odoo 14-18 and 19).
+        """
+        fields = self._get_fields()
+        records = self._client.search_read(
+            TIMESHEET_MODEL,
+            domain=[["id", "=", timesheet_id]],
+            fields=fields,
+            limit=1,
+        )
+        if not records:
+            msg = f"Timesheet {timesheet_id} not found"
+            raise ValueError(msg)
+
+        ts = _parse_timesheet(records[0])
+        if ts is None:
+            msg = f"Failed to parse timesheet {timesheet_id}"
+            raise ValueError(msg)
+
+        backend = self._get_backend()
+        result = backend.stop_timer(ts, self._client)
+        self._handle_stop_wizard(result)
+
+    def _stop_one(self, ts: Timesheet) -> None:
+        """Stop a single timer using the version-appropriate backend."""
+        backend = self._get_backend()
+        result = backend.stop_timer(ts, self._client)
+        self._handle_stop_wizard(result)
+
+    def stop(self) -> builtins.list[Timesheet]:
+        """Stop all currently running timers."""
+        active = self.active()
+        backend = self._get_backend()
+
+        for ts in active:
+            result = backend.stop_timer(ts, self._client)
+            self._handle_stop_wizard(result)
+
+        return active
+
+    def _get_backend(self) -> TimerBackend:
+        """Get the appropriate timer backend based on the Odoo version."""
+        if self._client.is_json2:
+            return Odoo19TimerBackend()
+        return LegacyTimerBackend()
+
+    def _has_helpdesk_field(self) -> bool:
+        """Check if helpdesk_ticket_id field exists on timesheets."""
+        if self._helpdesk_field is not None:
+            return self._helpdesk_field
+        try:
+            self._client.search_read(
+                TIMESHEET_MODEL,
+                domain=[],
+                fields=["id", "helpdesk_ticket_id"],
+                limit=1,
+            )
+            self._helpdesk_field = True
+        except Exception:
+            self._helpdesk_field = False
+        return self._helpdesk_field
+
+    def _get_fields(self) -> builtins.list[str]:
+        """Get timesheet fields to fetch, including helpdesk if available."""
+        fields = list(BASE_FIELDS)
+        if self._has_helpdesk_field():
+            fields.append("helpdesk_ticket_id")
+        return fields
+
+    def _handle_stop_wizard(self, result: Any) -> None:
+        """Handle stop wizard if returned by action_timer_stop."""
+        params = _parse_stop_wizard(result)
+        if params is None:
+            return
+        wizard_id = self._client.create(params.res_model, params.values)
+        self._client.execute(params.res_model, params.method, [wizard_id], context=params.context)

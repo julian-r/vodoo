@@ -30,17 +30,15 @@ config = OdooConfig(
 )
 client = OdooClient(config)
 
-# High-level domain helpers
-from vodoo.project import list_tasks
-tasks = list_tasks(client, limit=10)
+# Namespace helpers on the client
+tasks = client.tasks.list(limit=10)
 
 # Generic client for any model
 partners = client.search_read("res.partner", fields=["name", "email"], limit=5)
 
 # Structured exceptions — catch what you need
 try:
-    from vodoo.base import get_record
-    record = get_record(client, "res.partner", 999999999)
+    record = client.generic.search("res.partner", [("id", "=", 999999999)])
 except RecordNotFoundError as e:
     print(f"{e.model} #{e.record_id} not found")
 ```
@@ -74,7 +72,7 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 
 ### Library
 
-- 🐍 Clean Python API — `OdooClient`, `OdooConfig`, domain helpers
+- 🐍 Clean Python API — `OdooClient` with namespace helpers (`client.helpdesk`, `client.crm`, etc.)
 - ⚡ Full async support via `vodoo.aio` — `AsyncOdooClient` with async context manager
 - 🎯 Structured exception hierarchy mirroring Odoo server errors
 - 📦 No CLI dependencies loaded when imported as a library
@@ -147,41 +145,25 @@ Server-side Odoo errors are automatically mapped to the matching exception class
 
 ## Library Usage
 
-### Domain Helpers
+### Namespace Helpers
 
-Each Odoo model has a dedicated module with high-level functions:
-
-```python
+Each Odoo domain is a namespace on the client with high-level methods:
 from vodoo import OdooClient, OdooConfig
-
 client = OdooClient(OdooConfig(
     url="https://odoo.example.com",
     database="prod",
     username="bot@example.com",
     password="api-key",
 ))
-
 # Project tasks
-from vodoo.project import list_tasks, get_task, add_comment
-tasks = list_tasks(client, domain=[("stage_id.name", "=", "In Progress")], limit=20)
-task = get_task(client, 42)
-add_comment(client, 42, "Deployed to staging")
-
-# CRM leads
-from vodoo.crm import list_leads, set_lead_fields
-leads = list_leads(client, domain=[("type", "=", "opportunity")], limit=20)
-set_lead_fields(client, 123, {"expected_revenue": 50000, "probability": 75})
-
-# Helpdesk (enterprise)
-from vodoo.helpdesk import list_tickets
-tickets = list_tickets(client, domain=[("stage_id.name", "=", "New")], limit=10)
-
-# Timers
-from vodoo.timer import start_timer_on_task, stop_active_timers
-start_timer_on_task(client, task_id=42)
-stop_active_timers(client)
-
-# Generic CRUD — works with any Odoo model
+tasks = client.tasks.list(domain=[("stage_id.name", "=", "In Progress")], limit=20)
+task = client.tasks.get(42)
+client.tasks.comment(42, "Deployed to staging")
+leads = client.crm.list(domain=[("type", "=", "opportunity")], limit=20)
+client.crm.set(123, {"expected_revenue": 50000, "probability": 75})
+tickets = client.helpdesk.list(domain=[("stage_id.name", "=", "New")], limit=10)
+client.timer.start_task(task_id=42)
+client.timer.stop()
 records = client.search_read("res.partner", [("is_company", "=", True)], fields=["name"])
 new_id = client.create("res.partner", {"name": "Acme Corp", "is_company": True})
 client.write("res.partner", [new_id], {"phone": "+1234567890"})
@@ -227,19 +209,14 @@ config = OdooConfig(
 )
 
 async with AsyncOdooClient(config) as client:
-    # Domain helpers
-    from vodoo.aio.project import list_tasks
-    tasks = await list_tasks(client, limit=10)
-
-    # Generic client
+    # Namespace helpers
+    tasks = await client.tasks.list(limit=10)
     partners = await client.search_read("res.partner", fields=["name", "email"], limit=5)
-
     # Comments / notes
-    from vodoo.aio.crm import add_comment
-    await add_comment(client, 123, "Async update")
+    await client.crm.comment(123, "Async update")
 ```
 
-Every sync module has an async counterpart under `vodoo.aio` — same function signatures, just `await`ed.
+Every sync namespace has an async counterpart — same methods, just `await`ed.
 
 ## CLI Usage
 
@@ -336,11 +313,11 @@ src/vodoo/
 ├── transport.py          # Transport abstraction (JSON-2 + legacy JSON-RPC)
 ├── config.py             # Pydantic configuration from env/.env files
 ├── auth.py               # Authentication and sudo utilities
-├── base.py               # Shared CRUD, messaging, attachment helpers
+├── _domain.py            # DomainNamespace base — shared CRUD, messaging, attachments
 ├── main.py               # CLI entry point (Typer) — not loaded by library imports
 ├── helpdesk.py           # Helpdesk ticket operations (enterprise)
-├── project.py            # Project task operations
-├── project_project.py    # Project operations
+├── project_tasks.py      # Project task operations
+├── projects.py           # Project operations
 ├── crm.py                # CRM lead/opportunity operations
 ├── knowledge.py          # Knowledge article operations (enterprise)
 ├── generic.py            # Generic model CRUD
@@ -348,13 +325,14 @@ src/vodoo/
 ├── timer.py              # Timer/timesheet start, stop, status
 └── aio/                  # Async versions of all modules above
     ├── client.py         # AsyncOdooClient
+    ├── _domain.py        # AsyncDomainNamespace base
     ├── transport.py      # Async JSON-2 + legacy transports
     └── ...               # Async domain modules (same API, awaitable)
 ```
 
 ## Integration Tests
 
-60+ tests per Odoo version against real instances in Docker:
+75+ tests per Odoo version against real instances in Docker:
 
 ```bash
 ./tests/integration/run.sh           # All community editions (17, 18, 19)

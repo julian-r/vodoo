@@ -1,8 +1,6 @@
 # Async API
 
-Vodoo provides a full async API under `vodoo.aio`. Every sync module has an async counterpart with the same function signatures, but using `async`/`await`.
-
-The async transport uses [httpx](https://www.python-httpx.org/) for non-blocking HTTP.
+Vodoo provides a full async API via `AsyncOdooClient`. It exposes the same domain namespaces as the sync client, but all methods are `async` and use [httpx](https://www.python-httpx.org/) for non-blocking HTTP.
 
 ## Quick Start
 
@@ -31,31 +29,15 @@ async def main():
 asyncio.run(main())
 ```
 
-## Domain Helpers
+## Domain Namespaces
 
-Each sync domain module has an async equivalent:
-
-| Sync | Async |
-|------|-------|
-| `vodoo.helpdesk` | `vodoo.aio.helpdesk` |
-| `vodoo.project` | `vodoo.aio.project` |
-| `vodoo.project_project` | `vodoo.aio.project_project` |
-| `vodoo.crm` | `vodoo.aio.crm` |
-| `vodoo.knowledge` | `vodoo.aio.knowledge` |
-| `vodoo.timer` | `vodoo.aio.timer` |
-| `vodoo.generic` | `vodoo.aio.generic` |
-| `vodoo.security` | `vodoo.aio.security` |
-| `vodoo.base` | `vodoo.aio.base` |
-| `vodoo.auth` | `vodoo.aio.auth` |
+The async client has the same namespace properties as the sync client. All namespace methods must be awaited:
 
 ```python
-from vodoo.aio.helpdesk import list_tickets, add_note
-from vodoo.aio.crm import list_leads
-
 async with AsyncOdooClient(config) as client:
-    tickets = await list_tickets(client, limit=5)
-    leads = await list_leads(client, domain=[["type", "=", "opportunity"]])
-    await add_note(client, ticket_id=42, message="Checked via async API")
+    tickets = await client.helpdesk.list(limit=5)
+    leads = await client.crm.list(domain=[["type", "=", "opportunity"]])
+    await client.helpdesk.note(ticket_id=42, message="Checked via async API")
 ```
 
 ## Concurrent Requests
@@ -64,16 +46,13 @@ The async API shines when you need to make multiple independent calls:
 
 ```python
 import asyncio
-from vodoo.aio.helpdesk import list_tickets
-from vodoo.aio.crm import list_leads
-from vodoo.aio.project import list_tasks
 
 async with AsyncOdooClient(config) as client:
     # Run all three queries concurrently
     tickets, leads, tasks = await asyncio.gather(
-        list_tickets(client, limit=10),
-        list_leads(client, limit=10),
-        list_tasks(client, limit=10),
+        client.helpdesk.list(limit=10),
+        client.crm.list(limit=10),
+        client.tasks.list(limit=10),
     )
 ```
 

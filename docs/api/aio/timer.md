@@ -1,6 +1,6 @@
 # Async Timers
 
-Async timer and timesheet management operations.
+`AsyncTimerNamespace` for timer and timesheet management, accessed as `client.timer` on `AsyncOdooClient`.
 
 ::: vodoo.aio.timer
     options:

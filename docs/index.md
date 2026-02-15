@@ -67,8 +67,7 @@ Vodoo is a typed Python library and CLI for interacting with Odoo instances via 
     )
 
     # Use domain helpers
-    from vodoo.helpdesk import list_tickets
-    tickets = list_tickets(client, limit=5)
+    tickets = client.helpdesk.list(limit=5)
     ```
 
 ## What's Next?

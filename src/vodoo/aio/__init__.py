@@ -13,9 +13,8 @@ Provides async versions of all Vodoo library components::
     )
 
     async with AsyncOdooClient(config) as client:
-        # Use domain helpers
-        from vodoo.aio.helpdesk import list_tickets
-        tickets = await list_tickets(client, limit=10)
+        # Use domain namespaces
+        tickets = await client.helpdesk.list(limit=10)
 
         # Or the generic client directly
         partners = await client.search_read("res.partner", fields=["name", "email"], limit=5)

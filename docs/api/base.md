@@ -1,6 +1,6 @@
 # Base Operations
 
-Shared CRUD, messaging, attachment, and display helpers used by all domain modules.
+Shared CRUD, messaging, attachment, and display helpers. The `DomainNamespace` base class provides common methods inherited by all domain namespace classes.
 
 ::: vodoo.base
     options:

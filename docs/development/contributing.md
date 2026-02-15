@@ -53,34 +53,35 @@ vodoo/
 ├── src/vodoo/
 │   ├── __init__.py           # Public API exports
 │   ├── main.py               # CLI entry point (Typer)
-│   ├── client.py             # OdooClient (sync)
+│   ├── client.py             # OdooClient (sync) + namespace wiring
 │   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, httpx)
 │   ├── config.py             # Pydantic configuration
 │   ├── exceptions.py         # Exception hierarchy (incl. Odoo server errors)
 │   ├── auth.py               # Authentication / sudo
-│   ├── base.py               # Shared CRUD / messaging / display helpers
-│   ├── helpdesk.py           # Helpdesk operations
-│   ├── project.py            # Project task operations
-│   ├── project_project.py    # Project operations
-│   ├── crm.py                # CRM operations
-│   ├── knowledge.py          # Knowledge articles
-│   ├── generic.py            # Generic model CRUD
-│   ├── security.py           # Security groups
-│   ├── timer.py              # Timers / timesheets
+│   ├── _domain.py            # DomainNamespace base class (CRUD, messaging, tags, attachments)
+│   ├── base.py               # Field constants, display helpers
+│   ├── helpdesk.py           # HelpdeskNamespace (DomainNamespace subclass)
+│   ├── project_tasks.py      # TaskNamespace
+│   ├── projects.py           # ProjectNamespace
+│   ├── crm.py                # CrmNamespace
+│   ├── knowledge.py          # KnowledgeNamespace
+│   ├── generic.py            # GenericNamespace
+│   ├── security.py           # SecurityNamespace
+│   ├── timer.py              # TimerNamespace
 │   └── aio/                  # Async API (mirrors sync modules)
 │       ├── __init__.py       # AsyncOdooClient export
-│       ├── client.py         # AsyncOdooClient
+│       ├── client.py         # AsyncOdooClient + namespace wiring
 │       ├── transport.py      # Async transport (httpx)
 │       ├── auth.py           # Async auth / sudo
-│       ├── base.py           # Async shared helpers
-│       ├── helpdesk.py       # Async helpdesk
-│       ├── project.py        # Async project tasks
-│       ├── project_project.py
-│       ├── crm.py            # Async CRM
-│       ├── knowledge.py      # Async knowledge
-│       ├── generic.py        # Async generic CRUD
-│       ├── security.py       # Async security
-│       └── timer.py          # Async timers
+│       ├── _domain.py        # AsyncDomainNamespace base class
+│       ├── helpdesk.py       # Async HelpdeskNamespace
+│       ├── project_tasks.py  # Async TaskNamespace
+│       ├── projects.py
+│       ├── crm.py            # Async CrmNamespace
+│       ├── knowledge.py      # Async KnowledgeNamespace
+│       ├── generic.py        # Async GenericNamespace
+│       ├── security.py       # Async SecurityNamespace
+│       └── timer.py          # Async TimerNamespace
 ├── tests/integration/        # Docker-based integration tests
 ├── docs/                     # MkDocs documentation
 ├── mkdocs.yml                # MkDocs Material + mike versioning
