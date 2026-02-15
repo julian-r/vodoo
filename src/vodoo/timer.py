@@ -347,15 +347,13 @@ def _parse_timesheet(record: dict[str, Any]) -> Timesheet | None:
 
 # -- Timer namespace --
 
-# Cache keyed by client id to avoid repeated RPC probes within a session
-_helpdesk_field_cache: dict[int, bool] = {}
-
 
 class TimerNamespace:
     """Namespace for timer (timesheet) operations."""
 
     def __init__(self, client: OdooClient) -> None:
         self._client = client
+        self._helpdesk_field: bool | None = None
 
     def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
         """Fetch timesheets for the current user.
@@ -462,10 +460,9 @@ class TimerNamespace:
         return LegacyTimerBackend()
 
     def _has_helpdesk_field(self) -> bool:
-        """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
-        key = id(self._client)
-        if key in _helpdesk_field_cache:
-            return _helpdesk_field_cache[key]
+        """Check if helpdesk_ticket_id field exists on timesheets."""
+        if self._helpdesk_field is not None:
+            return self._helpdesk_field
         try:
             self._client.search_read(
                 TIMESHEET_MODEL,
@@ -473,11 +470,10 @@ class TimerNamespace:
                 fields=["id", "helpdesk_ticket_id"],
                 limit=1,
             )
-            result = True
+            self._helpdesk_field = True
         except Exception:
-            result = False
-        _helpdesk_field_cache[key] = result
-        return result
+            self._helpdesk_field = False
+        return self._helpdesk_field
 
     def _get_fields(self) -> builtins.list[str]:
         """Get timesheet fields to fetch, including helpdesk if available."""
