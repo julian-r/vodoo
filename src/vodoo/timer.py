@@ -6,6 +6,8 @@ Handles version-specific differences:
 - Odoo 14-18: timers live in timer.timer; start/stop via source model
 """
 
+from __future__ import annotations
+
 import builtins
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -89,6 +91,28 @@ class Timesheet:
     def display_label(self) -> str:
         label = self.source.name if self.source.kind != "standalone" else (self.name or "Timesheet")
         return f"{self.source.icon} {label}"
+
+
+@dataclass
+class TimerHandle:
+    """Handle returned by ``start_*()`` — call :meth:`stop` to stop this specific timer."""
+
+    _namespace: TimerNamespace
+    _source_kind: str
+    _source_id: int
+
+    def stop(self) -> None:
+        """Stop the timer that was started with this handle."""
+        active = self._namespace.active()
+        for ts in active:
+            if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
+                self._namespace.stop_timesheet(ts.id)
+                return
+        if self._source_kind == "standalone":
+            self._namespace.stop_timesheet(self._source_id)
+            return
+        msg = f"No running timer found for {self._source_kind} {self._source_id}"
+        raise ValueError(msg)
 
 
 # -- Timer backends --
@@ -388,15 +412,17 @@ class TimerNamespace:
         """Fetch currently running timesheets."""
         return [ts for ts in self.list() if ts.timer_start is not None]
 
-    def start_task(self, task_id: int) -> None:
+    def start_task(self, task_id: int) -> TimerHandle:
         """Start a timer on a project task."""
         self._client.execute("project.task", "action_timer_start", [task_id])
+        return TimerHandle(self, "task", task_id)
 
-    def start_ticket(self, ticket_id: int) -> None:
+    def start_ticket(self, ticket_id: int) -> TimerHandle:
         """Start a timer on a helpdesk ticket."""
         self._client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
+        return TimerHandle(self, "ticket", ticket_id)
 
-    def start_timesheet(self, timesheet_id: int) -> None:
+    def start_timesheet(self, timesheet_id: int) -> TimerHandle:
         """Start a timer on an existing timesheet."""
         fields = self._get_fields()
         records = self._client.search_read(
@@ -408,14 +434,14 @@ class TimerNamespace:
         if not records:
             msg = f"Timesheet {timesheet_id} not found"
             raise ValueError(msg)
-
         ts = _parse_timesheet(records[0])
         if ts is None:
             msg = f"Failed to parse timesheet {timesheet_id}"
             raise ValueError(msg)
-
         backend = self._get_backend()
         backend.start_timer(ts, self._client)
+        source_id = ts.source.id if ts.source.kind != "standalone" else timesheet_id
+        return TimerHandle(self, ts.source.kind, source_id)
 
     def stop_timesheet(self, timesheet_id: int) -> None:
         """Stop a timer on an existing timesheet.
