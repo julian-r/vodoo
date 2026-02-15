@@ -5,17 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.project_project import (
+from vodoo.projects import (
     STAGE_FIELDS,
     ProjectNamespace,
 )
-from vodoo.project_project import (
+from vodoo.projects import (
     display_project_detail as display_project_detail,
 )
-from vodoo.project_project import (
+from vodoo.projects import (
     display_projects as display_projects,
 )
-from vodoo.project_project import (
+from vodoo.projects import (
     display_stages as display_stages,
 )
 

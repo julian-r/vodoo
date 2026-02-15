@@ -61,8 +61,8 @@ vodoo/
 │   ├── _domain.py            # DomainNamespace base class (CRUD, messaging, tags, attachments)
 │   ├── base.py               # Field constants, display helpers
 │   ├── helpdesk.py           # HelpdeskNamespace (DomainNamespace subclass)
-│   ├── project.py            # TaskNamespace
-│   ├── project_project.py    # ProjectNamespace
+│   ├── project_tasks.py      # TaskNamespace
+│   ├── projects.py           # ProjectNamespace
 │   ├── crm.py                # CrmNamespace
 │   ├── knowledge.py          # KnowledgeNamespace
 │   ├── generic.py            # GenericNamespace
@@ -75,8 +75,8 @@ vodoo/
 │       ├── auth.py           # Async auth / sudo
 │       ├── _domain.py        # AsyncDomainNamespace base class
 │       ├── helpdesk.py       # Async HelpdeskNamespace
-│       ├── project.py        # Async TaskNamespace
-│       ├── project_project.py
+│       ├── project_tasks.py  # Async TaskNamespace
+│       ├── projects.py
 │       ├── crm.py            # Async CrmNamespace
 │       ├── knowledge.py      # Async KnowledgeNamespace
 │       ├── generic.py        # Async GenericNamespace

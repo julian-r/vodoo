@@ -18,8 +18,8 @@ Domain operations are accessed as namespaces on the client (e.g. `client.helpdes
 | Namespace | Odoo Model | Description |
 |-----------|------------|-------------|
 | [`client.helpdesk`](helpdesk.md) | `helpdesk.ticket` | Helpdesk ticket operations (enterprise) |
-| [`client.tasks`](project.md) | `project.task` | Project task operations |
-| [`client.projects`](project_project.md) | `project.project` | Project operations |
+| [`client.tasks`](project_tasks.md) | `project.task` | Project task operations |
+| [`client.projects`](projects.md) | `project.project` | Project operations |
 | [`client.crm`](crm.md) | `crm.lead` | CRM lead/opportunity operations |
 | [`client.knowledge`](knowledge.md) | `knowledge.article` | Knowledge article operations (enterprise) |
 | [`client.timer`](timer.md) | `account.analytic.line` | Timer and timesheet management |
@@ -41,8 +41,8 @@ Vodoo provides a full async API via `AsyncOdooClient` with the same namespace in
 |--------|-------------|
 | [Async Overview](async.md) | Quick start, concurrency patterns, `AsyncOdooClient` |
 | [Async Helpdesk](aio/helpdesk.md) | `AsyncHelpdeskNamespace` |
-| [Async Project Tasks](aio/project.md) | `AsyncTaskNamespace` |
-| [Async Projects](aio/project_project.md) | `AsyncProjectNamespace` |
+| [Async Project Tasks](aio/project_tasks.md) | `AsyncTaskNamespace` |
+| [Async Projects](aio/projects.md) | `AsyncProjectNamespace` |
 | [Async CRM](aio/crm.md) | `AsyncCRMNamespace` |
 | [Async Knowledge](aio/knowledge.md) | `AsyncKnowledgeNamespace` |
 | [Async Timers](aio/timer.md) | `AsyncTimerNamespace` |
