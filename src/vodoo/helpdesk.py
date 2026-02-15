@@ -3,7 +3,6 @@
 from typing import Any, ClassVar
 
 from vodoo._domain import DomainNamespace
-from vodoo.base import display_record_detail, display_records
 
 
 class HelpdeskNamespace(DomainNamespace):
@@ -87,24 +86,3 @@ def _build_ticket_values(
 # ---------------------------------------------------------------------------
 # Display functions (no client needed)
 # ---------------------------------------------------------------------------
-
-
-def display_tickets(tickets: list[dict[str, Any]]) -> None:
-    """Display tickets in a rich table.
-
-    Args:
-        tickets: List of ticket dictionaries
-
-    """
-    display_records(tickets, title="Helpdesk Tickets")
-
-
-def display_ticket_detail(ticket: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed ticket information.
-
-    Args:
-        ticket: Ticket dictionary
-        show_html: If True, show raw HTML description, else convert to markdown
-
-    """
-    display_record_detail(ticket, show_html=show_html, record_type="Ticket")

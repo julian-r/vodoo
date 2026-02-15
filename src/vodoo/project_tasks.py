@@ -112,24 +112,3 @@ class TaskNamespace(DomainNamespace):
             True if successful
         """
         return self._client.unlink(self._tag_model, [tag_id])
-
-
-def display_tasks(tasks: list[dict[str, Any]]) -> None:
-    """Display tasks in a rich table."""
-    from vodoo.base import display_records
-
-    display_records(tasks, title="Project Tasks")
-
-
-def display_task_detail(task: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed task information."""
-    from vodoo.base import display_record_detail
-
-    display_record_detail(task, show_html=show_html, record_type="Task")
-
-
-def display_task_tags(tags: list[dict[str, Any]]) -> None:
-    """Display project tags in a rich table."""
-    from vodoo.base import display_tags
-
-    display_tags(tags, title="Project Tags")

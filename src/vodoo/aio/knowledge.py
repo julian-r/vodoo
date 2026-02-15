@@ -4,12 +4,6 @@ from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.knowledge import (
     KnowledgeNamespace,
 )
-from vodoo.knowledge import (
-    display_article_detail as display_article_detail,
-)
-from vodoo.knowledge import (
-    display_articles as display_articles,
-)
 
 
 class AsyncKnowledgeNamespace(AsyncDomainNamespace):

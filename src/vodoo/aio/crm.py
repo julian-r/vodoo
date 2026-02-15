@@ -1,7 +1,7 @@
 """Async CRM lead/opportunity operations for Vodoo."""
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.crm import CRMNamespace, display_lead_detail, display_leads
+from vodoo.crm import CRMNamespace
 
 
 class AsyncCRMNamespace(AsyncDomainNamespace):
@@ -13,4 +13,4 @@ class AsyncCRMNamespace(AsyncDomainNamespace):
     _record_type = CRMNamespace._record_type
 
 
-__all__ = ["AsyncCRMNamespace", "display_lead_detail", "display_leads"]
+__all__ = ["AsyncCRMNamespace"]

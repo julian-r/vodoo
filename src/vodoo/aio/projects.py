@@ -9,15 +9,6 @@ from vodoo.projects import (
     STAGE_FIELDS,
     ProjectNamespace,
 )
-from vodoo.projects import (
-    display_project_detail as display_project_detail,
-)
-from vodoo.projects import (
-    display_projects as display_projects,
-)
-from vodoo.projects import (
-    display_stages as display_stages,
-)
 
 
 class AsyncProjectNamespace(AsyncDomainNamespace):

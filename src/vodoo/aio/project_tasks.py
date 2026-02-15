@@ -3,13 +3,7 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.project_tasks import (
-    TaskNamespace,
-    _build_task_values,
-    display_task_detail,
-    display_task_tags,
-    display_tasks,
-)
+from vodoo.project_tasks import TaskNamespace, _build_task_values
 
 
 class AsyncTaskNamespace(AsyncDomainNamespace):
@@ -48,9 +42,4 @@ class AsyncTaskNamespace(AsyncDomainNamespace):
         return await self._client.unlink(self._tag_model, [tag_id])
 
 
-__all__ = [
-    "AsyncTaskNamespace",
-    "display_task_detail",
-    "display_task_tags",
-    "display_tasks",
-]
+__all__ = ["AsyncTaskNamespace"]
