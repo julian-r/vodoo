@@ -842,10 +842,10 @@ class TestAsyncTimer:
         stopped = await async_client.timer.stop()
         assert len(stopped) >= 1
 
-    async def test_today_timesheets(self, async_client: AsyncOdooClient) -> None:
+    async def test_list_timesheets(self, async_client: AsyncOdooClient) -> None:
         await async_client.timer.start_task(self.task_id)
         try:
-            timesheets = await async_client.timer.today()
+            timesheets = await async_client.timer.list()
             assert len(timesheets) >= 1
         finally:
             await async_client.timer.stop()

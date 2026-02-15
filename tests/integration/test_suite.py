@@ -790,10 +790,10 @@ class TestTimer:
         stopped = client.timer.stop()
         assert len(stopped) >= 1
 
-    def test_today_timesheets(self, client: OdooClient) -> None:
+    def test_list_timesheets(self, client: OdooClient) -> None:
         client.timer.start_task(self.task_id)
         try:
-            timesheets = client.timer.today()
+            timesheets = client.timer.list()
             assert len(timesheets) >= 1
         finally:
             client.timer.stop()

@@ -4,8 +4,9 @@ Mirrors :mod:`vodoo.timer` with async methods.
 Reuses all data classes and parsing logic from the sync module.
 """
 
+import builtins
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vodoo.aio.client import AsyncOdooClient
@@ -174,26 +175,38 @@ class AsyncTimerNamespace:
     def __init__(self, client: AsyncOdooClient) -> None:
         self._client = client
 
-    async def today(self) -> list[Timesheet]:
-        """Fetch today's timesheets for the current user."""
-        uid = await self._client.get_uid()
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        fields = await self._get_fields()
+    async def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
+        """Fetch timesheets for the current user.
 
+        Args:
+            days: How many days back to include.  ``0`` (default) means today
+                only, ``7`` means the past week, etc.  Pass ``-1`` for all time.
+            limit: Maximum number of records to return (``None`` = unlimited).
+
+        Returns:
+            Timesheets sorted by date descending.
+        """
+        uid = await self._client.get_uid()
+        fields = await self._get_fields()
+        domain: list[Any] = [["user_id", "=", uid]]
+        if days >= 0:
+            since = (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
+            domain.append(["date", ">=", since])
         records = await self._client.search_read(
             TIMESHEET_MODEL,
-            domain=[["user_id", "=", uid], ["date", "=", today]],
+            domain=domain,
             fields=fields,
+            order="date desc",
+            limit=limit,
         )
 
         timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
-
         backend = self._get_backend()
         return await backend.enrich_with_running_state(timesheets, self._client, uid)
 
-    async def active(self) -> list[Timesheet]:
+    async def active(self) -> builtins.list[Timesheet]:
         """Fetch currently running timesheets."""
-        return [ts for ts in await self.today() if ts.timer_start is not None]
+        return [ts for ts in await self.list() if ts.timer_start is not None]
 
     async def start_task(self, task_id: int) -> None:
         """Start a timer on a project task."""
@@ -246,7 +259,7 @@ class AsyncTimerNamespace:
         result = await backend.stop_timer(ts, self._client)
         await self._handle_stop_wizard(result)
 
-    async def stop(self) -> list[Timesheet]:
+    async def stop(self) -> builtins.list[Timesheet]:
         """Stop all currently running timers."""
         active = await self.active()
         backend = self._get_backend()
@@ -281,7 +294,7 @@ class AsyncTimerNamespace:
         _helpdesk_field_cache[key] = result
         return result
 
-    async def _get_fields(self) -> list[str]:
+    async def _get_fields(self) -> builtins.list[str]:
         """Get timesheet fields to fetch, including helpdesk if available."""
         fields = list(BASE_FIELDS)
         if await self._has_helpdesk_field():

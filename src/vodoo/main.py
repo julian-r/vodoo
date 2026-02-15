@@ -2118,7 +2118,7 @@ def timer_status() -> None:
     client = get_client()
 
     with _handle_errors():
-        timesheets = client.timer.today()
+        timesheets = client.timer.list()
         if not timesheets:
             console.print("[yellow]No timesheets found for today[/yellow]")
             return
