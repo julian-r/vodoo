@@ -175,7 +175,7 @@ class AsyncTimerHandle:
         active = await self._namespace.active()
         for ts in active:
             if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
-                await self._namespace.stop_timesheet(ts.id)
+                await self._namespace._stop_one(ts)
                 return
         if self._source_kind == "standalone":
             await self._namespace.stop_timesheet(self._source_id)
@@ -273,6 +273,12 @@ class AsyncTimerNamespace:
             msg = f"Failed to parse timesheet {timesheet_id}"
             raise ValueError(msg)
 
+        backend = self._get_backend()
+        result = await backend.stop_timer(ts, self._client)
+        await self._handle_stop_wizard(result)
+
+    async def _stop_one(self, ts: Timesheet) -> None:
+        """Stop a single timer using the version-appropriate backend."""
         backend = self._get_backend()
         result = await backend.stop_timer(ts, self._client)
         await self._handle_stop_wizard(result)

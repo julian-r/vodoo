@@ -73,6 +73,18 @@ class TestParseStopWizard:
         assert params.values == {"task_id": 5, "description": "/", "time_spent": 1.5}
         assert params.method == "save_timesheet"
 
+    def test_helpdesk_ticket_wizard(self) -> None:
+        result: dict[str, Any] = {
+            "type": "ir.actions.act_window",
+            "res_model": "helpdesk.ticket.create.timesheet",
+            "context": {"active_id": 8, "default_time_spent": 0.25},
+        }
+        params = _parse_stop_wizard(result)
+        assert isinstance(params, _StopWizardParams)
+        assert params.res_model == "helpdesk.ticket.create.timesheet"
+        assert params.values == {"ticket_id": 8, "description": "/", "time_spent": 0.25}
+        assert params.method == "action_generate_timesheet"
+
     def test_odoo19_wizard(self) -> None:
         result: dict[str, Any] = {
             "type": "ir.actions.act_window",
