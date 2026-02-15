@@ -165,15 +165,13 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
 
 # -- Async timer namespace --
 
-# Cache keyed by client id to avoid repeated RPC probes within a session
-_helpdesk_field_cache: dict[int, bool] = {}
-
 
 class AsyncTimerNamespace:
     """Async namespace for timer (timesheet) operations."""
 
     def __init__(self, client: AsyncOdooClient) -> None:
         self._client = client
+        self._helpdesk_field: bool | None = None
 
     async def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
         """Fetch timesheets for the current user.
@@ -277,10 +275,9 @@ class AsyncTimerNamespace:
         return AsyncLegacyTimerBackend()
 
     async def _has_helpdesk_field(self) -> bool:
-        """Check if helpdesk_ticket_id field exists on timesheets (cached per client)."""
-        key = id(self._client)
-        if key in _helpdesk_field_cache:
-            return _helpdesk_field_cache[key]
+        """Check if helpdesk_ticket_id field exists on timesheets."""
+        if self._helpdesk_field is not None:
+            return self._helpdesk_field
         try:
             await self._client.search_read(
                 TIMESHEET_MODEL,
@@ -288,11 +285,10 @@ class AsyncTimerNamespace:
                 fields=["id", "helpdesk_ticket_id"],
                 limit=1,
             )
-            result = True
+            self._helpdesk_field = True
         except Exception:
-            result = False
-        _helpdesk_field_cache[key] = result
-        return result
+            self._helpdesk_field = False
+        return self._helpdesk_field
 
     async def _get_fields(self) -> builtins.list[str]:
         """Get timesheet fields to fetch, including helpdesk if available."""
