@@ -6,6 +6,7 @@ Handles version-specific differences:
 - Odoo 14-18: timers live in timer.timer; start/stop via source model
 """
 
+import builtins
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -356,26 +357,38 @@ class TimerNamespace:
     def __init__(self, client: OdooClient) -> None:
         self._client = client
 
-    def today(self) -> list[Timesheet]:
-        """Fetch today's timesheets for the current user."""
-        uid = self._client.uid
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        fields = self._get_fields()
+    def list(self, *, days: int = 0, limit: int | None = None) -> list[Timesheet]:
+        """Fetch timesheets for the current user.
 
+        Args:
+            days: How many days back to include.  ``0`` (default) means today
+                only, ``7`` means the past week, etc.  Pass ``-1`` for all time.
+            limit: Maximum number of records to return (``None`` = unlimited).
+
+        Returns:
+            Timesheets sorted by date descending.
+        """
+        uid = self._client.uid
+        fields = self._get_fields()
+        domain: list[Any] = [["user_id", "=", uid]]
+        if days >= 0:
+            since = (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
+            domain.append(["date", ">=", since])
         records = self._client.search_read(
             TIMESHEET_MODEL,
-            domain=[["user_id", "=", uid], ["date", "=", today]],
+            domain=domain,
             fields=fields,
+            order="date desc",
+            limit=limit,
         )
 
         timesheets = [ts for r in records if (ts := _parse_timesheet(r)) is not None]
-
         backend = self._get_backend()
         return backend.enrich_with_running_state(timesheets, self._client, uid)
 
-    def active(self) -> list[Timesheet]:
+    def active(self) -> builtins.list[Timesheet]:
         """Fetch currently running timesheets."""
-        return [ts for ts in self.today() if ts.timer_start is not None]
+        return [ts for ts in self.list() if ts.timer_start is not None]
 
     def start_task(self, task_id: int) -> None:
         """Start a timer on a project task."""
@@ -431,7 +444,7 @@ class TimerNamespace:
         result = backend.stop_timer(ts, self._client)
         self._handle_stop_wizard(result)
 
-    def stop(self) -> list[Timesheet]:
+    def stop(self) -> builtins.list[Timesheet]:
         """Stop all currently running timers."""
         active = self.active()
         backend = self._get_backend()
@@ -466,7 +479,7 @@ class TimerNamespace:
         _helpdesk_field_cache[key] = result
         return result
 
-    def _get_fields(self) -> list[str]:
+    def _get_fields(self) -> builtins.list[str]:
         """Get timesheet fields to fetch, including helpdesk if available."""
         fields = list(BASE_FIELDS)
         if self._has_helpdesk_field():
