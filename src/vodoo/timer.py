@@ -171,19 +171,12 @@ class LegacyTimerBackend(TimerBackend):
         return merge_running_timers(timesheets, running_timers)
 
     def start_timer(self, timesheet: Timesheet, client: OdooClient) -> None:
-        if timesheet.source.kind == "task":
-            client.execute("project.task", "action_timer_start", [timesheet.source.id])
-        elif timesheet.source.kind == "ticket":
-            client.execute("helpdesk.ticket", "action_timer_start", [timesheet.source.id])
-        else:
-            client.execute(TIMESHEET_MODEL, "action_timer_start", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        client.execute(model, "action_timer_start", [rec_id])
 
     def stop_timer(self, timesheet: Timesheet, client: OdooClient) -> Any:
-        if timesheet.source.kind == "task":
-            return client.execute("project.task", "action_timer_stop", [timesheet.source.id])
-        if timesheet.source.kind == "ticket":
-            return client.execute("helpdesk.ticket", "action_timer_stop", [timesheet.source.id])
-        return client.execute(TIMESHEET_MODEL, "action_timer_stop", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        return client.execute(model, "action_timer_stop", [rec_id])
 
     def _fetch_running_timers(self, client: OdooClient, uid: int) -> list[Timesheet]:
         """Fetch running timers from timer.timer model."""
@@ -262,6 +255,54 @@ TIMER_TIMER_DOMAIN = [
     ["timer_pause", "=", False],
 ]
 TIMER_TIMER_FIELDS = ["timer_start", "res_model", "res_id"]
+
+
+def _resolve_timer_target(timesheet: Timesheet) -> tuple[str, int]:
+    """Return (model, record_id) for timer start/stop on legacy backends."""
+    if timesheet.source.kind == "task":
+        return "project.task", timesheet.source.id
+    if timesheet.source.kind == "ticket":
+        return "helpdesk.ticket", timesheet.source.id
+    return TIMESHEET_MODEL, timesheet.id
+
+
+@dataclass
+class _StopWizardParams:
+    """Parsed parameters for a stop-timer wizard action."""
+
+    res_model: str
+    values: dict[str, Any]
+    method: str
+    context: dict[str, Any]
+
+
+def _parse_stop_wizard(result: Any) -> _StopWizardParams | None:
+    """Parse a stop-timer wizard action dict, returning params or None."""
+    if not isinstance(result, dict):
+        return None
+    res_model = result.get("res_model")
+    if result.get("type") != "ir.actions.act_window" or not res_model:
+        return None
+    context = result.get("context", {})
+    if res_model == "project.task.create.timesheet":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={
+                "task_id": context.get("active_id", 0),
+                "description": "/",
+                "time_spent": context.get("default_time_spent", 0),
+            },
+            method="save_timesheet",
+            context=context,
+        )
+    if res_model == "hr.timesheet.stop.timer.confirmation.wizard":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={"timesheet_id": context.get("default_timesheet_id", 0)},
+            method="action_stop_timer",
+            context=context,
+        )
+    return None
 
 
 def merge_running_timers(
@@ -509,30 +550,9 @@ class TimerNamespace:
         return fields
 
     def _handle_stop_wizard(self, result: Any) -> None:
-        """Handle stop wizard if returned by action_timer_stop.
-
-        Some Odoo versions return a wizard action instead of stopping directly.
-        """
-        if not isinstance(result, dict):
+        """Handle stop wizard if returned by action_timer_stop."""
+        params = _parse_stop_wizard(result)
+        if params is None:
             return
-
-        res_model = result.get("res_model")
-        if result.get("type") != "ir.actions.act_window" or not res_model:
-            return
-
-        context = result.get("context", {})
-
-        if res_model == "project.task.create.timesheet":
-            # Odoo 14-18 stop wizard
-            task_id = context.get("active_id", 0)
-            time_spent = context.get("default_time_spent", 0)
-            wizard_id = self._client.create(
-                res_model,
-                {"task_id": task_id, "description": "/", "time_spent": time_spent},
-            )
-            self._client.execute(res_model, "save_timesheet", [wizard_id], context=context)
-        elif res_model == "hr.timesheet.stop.timer.confirmation.wizard":
-            # Odoo 19 stop wizard
-            timesheet_id = context.get("default_timesheet_id", 0)
-            wizard_id = self._client.create(res_model, {"timesheet_id": timesheet_id})
-            self._client.execute(res_model, "action_stop_timer", [wizard_id], context=context)
+        wizard_id = self._client.create(params.res_model, params.values)
+        self._client.execute(params.res_model, params.method, [wizard_id], context=params.context)

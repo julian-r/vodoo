@@ -798,6 +798,40 @@ class TestTimer:
         finally:
             client.timer.stop()
 
+    def test_handle_returns_from_start_task(self, client: OdooClient) -> None:
+        """start_task() returns a TimerHandle."""
+        handle = client.timer.start_task(self.task_id)
+        try:
+            assert handle is not None
+            assert handle._source_kind == "task"
+            assert handle._source_id == self.task_id
+        finally:
+            client.timer.stop()
+
+    def test_handle_stop_stops_only_target(self, client: OdooClient) -> None:
+        """TimerHandle.stop() stops only the timer it started."""
+        handle = client.timer.start_task(self.task_id)
+
+        active_before = client.timer.active()
+        assert any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_before
+        )
+
+        handle.stop()
+
+        active_after = client.timer.active()
+        assert not any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_after
+        )
+
+    def test_handle_stop_raises_when_not_running(self, client: OdooClient) -> None:
+        """TimerHandle.stop() raises ValueError if the timer is no longer active."""
+        handle = client.timer.start_task(self.task_id)
+        handle.stop()
+
+        with pytest.raises(ValueError, match="No running timer found"):
+            handle.stop()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Exception hierarchy (live server)
