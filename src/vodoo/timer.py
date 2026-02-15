@@ -106,7 +106,7 @@ class TimerHandle:
         active = self._namespace.active()
         for ts in active:
             if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
-                self._namespace.stop_timesheet(ts.id)
+                self._namespace._stop_one(ts)
                 return
         if self._source_kind == "standalone":
             self._namespace.stop_timesheet(self._source_id)
@@ -293,6 +293,17 @@ def _parse_stop_wizard(result: Any) -> _StopWizardParams | None:
                 "time_spent": context.get("default_time_spent", 0),
             },
             method="save_timesheet",
+            context=context,
+        )
+    if res_model == "helpdesk.ticket.create.timesheet":
+        return _StopWizardParams(
+            res_model=res_model,
+            values={
+                "ticket_id": context.get("active_id", 0),
+                "description": "/",
+                "time_spent": context.get("default_time_spent", 0),
+            },
+            method="action_generate_timesheet",
             context=context,
         )
     if res_model == "hr.timesheet.stop.timer.confirmation.wizard":
@@ -505,6 +516,12 @@ class TimerNamespace:
             msg = f"Failed to parse timesheet {timesheet_id}"
             raise ValueError(msg)
 
+        backend = self._get_backend()
+        result = backend.stop_timer(ts, self._client)
+        self._handle_stop_wizard(result)
+
+    def _stop_one(self, ts: Timesheet) -> None:
+        """Stop a single timer using the version-appropriate backend."""
         backend = self._get_backend()
         result = backend.stop_timer(ts, self._client)
         self._handle_stop_wizard(result)

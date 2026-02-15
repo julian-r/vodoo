@@ -31,7 +31,7 @@ from vodoo.config import OdooConfig
 START_BTN = 'button[name="action_timer_start"]'
 STOP_BTN = 'button[name="action_timer_stop"]'
 WIZARD_DIALOG = ".modal-dialog"
-WIZARD_CONFIRM = '.modal-footer button[name="action_save_timesheet"]'
+WIZARD_CONFIRM = ".modal-footer button.btn-primary:not(.d-none)"
 
 
 def _odoo_login(page: Page, config: OdooConfig) -> None:
@@ -65,7 +65,7 @@ def _open_record_form(page: Page, config: OdooConfig, model: str, record_id: int
 def _click_stop_and_confirm(page: Page) -> None:
     """Click the Stop button and handle the stop-timer confirmation wizard."""
     page.locator(f"{STOP_BTN}:visible").click()
-    # Odoo 19 shows a "Confirm Time Spent" wizard; earlier versions may not.
+    # Both Odoo 18 and 19 show a "Confirm Time Spent" wizard.
     dialog = page.locator(WIZARD_DIALOG)
     try:
         dialog.wait_for(timeout=5000)
@@ -75,6 +75,9 @@ def _click_stop_and_confirm(page: Page) -> None:
     confirm = page.locator(WIZARD_CONFIRM)
     if confirm.count() > 0:
         confirm.click()
+    # Wait for the wizard to close
+    with contextlib.suppress(Exception):
+        dialog.wait_for(state="hidden", timeout=5000)
     page.wait_for_timeout(1500)
 
 
@@ -206,14 +209,16 @@ class TestTimerTicketUI:
         finally:
             handle.stop()
 
-    def test_handle_stop_shows_start_in_ui(
+    def test_handle_stop_reflected_in_ui(
         self, client: OdooClient, odoo_page: Page, odoo_config: OdooConfig
     ) -> None:
-        """Start via API, stop via handle -> UI shows Start button."""
+        """Start via API, stop via handle -> UI no longer shows Stop button."""
         handle = client.timer.start_ticket(self.ticket_id)
         handle.stop()
         _open_record_form(odoo_page, odoo_config, "helpdesk.ticket", self.ticket_id)
-        expect(odoo_page.locator(f"{START_BTN}:visible")).to_be_visible(timeout=10_000)
+        # After stop: Odoo 19 shows Start, Odoo 18 may show neither.
+        # In both cases, Stop must NOT be visible.
+        expect(odoo_page.locator(f"{STOP_BTN}:visible")).not_to_be_visible(timeout=10_000)
 
     def test_ui_start_detected_by_api(
         self, client: OdooClient, odoo_page: Page, odoo_config: OdooConfig
