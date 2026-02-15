@@ -2,7 +2,7 @@
 
 `TaskNamespace` for the `project.task` model, accessed as `client.tasks`.
 
-::: vodoo.project
+::: vodoo.project_tasks
     options:
       show_source: true
       members_order: source

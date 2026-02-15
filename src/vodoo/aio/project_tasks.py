@@ -3,7 +3,7 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.project import (
+from vodoo.project_tasks import (
     TaskNamespace,
     _build_task_values,
     display_task_detail,

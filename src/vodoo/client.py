@@ -249,13 +249,13 @@ def _make_crm(client: OdooClient) -> Any:
 
 
 def _make_tasks(client: OdooClient) -> Any:
-    from vodoo.project import TaskNamespace
+    from vodoo.project_tasks import TaskNamespace
 
     return TaskNamespace(client)
 
 
 def _make_projects(client: OdooClient) -> Any:
-    from vodoo.project_project import ProjectNamespace
+    from vodoo.projects import ProjectNamespace
 
     return ProjectNamespace(client)
 

@@ -40,12 +40,12 @@ from vodoo.knowledge import (
     display_article_detail,
     display_articles,
 )
-from vodoo.project import (
+from vodoo.project_tasks import (
     display_task_detail,
     display_task_tags,
     display_tasks,
 )
-from vodoo.project_project import (
+from vodoo.projects import (
     display_project_detail,
     display_projects,
     display_stages,

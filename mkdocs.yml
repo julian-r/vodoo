@@ -129,8 +129,8 @@ nav:
       - Transport: api/transport.md
       - Exceptions: api/exceptions.md
       - Helpdesk: api/helpdesk.md
-      - Project Tasks: api/project.md
-      - Projects: api/project_project.md
+      - Project Tasks: api/project_tasks.md
+      - Projects: api/projects.md
       - CRM: api/crm.md
       - Knowledge: api/knowledge.md
       - Timers: api/timer.md
@@ -141,8 +141,8 @@ nav:
       - Async API:
           - Overview: api/async.md
           - Helpdesk: api/aio/helpdesk.md
-          - Project Tasks: api/aio/project.md
-          - Projects: api/aio/project_project.md
+          - Project Tasks: api/aio/project_tasks.md
+          - Projects: api/aio/projects.md
           - CRM: api/aio/crm.md
           - Knowledge: api/aio/knowledge.md
           - Timers: api/aio/timer.md

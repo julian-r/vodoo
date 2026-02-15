@@ -269,13 +269,13 @@ def _make_crm(client: AsyncOdooClient) -> Any:
 
 
 def _make_tasks(client: AsyncOdooClient) -> Any:
-    from vodoo.aio.project import AsyncTaskNamespace
+    from vodoo.aio.project_tasks import AsyncTaskNamespace
 
     return AsyncTaskNamespace(client)
 
 
 def _make_projects(client: AsyncOdooClient) -> Any:
-    from vodoo.aio.project_project import AsyncProjectNamespace
+    from vodoo.aio.projects import AsyncProjectNamespace
 
     return AsyncProjectNamespace(client)
 
