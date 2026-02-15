@@ -1,6 +1,6 @@
 """Async project task operations for Vodoo."""
 
-from typing import Any, ClassVar
+from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.project import (
@@ -17,7 +17,7 @@ class AsyncTaskNamespace(AsyncDomainNamespace):
 
     _model = TaskNamespace._model
     _tag_model = TaskNamespace._tag_model
-    _default_fields: ClassVar[list[str]] = list(TaskNamespace._default_fields)
+    _default_fields = TaskNamespace._default_fields
     _record_type = TaskNamespace._record_type
 
     async def create(

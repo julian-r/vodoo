@@ -1,6 +1,6 @@
 """Async helpdesk domain namespace for Vodoo."""
 
-from typing import Any, ClassVar
+from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.helpdesk import (
@@ -16,7 +16,7 @@ class AsyncHelpdeskNamespace(AsyncDomainNamespace):
 
     _model = HelpdeskNamespace._model
     _tag_model = HelpdeskNamespace._tag_model
-    _default_fields: ClassVar[list[str]] = list(HelpdeskNamespace._default_fields)
+    _default_fields = HelpdeskNamespace._default_fields
     _record_type = HelpdeskNamespace._record_type
 
     async def create(
