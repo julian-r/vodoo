@@ -21,7 +21,9 @@ from vodoo.timer import (
     TimerSource,
     Timesheet,
     _parse_odoo_datetime,
+    _parse_stop_wizard,
     _parse_timesheet,
+    _resolve_timer_target,
     build_running_timer,
     merge_running_timers,
 )
@@ -81,21 +83,12 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         return merge_running_timers(timesheets, running_timers)
 
     async def start_timer(self, timesheet: Timesheet, client: AsyncOdooClient) -> None:
-        if timesheet.source.kind == "task":
-            await client.execute("project.task", "action_timer_start", [timesheet.source.id])
-        elif timesheet.source.kind == "ticket":
-            await client.execute("helpdesk.ticket", "action_timer_start", [timesheet.source.id])
-        else:
-            await client.execute(TIMESHEET_MODEL, "action_timer_start", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        await client.execute(model, "action_timer_start", [rec_id])
 
     async def stop_timer(self, timesheet: Timesheet, client: AsyncOdooClient) -> Any:
-        if timesheet.source.kind == "task":
-            return await client.execute("project.task", "action_timer_stop", [timesheet.source.id])
-        if timesheet.source.kind == "ticket":
-            return await client.execute(
-                "helpdesk.ticket", "action_timer_stop", [timesheet.source.id]
-            )
-        return await client.execute(TIMESHEET_MODEL, "action_timer_stop", [timesheet.id])
+        model, rec_id = _resolve_timer_target(timesheet)
+        return await client.execute(model, "action_timer_stop", [rec_id])
 
     async def _fetch_running_timers(self, client: AsyncOdooClient, uid: int) -> list[Timesheet]:
         """Fetch running timers from timer.timer model."""
@@ -326,24 +319,10 @@ class AsyncTimerNamespace:
 
     async def _handle_stop_wizard(self, result: Any) -> None:
         """Handle stop wizard if returned by action_timer_stop."""
-        if not isinstance(result, dict):
+        params = _parse_stop_wizard(result)
+        if params is None:
             return
-
-        res_model = result.get("res_model")
-        if result.get("type") != "ir.actions.act_window" or not res_model:
-            return
-
-        context = result.get("context", {})
-
-        if res_model == "project.task.create.timesheet":
-            task_id = context.get("active_id", 0)
-            time_spent = context.get("default_time_spent", 0)
-            wizard_id = await self._client.create(
-                res_model,
-                {"task_id": task_id, "description": "/", "time_spent": time_spent},
-            )
-            await self._client.execute(res_model, "save_timesheet", [wizard_id], context=context)
-        elif res_model == "hr.timesheet.stop.timer.confirmation.wizard":
-            timesheet_id = context.get("default_timesheet_id", 0)
-            wizard_id = await self._client.create(res_model, {"timesheet_id": timesheet_id})
-            await self._client.execute(res_model, "action_stop_timer", [wizard_id], context=context)
+        wizard_id = await self._client.create(params.res_model, params.values)
+        await self._client.execute(
+            params.res_model, params.method, [wizard_id], context=params.context
+        )

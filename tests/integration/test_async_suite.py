@@ -850,6 +850,40 @@ class TestAsyncTimer:
         finally:
             await async_client.timer.stop()
 
+    async def test_handle_returns_from_start_task(self, async_client: AsyncOdooClient) -> None:
+        """start_task() returns an AsyncTimerHandle."""
+        handle = await async_client.timer.start_task(self.task_id)
+        try:
+            assert handle is not None
+            assert handle._source_kind == "task"
+            assert handle._source_id == self.task_id
+        finally:
+            await async_client.timer.stop()
+
+    async def test_handle_stop_stops_only_target(self, async_client: AsyncOdooClient) -> None:
+        """AsyncTimerHandle.stop() stops only the timer it started."""
+        handle = await async_client.timer.start_task(self.task_id)
+
+        active_before = await async_client.timer.active()
+        assert any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_before
+        )
+
+        await handle.stop()
+
+        active_after = await async_client.timer.active()
+        assert not any(
+            ts.source.kind == "task" and ts.source.id == self.task_id for ts in active_after
+        )
+
+    async def test_handle_stop_raises_when_not_running(self, async_client: AsyncOdooClient) -> None:
+        """AsyncTimerHandle.stop() raises ValueError if the timer is no longer active."""
+        handle = await async_client.timer.start_task(self.task_id)
+        await handle.stop()
+
+        with pytest.raises(ValueError, match="No running timer found"):
+            await handle.stop()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Exception hierarchy (live server)
