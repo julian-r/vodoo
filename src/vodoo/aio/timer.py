@@ -4,8 +4,11 @@ Mirrors :mod:`vodoo.timer` with async methods.
 Reuses all data classes and parsing logic from the sync module.
 """
 
+from __future__ import annotations
+
 import builtins
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -166,6 +169,28 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
 # -- Async timer namespace --
 
 
+@dataclass
+class AsyncTimerHandle:
+    """Handle returned by ``start_*()`` — call :meth:`stop` to stop this specific timer."""
+
+    _namespace: AsyncTimerNamespace
+    _source_kind: str
+    _source_id: int
+
+    async def stop(self) -> None:
+        """Stop the timer that was started with this handle."""
+        active = await self._namespace.active()
+        for ts in active:
+            if ts.source.kind == self._source_kind and ts.source.id == self._source_id:
+                await self._namespace.stop_timesheet(ts.id)
+                return
+        if self._source_kind == "standalone":
+            await self._namespace.stop_timesheet(self._source_id)
+            return
+        msg = f"No running timer found for {self._source_kind} {self._source_id}"
+        raise ValueError(msg)
+
+
 class AsyncTimerNamespace:
     """Async namespace for timer (timesheet) operations."""
 
@@ -206,15 +231,17 @@ class AsyncTimerNamespace:
         """Fetch currently running timesheets."""
         return [ts for ts in await self.list() if ts.timer_start is not None]
 
-    async def start_task(self, task_id: int) -> None:
+    async def start_task(self, task_id: int) -> AsyncTimerHandle:
         """Start a timer on a project task."""
         await self._client.execute("project.task", "action_timer_start", [task_id])
+        return AsyncTimerHandle(self, "task", task_id)
 
-    async def start_ticket(self, ticket_id: int) -> None:
+    async def start_ticket(self, ticket_id: int) -> AsyncTimerHandle:
         """Start a timer on a helpdesk ticket."""
         await self._client.execute("helpdesk.ticket", "action_timer_start", [ticket_id])
+        return AsyncTimerHandle(self, "ticket", ticket_id)
 
-    async def start_timesheet(self, timesheet_id: int) -> None:
+    async def start_timesheet(self, timesheet_id: int) -> AsyncTimerHandle:
         """Start a timer on an existing timesheet."""
         fields = await self._get_fields()
         records = await self._client.search_read(
@@ -226,14 +253,14 @@ class AsyncTimerNamespace:
         if not records:
             msg = f"Timesheet {timesheet_id} not found"
             raise ValueError(msg)
-
         ts = _parse_timesheet(records[0])
         if ts is None:
             msg = f"Failed to parse timesheet {timesheet_id}"
             raise ValueError(msg)
-
         backend = self._get_backend()
         await backend.start_timer(ts, self._client)
+        source_id = ts.source.id if ts.source.kind != "standalone" else timesheet_id
+        return AsyncTimerHandle(self, ts.source.kind, source_id)
 
     async def stop_timesheet(self, timesheet_id: int) -> None:
         """Stop a timer on an existing timesheet."""
