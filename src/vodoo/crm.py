@@ -5,8 +5,8 @@ from typing import ClassVar
 from vodoo._domain import DomainNamespace
 
 
-class CRMNamespace(DomainNamespace):
-    """CRM leads/opportunities namespace."""
+class _CRMAttrs:
+    """Shared CRM domain attributes."""
 
     _model: ClassVar[str] = "crm.lead"
     _tag_model: ClassVar[str | None] = "crm.tag"
@@ -25,3 +25,7 @@ class CRMNamespace(DomainNamespace):
         "create_date",
     ]
     _record_type: ClassVar[str] = "Lead"
+
+
+class CRMNamespace(_CRMAttrs, DomainNamespace):
+    """CRM leads/opportunities namespace."""

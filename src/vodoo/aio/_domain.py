@@ -8,9 +8,9 @@ from __future__ import annotations
 import base64
 import builtins
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
-from vodoo._domain import DomainNamespace, _convert_to_html
+from vodoo._domain import _convert_to_html, _NamespaceBase
 from vodoo.aio.auth import message_post_sudo
 from vodoo.exceptions import RecordNotFoundError
 
@@ -18,22 +18,8 @@ if TYPE_CHECKING:
     from vodoo.aio.client import AsyncOdooClient
 
 
-class AsyncDomainNamespace:
-    """Async domain namespace — common CRUD, messaging, tags, and attachments.
-
-    Subclasses must set at least ``_model`` and ``_default_fields``.
-    """
-
-    _model: ClassVar[str]
-    _tag_model: ClassVar[str | None] = None
-    _default_fields: ClassVar[list[str]]
-    _default_detail_fields: ClassVar[list[str] | None] = None
-    _record_type: ClassVar[str] = "Record"
-
-    _TAG_FIELDS = DomainNamespace._TAG_FIELDS
-    _MESSAGE_FIELDS = DomainNamespace._MESSAGE_FIELDS
-    _ATTACHMENT_LIST_FIELDS = DomainNamespace._ATTACHMENT_LIST_FIELDS
-    _ATTACHMENT_READ_FIELDS = DomainNamespace._ATTACHMENT_READ_FIELDS
+class AsyncDomainNamespace(_NamespaceBase):
+    """Async domain namespace — common CRUD, messaging, tags, and attachments."""
 
     def __init__(self, client: AsyncOdooClient) -> None:
         self._client = client

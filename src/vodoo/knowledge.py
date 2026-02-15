@@ -10,9 +10,7 @@ from vodoo.base import (
 )
 
 
-class KnowledgeNamespace(DomainNamespace):
-    """Namespace for knowledge.article model."""
-
+class _KnowledgeAttrs:
     _model = "knowledge.article"
     _default_fields: ClassVar[list[str]] = [
         "id",
@@ -22,7 +20,7 @@ class KnowledgeNamespace(DomainNamespace):
         "icon",
         "write_date",
     ]
-    _default_detail_fields: ClassVar[list[str]] = [
+    _default_detail_fields: ClassVar[list[str] | None] = [
         "id",
         "name",
         "parent_id",
@@ -32,6 +30,10 @@ class KnowledgeNamespace(DomainNamespace):
         "write_date",
     ]
     _record_type = "Article"
+
+
+class KnowledgeNamespace(_KnowledgeAttrs, DomainNamespace):
+    """Namespace for knowledge.article model."""
 
     def url(self, record_id: int) -> str:
         """Get the web URL for a knowledge article.

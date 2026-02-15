@@ -20,10 +20,16 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from vodoo.auth import message_post_sudo
 from vodoo.base import (
-    _ATTACHMENT_LIST_FIELDS,
-    _ATTACHMENT_READ_FIELDS,
-    _MESSAGE_FIELDS,
-    _TAG_FIELDS,
+    _ATTACHMENT_LIST_FIELDS as _ATTACHMENT_LIST_FIELDS,
+)
+from vodoo.base import (
+    _ATTACHMENT_READ_FIELDS as _ATTACHMENT_READ_FIELDS,
+)
+from vodoo.base import (
+    _MESSAGE_FIELDS as _MESSAGE_FIELDS,
+)
+from vodoo.base import (
+    _TAG_FIELDS as _TAG_FIELDS,
 )
 from vodoo.exceptions import RecordNotFoundError
 
@@ -31,9 +37,8 @@ if TYPE_CHECKING:
     from vodoo.client import OdooClient
 
 
-class DomainNamespace:
-    """Sync domain namespace — common CRUD, messaging, tags, and attachments.
-
+class _NamespaceBase:
+    """Shared attributes for sync and async domain namespaces.
     Subclasses must set at least ``_model`` and ``_default_fields``.
     """
 
@@ -42,11 +47,14 @@ class DomainNamespace:
     _default_fields: ClassVar[list[str]]
     _default_detail_fields: ClassVar[list[str] | None] = None
     _record_type: ClassVar[str] = "Record"
-
     _TAG_FIELDS: ClassVar[list[str]] = _TAG_FIELDS
     _MESSAGE_FIELDS: ClassVar[list[str]] = _MESSAGE_FIELDS
     _ATTACHMENT_LIST_FIELDS: ClassVar[list[str]] = _ATTACHMENT_LIST_FIELDS
     _ATTACHMENT_READ_FIELDS: ClassVar[list[str]] = _ATTACHMENT_READ_FIELDS
+
+
+class DomainNamespace(_NamespaceBase):
+    """Sync domain namespace — common CRUD, messaging, tags, and attachments."""
 
     def __init__(self, client: OdooClient) -> None:
         self._client = client

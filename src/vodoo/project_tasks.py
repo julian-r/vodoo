@@ -40,11 +40,11 @@ def _build_task_values(
     return values, context
 
 
-class TaskNamespace(DomainNamespace):
-    """Project task namespace."""
+class _TaskAttrs:
+    """Shared domain attributes for task namespaces."""
 
     _model = "project.task"
-    _tag_model = "project.tags"
+    _tag_model: str | None = "project.tags"
     _default_fields: ClassVar[list[str]] = [
         "id",
         "name",
@@ -57,6 +57,10 @@ class TaskNamespace(DomainNamespace):
         "create_date",
     ]
     _record_type = "Task"
+
+
+class TaskNamespace(_TaskAttrs, DomainNamespace):
+    """Project task namespace."""
 
     def create(
         self,
@@ -100,6 +104,7 @@ class TaskNamespace(DomainNamespace):
         values: dict[str, Any] = {"name": name}
         if color is not None:
             values["color"] = color
+        assert self._tag_model is not None
         return self._client.create(self._tag_model, values)
 
     def delete_tag(self, tag_id: int) -> bool:
@@ -111,4 +116,5 @@ class TaskNamespace(DomainNamespace):
         Returns:
             True if successful
         """
+        assert self._tag_model is not None
         return self._client.unlink(self._tag_model, [tag_id])
