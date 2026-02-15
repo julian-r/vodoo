@@ -10,8 +10,8 @@ from vodoo._domain import DomainNamespace
 STAGE_FIELDS = ["id", "name", "sequence", "fold", "project_ids"]
 
 
-class ProjectNamespace(DomainNamespace):
-    """Namespace for project.project operations."""
+class _ProjectAttrs:
+    """Shared domain attributes for project.project."""
 
     _model = "project.project"
     _default_fields: ClassVar[list[str]] = [
@@ -24,7 +24,7 @@ class ProjectNamespace(DomainNamespace):
         "task_count",
         "color",
     ]
-    _default_detail_fields: ClassVar[list[str]] = [
+    _default_detail_fields: ClassVar[list[str] | None] = [
         "id",
         "name",
         "description",
@@ -40,6 +40,10 @@ class ProjectNamespace(DomainNamespace):
         "write_date",
     ]
     _record_type = "Project"
+
+
+class ProjectNamespace(_ProjectAttrs, DomainNamespace):
+    """Namespace for project.project operations."""
 
     def stages(self, project_id: int | None = None) -> list[dict[str, Any]]:
         """List task stages, optionally filtered by project.

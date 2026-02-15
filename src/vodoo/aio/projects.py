@@ -7,17 +7,12 @@ from typing import Any
 from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.projects import (
     STAGE_FIELDS,
-    ProjectNamespace,
+    _ProjectAttrs,
 )
 
 
-class AsyncProjectNamespace(AsyncDomainNamespace):
+class AsyncProjectNamespace(_ProjectAttrs, AsyncDomainNamespace):
     """Async namespace for project.project operations."""
-
-    _model = ProjectNamespace._model
-    _default_fields = ProjectNamespace._default_fields
-    _default_detail_fields = ProjectNamespace._default_detail_fields
-    _record_type = ProjectNamespace._record_type
 
     async def stages(self, project_id: int | None = None) -> list[dict[str, Any]]:
         """List task stages, optionally filtered by project.

@@ -5,11 +5,11 @@ from typing import Any, ClassVar
 from vodoo._domain import DomainNamespace
 
 
-class HelpdeskNamespace(DomainNamespace):
-    """Namespace for ``helpdesk.ticket`` operations."""
+class _HelpdeskAttrs:
+    """Shared domain attributes for helpdesk namespaces."""
 
     _model = "helpdesk.ticket"
-    _tag_model = "helpdesk.tag"
+    _tag_model: str | None = "helpdesk.tag"
     _default_fields: ClassVar[list[str]] = [
         "id",
         "name",
@@ -21,6 +21,10 @@ class HelpdeskNamespace(DomainNamespace):
         "create_date",
     ]
     _record_type = "Ticket"
+
+
+class HelpdeskNamespace(_HelpdeskAttrs, DomainNamespace):
+    """Namespace for ``helpdesk.ticket`` operations."""
 
     def create(
         self,

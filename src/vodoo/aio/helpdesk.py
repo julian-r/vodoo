@@ -3,16 +3,11 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.helpdesk import HelpdeskNamespace, _build_ticket_values
+from vodoo.helpdesk import _build_ticket_values, _HelpdeskAttrs
 
 
-class AsyncHelpdeskNamespace(AsyncDomainNamespace):
+class AsyncHelpdeskNamespace(_HelpdeskAttrs, AsyncDomainNamespace):
     """Async namespace for ``helpdesk.ticket`` operations."""
-
-    _model = HelpdeskNamespace._model
-    _tag_model = HelpdeskNamespace._tag_model
-    _default_fields = HelpdeskNamespace._default_fields
-    _record_type = HelpdeskNamespace._record_type
 
     async def create(
         self,

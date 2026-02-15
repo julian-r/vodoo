@@ -3,16 +3,11 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.project_tasks import TaskNamespace, _build_task_values
+from vodoo.project_tasks import _build_task_values, _TaskAttrs
 
 
-class AsyncTaskNamespace(AsyncDomainNamespace):
+class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
     """Async project task namespace."""
-
-    _model = TaskNamespace._model
-    _tag_model = TaskNamespace._tag_model
-    _default_fields = TaskNamespace._default_fields
-    _record_type = TaskNamespace._record_type
 
     async def create(
         self,
@@ -35,10 +30,12 @@ class AsyncTaskNamespace(AsyncDomainNamespace):
         values: dict[str, Any] = {"name": name}
         if color is not None:
             values["color"] = color
+        assert self._tag_model is not None
         return await self._client.create(self._tag_model, values)
 
     async def delete_tag(self, tag_id: int) -> bool:
         """Delete a project tag."""
+        assert self._tag_model is not None
         return await self._client.unlink(self._tag_model, [tag_id])
 
 
