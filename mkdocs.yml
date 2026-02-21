@@ -115,6 +115,7 @@ nav:
       - project-task: cli/project-task.md
       - project: cli/project.md
       - crm: cli/crm.md
+      - account-move: cli/account-move.md
       - knowledge: cli/knowledge.md
       - timer: cli/timer.md
       - model: cli/model.md

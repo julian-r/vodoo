@@ -5,7 +5,6 @@ Mirrors :class:`vodoo._domain.DomainNamespace` with ``async`` methods.
 
 from __future__ import annotations
 
-import base64
 import builtins
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -194,40 +193,15 @@ class AsyncDomainNamespace(_NamespaceBase):
         extension: str | None = None,
     ) -> builtins.list[Path]:
         """Download all attachments for a record to disk."""
-        import logging
+        from vodoo.aio.base import download_record_attachments
 
-        if output_dir is None:
-            output_dir = Path.cwd()
-        elif not output_dir.exists():
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-        att_list = await self.attachments(record_id)
-
-        if extension:
-            ext = extension.lower().lstrip(".")
-            att_list = [a for a in att_list if a.get("name", "").lower().endswith(f".{ext}")]
-
-        downloaded: builtins.list[Path] = []
-        for att_meta in att_list:
-            filename = att_meta.get("name", f"attachment_{att_meta['id']}")
-            try:
-                att_data = await self._client.read(
-                    "ir.attachment",
-                    [att_meta["id"]],
-                    self._ATTACHMENT_READ_FIELDS,
-                )
-                if not att_data:
-                    continue
-                att = att_data[0]
-                filename = att.get("name", f"attachment_{att_meta['id']}")
-                out = output_dir / filename
-                if att.get("datas"):
-                    out.write_bytes(base64.b64decode(att["datas"]))
-                    downloaded.append(out)
-            except Exception as e:
-                logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
-                continue
-        return downloaded
+        return await download_record_attachments(
+            self._client,
+            self._model,
+            record_id,
+            output_dir,
+            extension=extension,
+        )
 
     async def attachment_data(
         self,

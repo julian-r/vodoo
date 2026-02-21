@@ -6,6 +6,7 @@ Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 
 import contextlib
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,106 @@ from vodoo.exceptions import (
     VodooError,
 )
 from vodoo.transport import JSON2Transport, LegacyTransport
+
+
+def _model_exists(client: OdooClient, model_name: str) -> bool:
+    models = client.search_read(
+        "ir.model",
+        domain=[["model", "=", model_name]],
+        fields=["id"],
+        limit=1,
+    )
+    return bool(models)
+
+
+def _ensure_module_installed(client: OdooClient, module_name: str) -> bool:
+    modules = client.search_read(
+        "ir.module.module",
+        domain=[["name", "=", module_name]],
+        fields=["id", "state"],
+        limit=1,
+    )
+    if not modules:
+        return False
+
+    module = modules[0]
+    if module.get("state") == "installed":
+        return True
+
+    client.execute("ir.module.module", "button_immediate_install", [module["id"]])
+
+    for _ in range(60):
+        state_rows = client.search_read(
+            "ir.module.module",
+            domain=[["id", "=", module["id"]]],
+            fields=["state"],
+            limit=1,
+        )
+        state = state_rows[0].get("state") if state_rows else None
+        if state == "installed":
+            return True
+        time.sleep(1)
+
+    return False
+
+
+def _create_account_move_for_tests(client: OdooClient) -> int:
+    """Create a draft account.move for integration tests, or skip if unavailable."""
+    try:
+        if not _model_exists(client, "account.move"):
+            installed = _ensure_module_installed(client, "account")
+            if not installed or not _model_exists(client, "account.move"):
+                pytest.skip("account.move model is not available in this test database")
+
+        journals = client.search_read(
+            "account.journal",
+            domain=[["type", "=", "general"]],
+            fields=["id", "default_account_id"],
+            limit=1,
+        )
+        if not journals:
+            pytest.skip("No general journal found; accounting module may not be configured")
+
+        journal = journals[0]
+        default_account = journal.get("default_account_id")
+        candidate_ids: list[int] = []
+        if isinstance(default_account, list):
+            candidate_ids.append(default_account[0])
+
+        accounts = client.search_read(
+            "account.account",
+            domain=[],
+            fields=["id"],
+            limit=50,
+        )
+        candidate_ids.extend(int(a["id"]) for a in accounts)
+
+        seen: set[int] = set()
+        last_exc: Exception | None = None
+
+        for account_id in candidate_ids:
+            if account_id in seen:
+                continue
+            seen.add(account_id)
+
+            values = {
+                "move_type": "entry",
+                "journal_id": journal["id"],
+                "line_ids": [
+                    (0, 0, {"name": "Vodoo debit", "account_id": account_id, "debit": 1.0}),
+                    (0, 0, {"name": "Vodoo credit", "account_id": account_id, "credit": 1.0}),
+                ],
+            }
+            try:
+                return client.generic.create("account.move", values)
+            except Exception as exc:  # pragma: no cover - depends on chart config
+                last_exc = exc
+                continue
+
+        detail = f": {last_exc}" if last_exc else ""
+        pytest.skip(f"Could not create account.move for tests{detail}")
+    except Exception as exc:
+        pytest.skip(f"Skipping account.move integration tests: {exc}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Transport / connection
@@ -457,6 +558,53 @@ class TestCRM:
 
             with tempfile.TemporaryDirectory() as outdir:
                 downloaded = client.crm.download(self.lead_id, Path(outdir))
+                assert len(downloaded) >= 1
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Accounting (account.move)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAccountMove:
+    """Test account.move namespace and attachment workflow."""
+
+    @pytest.fixture(autouse=True)
+    def _create_account_move(self, client: OdooClient) -> Any:
+        self.move_id = _create_account_move_for_tests(client)
+        yield
+        with contextlib.suppress(Exception):
+            client.generic.delete("account.move", self.move_id)
+
+    def test_list_account_moves(self, client: OdooClient) -> None:
+        moves = client.account_moves.list(domain=[["id", "=", self.move_id]])
+        assert len(moves) == 1
+        assert moves[0]["id"] == self.move_id
+
+    def test_account_move_url(self, client: OdooClient) -> None:
+        url = client.account_moves.url(self.move_id)
+        assert str(self.move_id) in url
+
+    def test_account_move_attachment(self, client: OdooClient) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(b"%PDF-account-move-test")
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = client.account_moves.attach(self.move_id, tmp_path)
+            assert att_id > 0
+
+            attachments = client.account_moves.attachments(self.move_id)
+            assert any(a["id"] == att_id for a in attachments)
+
+            with tempfile.TemporaryDirectory() as outdir:
+                downloaded = client.account_moves.download(
+                    self.move_id,
+                    Path(outdir),
+                    extension="pdf",
+                )
                 assert len(downloaded) >= 1
         finally:
             tmp_path.unlink(missing_ok=True)

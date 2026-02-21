@@ -13,7 +13,7 @@
 
 A Python library and CLI for Odoo. Use it as a **library** in your own scripts, services, and automations — or as a **CLI** for quick ad-hoc operations and AI-assisted workflows.
 
-Supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, knowledge articles, and timesheets across Odoo 17–19.
+Supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, accounting moves, knowledge articles, and timesheets across Odoo 17–19.
 
 **📖 [Full Documentation](https://julian-r.github.io/vodoo)** — Getting started, CLI reference, Python library guide, and API docs.
 
@@ -240,6 +240,14 @@ vodoo project-task comment 42 "Deployed to staging"
 vodoo project-task attach 42 screenshot.png
 ```
 
+### Accounting Moves
+
+```bash
+vodoo account-move list --company "Rath Technologie" --year 2025 --state posted
+vodoo account-move attachments 3552
+vodoo account-move download-all 3552 --output "~/Belege 2025" --extension pdf
+```
+
 ### Projects
 
 ```bash
@@ -319,6 +327,7 @@ src/vodoo/
 ├── project_tasks.py      # Project task operations
 ├── projects.py           # Project operations
 ├── crm.py                # CRM lead/opportunity operations
+├── account_moves.py      # Accounting move operations
 ├── knowledge.py          # Knowledge article operations (enterprise)
 ├── generic.py            # Generic model CRUD
 ├── security.py           # Security groups, user management
