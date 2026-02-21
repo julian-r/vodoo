@@ -14,14 +14,9 @@ Vodoo provides a Typer-based CLI with the following subcommands:
 | [`crm`](crm.md) | CRM lead/opportunity operations |
 | [`security`](security.md) | Security group utilities |
 | [`timer`](timer.md) | Timer / timesheet operations (start, stop, status) |
+| [`config`](config.md) | Configuration and instance profile utilities |
 
 ## Global Options
-
-| Option | Description |
-|--------|-------------|
-| `--version` / `-v` | Show version and exit |
-| `--simple` | Plain TSV output instead of rich tables (for piping) |
-| `--help` | Show help and exit |
 
 ```
 vodoo --help
@@ -30,25 +25,11 @@ vodoo <command> --help
 
 ## Output Modes
 
-By default, Vodoo uses Rich tables for colorful terminal output. Use `--simple` for plain TSV output suitable for piping:
+By default, Vodoo uses Rich tables for colorful terminal output. Use `--simple` on list commands for plain TSV output suitable for piping:
 
 ```bash
-vodoo --simple helpdesk list | cut -f1,2
+vodoo helpdesk list --simple | cut -f1,2
 ```
-
-### HTML Handling
-
-Odoo stores all rich-text content (descriptions, knowledge article bodies, chatter messages) as HTML. Vodoo converts this for terminal display depending on the context:
-
-| Content | Default mode | `--simple` mode | `--show-html` |
-|---------|-------------|-----------------|---------------|
-| **Descriptions** (tickets, tasks, leads) | HTML → Markdown | HTML → Markdown | Raw HTML |
-| **Knowledge article bodies** | HTML → Markdown | HTML → Markdown | Raw HTML |
-| **Chatter messages** | HTML → plain text (tags stripped) | HTML → plain text (tags stripped) | Raw HTML |
-
-Descriptions and article bodies are converted to **Markdown** (preserving headings, bold, lists, links, etc.) since they tend to be longer, structured content. Chatter messages are stripped to **plain text** since they're typically short comments and notifications where formatting isn't essential.
-
-When writing content back to Odoo (via `comment`, `note`, or `set`), Vodoo converts your input **to HTML** — with optional `--markdown` support for rich formatting.
 
 ## Common Patterns
 
@@ -56,7 +37,7 @@ All domain subcommands (`helpdesk`, `project-task`, `project`, `crm`) share a co
 
 | Action | Command |
 |--------|---------|
-| List records | `vodoo <cmd> list [--stage ...] [--limit N]` |
+| List records | `vodoo <cmd> list [--stage ...] [--search ...] [--limit N]` |
 | Show details | `vodoo <cmd> show <ID>` |
 | Add comment | `vodoo <cmd> comment <ID> "message"` |
 | Add note | `vodoo <cmd> note <ID> "message"` |
