@@ -120,6 +120,7 @@ def _create_account_move_for_tests(client: OdooClient) -> int:
     except Exception as exc:
         pytest.skip(f"Skipping account.move integration tests: {exc}")
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Transport / connection
 # ══════════════════════════════════════════════════════════════════════════════
