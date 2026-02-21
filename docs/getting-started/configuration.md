@@ -4,13 +4,46 @@ Vodoo loads configuration from environment variables and `.env`-style files usin
 
 ## Configuration Sources
 
-Files are checked in this order (first match wins):
+### Instance-aware mode (new)
 
-1. `~/.config/vodoo/config.env` — recommended for credentials (outside project dirs)
-2. `.vodoo.env` — project-specific config
-3. `.env` — generic dotenv fallback
+When an instance is selected (via `--instance`, `VODOO_INSTANCE`, or a `default-instance` file),
+Vodoo checks these files first:
+
+1. `.vodoo/instances/<instance>.env` (project-local override)
+2. `~/.config/vodoo/instances/<instance>.env` (global)
+
+### Legacy fallback mode
+
+If no explicit instance is selected and no instance file is found, Vodoo falls back to:
+
+1. `.vodoo.env`
+2. `.env`
+3. `~/.config/vodoo/config.env`
 
 Environment variables always take precedence over file values.
+
+## Selecting an Instance
+
+Priority order:
+
+1. CLI: `vodoo --instance prod ...`
+2. Env var: `VODOO_INSTANCE=prod`
+3. Project default: `.vodoo/default-instance`
+4. Global default: `~/.config/vodoo/default-instance`
+5. Fallback: `default`
+
+If you explicitly select an instance (`--instance` or `VODOO_INSTANCE`) and no matching
+profile exists, Vodoo raises a configuration error instead of silently using legacy files.
+
+### Helpful CLI commands
+
+```bash
+vodoo config list-instances
+vodoo config show
+vodoo config use staging
+vodoo config use prod --global
+vodoo config test --instance staging
+```
 
 ## Required Settings
 
@@ -25,14 +58,17 @@ Environment variables always take precedence over file values.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `ODOO_PASSWORD_REF` | Secret reference (for example `op://Vault/Item/password`) | `None` |
 | `ODOO_DEFAULT_USER_ID` | Default user ID for sudo/comment operations | `None` |
 | `ODOO_RETRY_COUNT` | Maximum retries for transient errors | `2` |
 | `ODOO_RETRY_BACKOFF` | Base backoff delay in seconds (exponential) | `0.5` |
 | `ODOO_RETRY_MAX_BACKOFF` | Maximum backoff delay in seconds | `30.0` |
 
-## Example Config File
+## Example Config Files
 
-Create `~/.config/vodoo/config.env`:
+### Single profile (legacy)
+
+`~/.config/vodoo/config.env`:
 
 ```bash
 ODOO_URL=https://my-instance.odoo.com
@@ -40,6 +76,23 @@ ODOO_DATABASE=production
 ODOO_USERNAME=bot@example.com
 ODOO_PASSWORD=your-api-key-here
 ODOO_DEFAULT_USER_ID=42
+```
+
+### Multi-instance
+
+`~/.config/vodoo/instances/prod.env`:
+
+```bash
+ODOO_URL=https://prod.odoo.com
+ODOO_DATABASE=production
+ODOO_USERNAME=bot@example.com
+ODOO_PASSWORD_REF=op://Engineering/Vodoo Prod/password
+```
+
+`~/.config/vodoo/default-instance`:
+
+```text
+prod
 ```
 
 !!! tip "Use API keys over passwords"
@@ -50,6 +103,27 @@ ODOO_DEFAULT_USER_ID=42
 !!! warning "HTTPS in production"
     Vodoo warns when `ODOO_URL` does not use `https://`. Credentials are
     sent in cleartext over HTTP — only use it for local development.
+
+## 1Password Secrets (`op://`)
+
+Set `ODOO_PASSWORD_REF` to a 1Password secret reference:
+
+```bash
+ODOO_PASSWORD_REF=op://Engineering/Vodoo Prod/password
+```
+
+Vodoo resolves this by calling:
+
+```bash
+op read op://Engineering/Vodoo\ Prod/password
+```
+
+Requirements:
+
+- 1Password CLI (`op`) must be installed
+- You must be signed in (`op signin`)
+
+If `ODOO_PASSWORD_REF` is set, it takes precedence over `ODOO_PASSWORD`.
 
 ## Programmatic Configuration
 
@@ -76,9 +150,18 @@ from vodoo import OdooConfig
 config = OdooConfig.from_file(Path("/etc/vodoo/config.env"))
 ```
 
+Load a specific instance:
+
+```python
+from vodoo import OdooConfig
+
+config = OdooConfig.from_file(instance="staging")
+```
+
 ## Security Recommendations
 
-- Store credentials in `~/.config/vodoo/config.env` (not inside project directories)
+- Store credentials in `~/.config/vodoo` (not inside project directories)
+- Prefer `ODOO_PASSWORD_REF` over plain-text passwords
 - Use a dedicated [service account](../development/security.md) with least-privilege groups
 - Never commit `.env` files to version control
 - Rotate API keys periodically

@@ -119,6 +119,7 @@ nav:
       - timer: cli/timer.md
       - model: cli/model.md
       - security: cli/security.md
+      - config: cli/config.md
   - Library Guide:
       - Using as a Library: guide/library.md
       - AI Assistant Integration: guide/ai-assistants.md

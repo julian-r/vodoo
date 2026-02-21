@@ -117,10 +117,26 @@ ODOO_URL=https://your-odoo-instance.com
 ODOO_DATABASE=your_database
 ODOO_USERNAME=your_username
 ODOO_PASSWORD=your_password_or_api_key
+# Optional alternative: ODOO_PASSWORD_REF=op://Vault/Item/password
 ODOO_DEFAULT_USER_ID=123  # Optional: default user for sudo operations
 ```
 
+Multi-instance profiles are also supported:
+
+- `.vodoo/instances/<instance>.env`
+- `~/.config/vodoo/instances/<instance>.env`
+- select via `vodoo --instance <instance> ...` or `VODOO_INSTANCE=<instance>`
+
 Or set environment variables directly, or pass values to `OdooConfig()` in code.
+
+Useful config helpers:
+
+```bash
+vodoo config list-instances
+vodoo config show
+vodoo config use staging
+vodoo config test --instance staging
+```
 
 ## Exception Hierarchy
 

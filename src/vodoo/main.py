@@ -3,10 +3,11 @@
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from vodoo.base import (
     configure_output,
@@ -19,7 +20,14 @@ from vodoo.base import (
     get_record,
 )
 from vodoo.client import OdooClient
-from vodoo.config import get_config
+from vodoo.config import (
+    detect_config_file,
+    get_config,
+    list_instance_profiles,
+    read_default_instance,
+    resolve_instance,
+    write_default_instance,
+)
 from vodoo.exceptions import (
     AuthenticationError,
     OdooAccessDeniedError,
@@ -123,8 +131,16 @@ timer_app = typer.Typer(
 )
 app.add_typer(timer_app, name="timer")
 
-# Global state for console configuration
+config_app = typer.Typer(
+    name="config",
+    help="Configuration and instance profile utilities",
+    no_args_is_help=True,
+)
+app.add_typer(config_app, name="config")
+
+# Global state for CLI runtime configuration
 _console_config: dict[str, bool] = {"simple": False}
+_instance_config: dict[str, str | None] = {"name": None}
 
 console = Console()
 
@@ -156,6 +172,10 @@ def main_callback(
         bool,
         typer.Option("--simple", help="Plain TSV output instead of rich tables"),
     ] = False,
+    instance: Annotated[
+        str | None,
+        typer.Option("--instance", "-i", help="Instance/profile name to use"),
+    ] = None,
     version: Annotated[  # noqa: ARG001
         bool,
         typer.Option(
@@ -169,6 +189,7 @@ def main_callback(
 ) -> None:
     """Global options for vodoo CLI."""
     _console_config["simple"] = simple
+    _instance_config["name"] = instance
     global console  # noqa: PLW0603
     console = get_console()
     # Synchronise the base module's output configuration so that display
@@ -183,8 +204,137 @@ def get_client() -> OdooClient:
         OdooClient instance
 
     """
-    config = get_config()
-    return OdooClient(config)
+    with _handle_errors():
+        config = get_config(instance=_instance_config["name"])
+        return OdooClient(config)
+
+
+def _instance_source_label(path: Path) -> str:
+    project_instances = Path.cwd() / ".vodoo" / "instances"
+    try:
+        path.relative_to(project_instances)
+        return "project"
+    except ValueError:
+        return "global"
+
+
+@config_app.command("list-instances")
+def config_list_instances() -> None:
+    """List discovered instance profile files and defaults."""
+    with _handle_errors():
+        profiles = list_instance_profiles()
+        project_default = read_default_instance("project")
+        global_default = read_default_instance("global")
+        selected = resolve_instance(_instance_config["name"])
+
+        names = set(profiles)
+        if project_default:
+            names.add(project_default)
+        if global_default:
+            names.add(global_default)
+        names.add(selected)
+
+        if not names:
+            console.print("[yellow]No instance profiles found[/yellow]")
+            return
+
+        table = Table(title="Vodoo Instances")
+        table.add_column("Instance", style="cyan")
+        table.add_column("Profiles")
+        table.add_column("Default")
+        table.add_column("Selected")
+
+        for name in sorted(names):
+            profile_paths = profiles.get(name, [])
+            if profile_paths:
+                labels = [_instance_source_label(path) for path in profile_paths]
+                profile_text = ", ".join(labels)
+            else:
+                profile_text = "-"
+
+            defaults: list[str] = []
+            if project_default == name:
+                defaults.append("project")
+            if global_default == name:
+                defaults.append("global")
+
+            table.add_row(
+                name,
+                profile_text,
+                ", ".join(defaults) if defaults else "-",
+                "yes" if name == selected else "",
+            )
+
+        console.print(table)
+
+
+@config_app.command("show")
+def config_show(
+    instance: Annotated[
+        str | None,
+        typer.Option("--instance", "-i", help="Instance/profile name to inspect"),
+    ] = None,
+) -> None:
+    """Show effective configuration (password masked)."""
+    with _handle_errors():
+        selected_input = instance if instance is not None else _instance_config["name"]
+        selected = resolve_instance(selected_input)
+        source = detect_config_file(instance=selected_input)
+        cfg = get_config(instance=selected_input)
+
+        console.print("[bold cyan]Active Configuration[/bold cyan]")
+        console.print(f"instance: {selected}")
+        console.print(f"source: {source if source else 'environment'}")
+        console.print(f"url: {cfg.url}")
+        console.print(f"database: {cfg.database}")
+        console.print(f"username: {cfg.username}")
+        if cfg.password_ref:
+            console.print(f"password_ref: {cfg.password_ref}")
+        console.print("password: ***")
+        console.print(f"default_user_id: {cfg.default_user_id}")
+        console.print(f"retry_count: {cfg.retry_count}")
+        console.print(f"retry_backoff: {cfg.retry_backoff}")
+        console.print(f"retry_max_backoff: {cfg.retry_max_backoff}")
+
+
+@config_app.command("use")
+def config_use(
+    instance: Annotated[str, typer.Argument(help="Instance/profile name")],
+    global_default: Annotated[
+        bool,
+        typer.Option("--global", help="Write default instance to ~/.config/vodoo/default-instance"),
+    ] = False,
+) -> None:
+    """Set the default instance for this project or globally."""
+    with _handle_errors():
+        scope: Literal["project", "global"] = "global" if global_default else "project"
+        target = write_default_instance(instance, scope=scope)
+        console.print(f"[green]Default instance set to '{instance}' ({scope})[/green]")
+        console.print(f"file: {target}")
+
+
+@config_app.command("test")
+def config_test(
+    instance: Annotated[
+        str | None,
+        typer.Option("--instance", "-i", help="Instance/profile name to test"),
+    ] = None,
+) -> None:
+    """Test authentication with the selected instance."""
+    with _handle_errors():
+        selected_input = instance if instance is not None else _instance_config["name"]
+        cfg = get_config(instance=selected_input)
+        selected = resolve_instance(selected_input)
+
+        with OdooClient(cfg) as client:
+            uid = client.uid
+            transport = "json-2" if client.is_json2 else "json-rpc"
+
+        console.print("[green]Connection test successful[/green]")
+        console.print(f"instance: {selected}")
+        console.print(f"url: {cfg.url}")
+        console.print(f"transport: {transport}")
+        console.print(f"uid: {uid}")
 
 
 # ---------------------------------------------------------------------------
