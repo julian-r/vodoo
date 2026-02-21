@@ -286,6 +286,7 @@ vodoo helpdesk download 456 --output ./attachments/
 
 ```bash
 vodoo knowledge list --category workspace
+vodoo knowledge create "Team Handbook" --body "# Onboarding\n\nWelcome!" --category workspace
 vodoo knowledge show 123
 vodoo knowledge note 123 "Updated installation section"
 ```

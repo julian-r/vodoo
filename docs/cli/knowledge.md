@@ -19,6 +19,25 @@ List knowledge articles.
 | `--category` | TEXT | Filter by category (workspace, private, shared) |
 | `--limit` | INT | Maximum number of articles (default: 50) |
 
+### create
+
+Create a new knowledge article.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `name` | TEXT | Article title |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--body` / `-b` | TEXT | Article body in markdown |
+| `--parent` / `-p` | INT | Parent article ID |
+| `--category` / `-c` | TEXT | Article category (workspace, private, shared) |
+| `--icon` | TEXT | Emoji/icon for the article (e.g. 📘) |
+
 ### show
 
 Show detailed article information.

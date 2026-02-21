@@ -878,6 +878,21 @@ class TestKnowledge:
         article = client.knowledge.get(self.article_id)
         assert article["name"] == "Vodoo Test Article"
 
+    def test_create_article(self, client: OdooClient) -> None:
+        article_id = client.knowledge.create(
+            "Vodoo Created Article",
+            body="## Created by Vodoo",
+            category="workspace",
+        )
+        try:
+            assert article_id > 0
+            article = client.knowledge.get(article_id)
+            assert article["name"] == "Vodoo Created Article"
+            assert "Created by Vodoo" in str(article.get("body", ""))
+        finally:
+            with contextlib.suppress(Exception):
+                client.generic.delete("knowledge.article", article_id)
+
     def test_article_url(self, client: OdooClient) -> None:
         url = client.knowledge.url(self.article_id)
         assert str(self.article_id) in url
