@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from vodoo.account_moves import build_account_move_domain
 from vodoo.base import (
     configure_output,
     display_attachments,
@@ -71,7 +72,7 @@ def _handle_errors() -> Any:
 
 app = typer.Typer(
     name="vodoo",
-    help="CLI tool for Odoo: helpdesk, projects, tasks, and CRM",
+    help="CLI tool for Odoo: helpdesk, projects, tasks, CRM, and accounting",
     no_args_is_help=True,
 )
 
@@ -116,6 +117,13 @@ crm_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(crm_app, name="crm")
+
+account_move_app = typer.Typer(
+    name="account-move",
+    help="Accounting move operations",
+    no_args_is_help=True,
+)
+app.add_typer(account_move_app, name="account-move")
 
 security_app = typer.Typer(
     name="security",
@@ -2237,6 +2245,184 @@ def crm_url(
 
     with _handle_errors():
         url = client.crm.url(lead_id)
+        console.print(url)
+
+
+# Accounting move commands
+
+
+@account_move_app.command("list")
+def account_move_list(
+    search: Annotated[
+        str | None,
+        typer.Option(help="Search in name/ref/payment reference/origin"),
+    ] = None,
+    company: Annotated[str | None, typer.Option(help="Filter by company name")] = None,
+    company_id: Annotated[int | None, typer.Option(help="Filter by company ID")] = None,
+    partner: Annotated[str | None, typer.Option(help="Filter by partner name")] = None,
+    move_type: Annotated[
+        str | None,
+        typer.Option(help="Filter by move type (e.g. out_invoice, in_invoice)"),
+    ] = None,
+    state: Annotated[
+        str | None,
+        typer.Option(help="Filter by state (draft, posted, cancel)"),
+    ] = None,
+    year: Annotated[int | None, typer.Option(help="Filter by accounting year")] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of moves")] = 50,
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """List accounting moves."""
+    client = get_client()
+
+    domain = build_account_move_domain(
+        search=search,
+        company=company,
+        company_id=company_id,
+        partner=partner,
+        move_type=move_type,
+        state=state,
+        year=year,
+    )
+
+    with _handle_errors():
+        moves = client.account_moves.list(
+            domain=domain,
+            limit=limit,
+            fields=fields,
+            order="date desc, id desc",
+        )
+        display_records(moves, title="Account Moves")
+        console.print(f"\n[dim]Found {len(moves)} account moves[/dim]")
+
+
+@account_move_app.command("show")
+def account_move_show(
+    move_id: Annotated[int, typer.Argument(help="Account move ID")],
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """Show detailed account move information."""
+    client = get_client()
+
+    with _handle_errors():
+        move = client.account_moves.get(move_id, fields=fields)
+        if fields:
+            console.print(f"\n[bold cyan]Account Move #{move_id}[/bold cyan]\n")
+            for key, value in sorted(move.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+        else:
+            display_record_detail(move, record_type="Account Move")
+
+
+@account_move_app.command("attachments")
+def account_move_attachments(
+    move_id: Annotated[int, typer.Argument(help="Account move ID")],
+) -> None:
+    """List attachments for an account move."""
+    client = get_client()
+
+    with _handle_errors():
+        attachments = client.account_moves.attachments(move_id)
+        if attachments:
+            display_attachments(attachments)
+            console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
+        else:
+            console.print(f"[yellow]No attachments found for account move {move_id}[/yellow]")
+
+
+@account_move_app.command("download")
+def account_move_download(
+    attachment_id: Annotated[int, typer.Argument(help="Attachment ID")],
+    output: Annotated[
+        Path | None,
+        typer.Option(help="Output file path (defaults to attachment name)"),
+    ] = None,
+) -> None:
+    """Download a single attachment by ID."""
+    client = get_client()
+
+    with _handle_errors():
+        output_path = download_attachment(client, attachment_id, output)
+        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+
+
+@account_move_app.command("download-all")
+def account_move_download_all(
+    move_id: Annotated[int, typer.Argument(help="Account move ID")],
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Output directory (defaults to current directory)"),
+    ] = None,
+    extension: Annotated[
+        str | None,
+        typer.Option("--extension", "--ext", help="Filter by file extension (e.g., pdf, jpg, png)"),
+    ] = None,
+) -> None:
+    """Download all attachments from an account move."""
+    client = get_client()
+    with _handle_errors():
+        _download_all(
+            "account move",
+            move_id,
+            client.account_moves.attachments,
+            client.account_moves.download,
+            output_dir=output_dir,
+            extension=extension,
+        )
+
+
+@account_move_app.command("attach")
+def account_move_attach(
+    move_id: Annotated[int, typer.Argument(help="Account move ID")],
+    file_path: Annotated[Path, typer.Argument(help="Path to file to attach")],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="Custom attachment name (defaults to filename)"),
+    ] = None,
+) -> None:
+    """Attach a file to an account move."""
+    client = get_client()
+
+    with _handle_errors():
+        attachment_id = client.account_moves.attach(move_id, file_path, name=name)
+        console.print(
+            f"[green]Successfully attached {file_path.name} to account move {move_id}[/green]"
+        )
+        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+
+
+@account_move_app.command("fields")
+def account_move_fields(
+    move_id: Annotated[int | None, typer.Argument(help="Account move ID (optional)")] = None,
+    field_name: Annotated[str | None, typer.Option(help="Show specific field")] = None,
+) -> None:
+    """List available fields or show field values for an account move."""
+    client = get_client()
+    with _handle_errors():
+        _show_fields(
+            "Account Move",
+            client.account_moves.get,
+            client.account_moves.fields,
+            record_id=move_id,
+            field_name=field_name,
+        )
+
+
+@account_move_app.command("url")
+def account_move_url(
+    move_id: Annotated[int, typer.Argument(help="Account move ID")],
+) -> None:
+    """Get the web URL for an account move."""
+    client = get_client()
+
+    with _handle_errors():
+        url = client.account_moves.url(move_id)
         console.print(url)
 
 

@@ -115,7 +115,7 @@ The version is derived from git tags via `hatch-vcs` — no hardcoded version st
 | `_domain.py` | `DomainNamespace` base class — shared CRUD, messaging, tags, attachments |
 | `aio/_domain.py` | `AsyncDomainNamespace` base class — async mirror |
 | `auth.py` / `aio/auth.py` | Sudo operations, message posting as other users |
-| `helpdesk.py` / `crm.py` / `project.py` / ... | Domain namespace subclasses |
+| `helpdesk.py` / `crm.py` / `account_moves.py` / ... | Domain namespace subclasses |
 | `security.py` / `aio/security.py` | Security group creation, user management |
 
 ## Transport Protocol Details

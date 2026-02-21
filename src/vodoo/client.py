@@ -65,6 +65,7 @@ class OdooClient:
         self.crm = _make_crm(self)
         self.tasks = _make_tasks(self)
         self.projects = _make_projects(self)
+        self.account_moves = _make_account_moves(self)
         self.knowledge = _make_knowledge(self)
         self.timer = _make_timer(self)
         self.security = _make_security(self)
@@ -258,6 +259,12 @@ def _make_projects(client: OdooClient) -> Any:
     from vodoo.projects import ProjectNamespace
 
     return ProjectNamespace(client)
+
+
+def _make_account_moves(client: OdooClient) -> Any:
+    from vodoo.account_moves import AccountMoveNamespace
+
+    return AccountMoveNamespace(client)
 
 
 def _make_knowledge(client: OdooClient) -> Any:

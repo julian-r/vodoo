@@ -7,6 +7,7 @@ Community tests (project, project-task, crm, model, security) run on all version
 Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 """
 
+import asyncio
 import contextlib
 import tempfile
 from pathlib import Path
@@ -22,6 +23,107 @@ from vodoo.exceptions import (
     TransportError,
     VodooError,
 )
+
+
+async def _model_exists(async_client: AsyncOdooClient, model_name: str) -> bool:
+    models = await async_client.search_read(
+        "ir.model",
+        domain=[["model", "=", model_name]],
+        fields=["id"],
+        limit=1,
+    )
+    return bool(models)
+
+
+async def _ensure_module_installed(async_client: AsyncOdooClient, module_name: str) -> bool:
+    modules = await async_client.search_read(
+        "ir.module.module",
+        domain=[["name", "=", module_name]],
+        fields=["id", "state"],
+        limit=1,
+    )
+    if not modules:
+        return False
+
+    module = modules[0]
+    if module.get("state") == "installed":
+        return True
+
+    await async_client.execute("ir.module.module", "button_immediate_install", [module["id"]])
+
+    for _ in range(60):
+        state_rows = await async_client.search_read(
+            "ir.module.module",
+            domain=[["id", "=", module["id"]]],
+            fields=["state"],
+            limit=1,
+        )
+        state = state_rows[0].get("state") if state_rows else None
+        if state == "installed":
+            return True
+        await asyncio.sleep(1)
+
+    return False
+
+
+async def _create_account_move_for_tests(async_client: AsyncOdooClient) -> int:
+    """Create a draft account.move for async integration tests, or skip."""
+    try:
+        if not await _model_exists(async_client, "account.move"):
+            installed = await _ensure_module_installed(async_client, "account")
+            if not installed or not await _model_exists(async_client, "account.move"):
+                pytest.skip("account.move model is not available in this test database")
+
+        journals = await async_client.search_read(
+            "account.journal",
+            domain=[["type", "=", "general"]],
+            fields=["id", "default_account_id"],
+            limit=1,
+        )
+        if not journals:
+            pytest.skip("No general journal found; accounting module may not be configured")
+
+        journal = journals[0]
+        default_account = journal.get("default_account_id")
+        candidate_ids: list[int] = []
+        if isinstance(default_account, list):
+            candidate_ids.append(default_account[0])
+
+        accounts = await async_client.search_read(
+            "account.account",
+            domain=[],
+            fields=["id"],
+            limit=50,
+        )
+        candidate_ids.extend(int(a["id"]) for a in accounts)
+
+        seen: set[int] = set()
+        last_exc: Exception | None = None
+
+        for account_id in candidate_ids:
+            if account_id in seen:
+                continue
+            seen.add(account_id)
+
+            values = {
+                "move_type": "entry",
+                "journal_id": journal["id"],
+                "line_ids": [
+                    (0, 0, {"name": "Vodoo async debit", "account_id": account_id, "debit": 1.0}),
+                    (0, 0, {"name": "Vodoo async credit", "account_id": account_id, "credit": 1.0}),
+                ],
+            }
+            try:
+                return await async_client.generic.create("account.move", values)
+            except Exception as exc:  # pragma: no cover - depends on chart config
+                last_exc = exc
+                continue
+
+        detail = f": {last_exc}" if last_exc else ""
+        pytest.skip(f"Could not create account.move for tests{detail}")
+    except Exception as exc:
+        pytest.skip(f"Skipping async account.move integration tests: {exc}")
+
 
 pytestmark = pytest.mark.anyio
 
@@ -497,6 +599,53 @@ class TestAsyncCRM:
 
             with tempfile.TemporaryDirectory() as outdir:
                 downloaded = await async_client.crm.download(self.lead_id, Path(outdir))
+                assert len(downloaded) >= 1
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Accounting (account.move)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAsyncAccountMove:
+    """Test async account.move namespace and attachment workflow."""
+
+    @pytest.fixture(autouse=True)
+    async def _create_account_move(self, async_client: AsyncOdooClient) -> Any:
+        self.move_id = await _create_account_move_for_tests(async_client)
+        yield
+        with contextlib.suppress(Exception):
+            await async_client.generic.delete("account.move", self.move_id)
+
+    async def test_list_account_moves(self, async_client: AsyncOdooClient) -> None:
+        moves = await async_client.account_moves.list(domain=[["id", "=", self.move_id]])
+        assert len(moves) == 1
+        assert moves[0]["id"] == self.move_id
+
+    async def test_account_move_url(self, async_client: AsyncOdooClient) -> None:
+        url = async_client.account_moves.url(self.move_id)
+        assert str(self.move_id) in url
+
+    async def test_account_move_attachment(self, async_client: AsyncOdooClient) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(b"%PDF-async-account-move-test")
+            tmp_path = Path(f.name)
+
+        try:
+            att_id = await async_client.account_moves.attach(self.move_id, tmp_path)
+            assert att_id > 0
+
+            attachments = await async_client.account_moves.attachments(self.move_id)
+            assert any(a["id"] == att_id for a in attachments)
+
+            with tempfile.TemporaryDirectory() as outdir:
+                downloaded = await async_client.account_moves.download(
+                    self.move_id,
+                    Path(outdir),
+                    extension="pdf",
+                )
                 assert len(downloaded) >= 1
         finally:
             tmp_path.unlink(missing_ok=True)

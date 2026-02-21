@@ -12,6 +12,7 @@ Vodoo provides a Typer-based CLI with the following subcommands:
 | [`knowledge`](knowledge.md) | Knowledge article operations |
 | [`model`](model.md) | Generic model operations (create, read, update, delete) |
 | [`crm`](crm.md) | CRM lead/opportunity operations |
+| [`account-move`](account-move.md) | Accounting move operations |
 | [`security`](security.md) | Security group utilities |
 | [`timer`](timer.md) | Timer / timesheet operations (start, stop, status) |
 | [`config`](config.md) | Configuration and instance profile utilities |

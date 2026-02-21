@@ -25,6 +25,7 @@ GROUP_META: dict[str, str] = {
     "project-task": "Manage Odoo Project Tasks.",
     "project": "Manage Odoo Projects (`project.project`).",
     "crm": "Manage Odoo CRM leads and opportunities.",
+    "account-move": "Manage Odoo accounting moves (`account.move`) and attachments.",
     "knowledge": "Manage Odoo Knowledge articles (requires Odoo Enterprise).",
     "timer": "Manage timers and timesheets.",
     "model": (
