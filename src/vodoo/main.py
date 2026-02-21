@@ -1439,6 +1439,43 @@ def knowledge_list(
         console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
 
 
+@knowledge_app.command("create")
+def knowledge_create(
+    name: Annotated[str, typer.Argument(help="Article title")],
+    body: Annotated[
+        str | None,
+        typer.Option("--body", "-b", help="Article body in markdown"),
+    ] = None,
+    parent_id: Annotated[
+        int | None,
+        typer.Option("--parent", "-p", help="Parent article ID"),
+    ] = None,
+    category: Annotated[
+        str | None,
+        typer.Option("--category", "-c", help="Article category (workspace, private, shared)"),
+    ] = None,
+    icon: Annotated[
+        str | None,
+        typer.Option("--icon", help="Emoji/icon for the article (e.g. 📘)"),
+    ] = None,
+) -> None:
+    """Create a new knowledge article."""
+    client = get_client()
+
+    with _handle_errors():
+        article_id = client.knowledge.create(
+            name,
+            body=body,
+            parent_id=parent_id,
+            category=category,
+            icon=icon,
+        )
+        console.print(f"[green]Successfully created article '{name}' with ID {article_id}[/green]")
+
+        url = client.knowledge.url(article_id)
+        console.print(f"\n[cyan]View article:[/cyan] {url}")
+
+
 @knowledge_app.command("show")
 def knowledge_show(
     article_id: Annotated[int, typer.Argument(help="Article ID")],

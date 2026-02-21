@@ -927,6 +927,21 @@ class TestAsyncKnowledge:
         article = await async_client.knowledge.get(self.article_id)
         assert article["name"] == "Vodoo Async Test Article"
 
+    async def test_create_article(self, async_client: AsyncOdooClient) -> None:
+        article_id = await async_client.knowledge.create(
+            "Vodoo Async Created Article",
+            body="## Async created by Vodoo",
+            category="workspace",
+        )
+        try:
+            assert article_id > 0
+            article = await async_client.knowledge.get(article_id)
+            assert article["name"] == "Vodoo Async Created Article"
+            assert "Async created by Vodoo" in str(article.get("body", ""))
+        finally:
+            with contextlib.suppress(Exception):
+                await async_client.generic.delete("knowledge.article", article_id)
+
     async def test_article_url(self, async_client: AsyncOdooClient) -> None:
         url = await async_client.knowledge.url(self.article_id)
         assert str(self.article_id) in url
