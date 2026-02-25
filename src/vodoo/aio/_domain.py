@@ -66,8 +66,7 @@ class AsyncDomainNamespace(_NamespaceBase):
 
     async def fields(self) -> dict[str, Any]:
         """Return all field definitions for this model."""
-        result: dict[str, Any] = await self._client.execute(self._model, "fields_get")
-        return result
+        return await self._client.fields_get(self._model)
 
     # -- Messaging -----------------------------------------------------------
 

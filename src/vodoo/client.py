@@ -221,6 +221,34 @@ class OdooClient:
         """Delete records."""
         return self._transport.unlink(model, ids)
 
+    def fields_get(
+        self,
+        model: str,
+        fields: list[str] | None = None,
+        attributes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return field definitions for a model.
+
+        Args:
+            model: Odoo model name (e.g., ``'res.partner'``)
+            fields: Optional list of field names to inspect.
+                    ``None`` returns all fields.
+            attributes: Optional list of field attributes to return
+                        (e.g., ``['string', 'type', 'required']``).
+                        ``None`` returns all attributes.
+
+        Returns:
+            Dictionary mapping field names to their attribute dicts.
+        """
+        args: list[Any] = [fields or []]
+        kwargs: dict[str, Any] = {}
+        if attributes is not None:
+            kwargs["attributes"] = attributes
+        result: dict[str, Any] = self._transport.execute_kw(
+            model, "fields_get", args, kwargs or None
+        )
+        return result
+
     def name_search(
         self,
         model: str,

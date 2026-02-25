@@ -238,8 +238,7 @@ def list_fields(client: OdooClient, model: str) -> dict[str, Any]:
         Dictionary of field definitions with field names as keys
 
     """
-    result: dict[str, Any] = client.execute(model, "fields_get")
-    return result
+    return client.fields_get(model)
 
 
 def set_record_fields(
