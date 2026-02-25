@@ -93,6 +93,30 @@ class TestParseRawValue:
         with pytest.raises(FieldParsingError):
             _parse_raw_value("f", "json:{bad")
 
+    # Auto-detected JSON arrays/objects (no json: prefix required)
+
+    def test_auto_json_x2many_command(self) -> None:
+        """x2many ORM command tuples are auto-parsed (issue #41)."""
+        assert _parse_raw_value("f", "[[6,0,[95]]]") == [[6, 0, [95]]]
+
+    def test_auto_json_link_command(self) -> None:
+        assert _parse_raw_value("f", "[[4,42,0]]") == [[4, 42, 0]]
+
+    def test_auto_json_simple_list(self) -> None:
+        assert _parse_raw_value("f", "[1,2,3]") == [1, 2, 3]
+
+    def test_auto_json_object(self) -> None:
+        assert _parse_raw_value("f", '{"key": "val"}') == {"key": "val"}
+
+    def test_auto_json_invalid_falls_through(self) -> None:
+        """Brackets that aren't valid JSON stay as strings."""
+        result = _parse_raw_value("f", "[not valid json")
+        assert result == "[not valid json"
+
+    def test_auto_json_braces_invalid_falls_through(self) -> None:
+        result = _parse_raw_value("f", "{bad json}")
+        assert result == "{bad json}"
+
     def test_double_quoted_string(self) -> None:
         assert _parse_raw_value("f", '"hello"') == "hello"
 

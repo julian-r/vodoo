@@ -1814,12 +1814,19 @@ def model_create(
 ) -> None:
     """Create a new record in any model.
 
+    Values that look like JSON arrays or objects are auto-parsed.
+    You can also use the explicit json: prefix for clarity.
+
     Examples:
         vodoo model create product.template name="My Product" list_price=29.99
 
         vodoo model create res.partner name="John Doe" email=john@example.com
 
         vodoo model create project.task name="New Task" project_id=10
+
+        vodoo model create project.task name="Task" project_id=2 'depend_on_ids=[[6,0,[95]]]'
+
+        vodoo model create project.task name="Task" project_id=2 'depend_on_ids=json:[[6,0,[95]]]'
     """
     client = get_client()
 
