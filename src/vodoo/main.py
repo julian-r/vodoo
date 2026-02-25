@@ -12,6 +12,7 @@ from rich.table import Table
 from vodoo.account_moves import build_account_move_domain
 from vodoo.base import (
     configure_output,
+    detect_binary_fields,
     display_attachments,
     display_messages,
     display_record_detail,
@@ -21,6 +22,8 @@ from vodoo.base import (
     get_record,
     is_json_output,
     json_print,
+    mask_binary_fields,
+    save_binary_field,
 )
 from vodoo.client import OdooClient
 from vodoo.config import (
@@ -2000,7 +2003,7 @@ def model_create(
 
 
 @model_app.command("read")
-def model_read(
+def model_read(  # noqa: PLR0912
     model: Annotated[str, typer.Argument(help="Model name")],
     record_id: Annotated[int | None, typer.Argument(help="Record ID (optional)")] = None,
     domain: Annotated[
@@ -2012,25 +2015,84 @@ def model_read(
         typer.Option("--field", "-f", help="Fields to fetch"),
     ] = None,
     limit: Annotated[int, typer.Option(help="Maximum number of records")] = 50,
+    save_field: Annotated[
+        str | None,
+        typer.Option(
+            "--save-field",
+            help="Save a binary field to a file instead of displaying it",
+        ),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Output file path for --save-field"),
+    ] = None,
+    raw_binary: Annotated[
+        bool,
+        typer.Option(
+            "--raw-binary",
+            help="Show raw base64 for binary fields (default: summarize)",
+        ),
+    ] = False,
 ) -> None:
     """Read record(s) from any model.
 
+    Binary fields are summarized as '<binary N KB>' by default.
+    Use --raw-binary to show raw base64 or --save-field to export.
+
     Examples:
-        # Read specific record
         vodoo model read product.template 42
 
-        # Search records
         vodoo model read product.template --domain='[["list_price",">","20.00"]]'
 
-        # With specific fields
         vodoo model read res.partner --field name --field email --limit 10
+
+        vodoo model read ir.attachment 99 --field datas --save-field datas -o report.pdf
+
+        vodoo model read ir.attachment 99 --field datas --raw-binary
     """
     client = get_client()
 
     with _handle_errors():
+        # Handle --save-field: extract a binary field to a file
+        if save_field:
+            if not record_id:
+                console.print("[red]--save-field requires a record ID[/red]")
+                raise typer.Exit(1)
+            save_fields = [save_field]
+            if fields:
+                save_fields = list({save_field, *fields})
+            record = get_record(client, model, record_id, fields=save_fields)
+            data = record.get(save_field)
+            if not data or not isinstance(data, str):
+                console.print(f"[red]Field '{save_field}' is empty or not binary[/red]")
+                raise typer.Exit(1)
+            out_path = output or Path(
+                record.get("name", record.get("display_name", f"{model}_{record_id}"))
+            )
+            saved = save_binary_field(data, out_path)
+            if is_json_output():
+                json_print(
+                    {
+                        "ok": True,
+                        "id": record_id,
+                        "field": save_field,
+                        "path": str(saved),
+                    }
+                )
+            else:
+                console.print(f"[green]Saved {save_field} to {saved}[/green]")
+            return
+
+        # Detect binary fields for masking
+        binary_fields: set[str] = set()
+        if not raw_binary:
+            binary_fields = detect_binary_fields(client, model, field_names=fields)
+
         if record_id:
             # Read specific record
             record = get_record(client, model, record_id, fields=fields)
+            if not raw_binary and binary_fields:
+                mask_binary_fields([record], binary_fields)
             if is_json_output():
                 json_print(record)
             else:
@@ -2049,6 +2111,9 @@ def model_read(
                 fields=fields,
                 limit=limit,
             )
+
+            if not raw_binary and binary_fields:
+                mask_binary_fields(records, binary_fields)
 
             if is_json_output():
                 json_print(records)
