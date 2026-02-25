@@ -120,6 +120,72 @@ def json_print(data: Any) -> None:
     print(json.dumps(data, default=str, ensure_ascii=False))
 
 
+def mask_binary_fields(
+    records: list[dict[str, Any]],
+    binary_fields: set[str],
+) -> list[dict[str, Any]]:
+    """Replace binary field values with a human-readable size summary.
+
+    Binary fields in Odoo are returned as base64-encoded strings which can be
+    very large and flood terminal output.  This function replaces them with a
+    placeholder like ``<binary 14.2 KB>``.
+
+    Args:
+        records: List of record dictionaries (modified in place and returned).
+        binary_fields: Set of field names known to be binary.
+
+    Returns:
+        The same list with binary values replaced by summary strings.
+    """
+    for record in records:
+        for fname in binary_fields:
+            val = record.get(fname)
+            if isinstance(val, str) and val:
+                raw_bytes = len(val) * 3 // 4  # approximate decoded size
+                if raw_bytes < 1024:
+                    size_str = f"{raw_bytes} B"
+                elif raw_bytes < 1024 * 1024:
+                    size_str = f"{raw_bytes / 1024:.1f} KB"
+                else:
+                    size_str = f"{raw_bytes / (1024 * 1024):.1f} MB"
+                record[fname] = f"<binary {size_str}>"
+    return records
+
+
+def detect_binary_fields(
+    client: OdooClient,
+    model: str,
+    field_names: list[str] | None = None,
+) -> set[str]:
+    """Return the set of field names that are binary type.
+
+    Args:
+        client: Odoo client
+        model: Model name
+        field_names: If given, only check these fields. Otherwise check all.
+
+    Returns:
+        Set of field names with type ``binary``.
+    """
+    fields_info = client.fields_get(model, fields=field_names, attributes=["type"])
+    return {name for name, info in fields_info.items() if info.get("type") == "binary"}
+
+
+def save_binary_field(data: str, output: Path) -> Path:
+    """Decode a base64 binary field value and save to a file.
+
+    Args:
+        data: Base64-encoded string from Odoo.
+        output: Destination file path.
+
+    Returns:
+        The resolved output path.
+    """
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(base64.b64decode(data))
+    return output.resolve()
+
+
 def list_records(
     client: OdooClient,
     model: str,
