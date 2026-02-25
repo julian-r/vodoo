@@ -130,8 +130,7 @@ class DomainNamespace(_NamespaceBase):
 
     def fields(self) -> dict[str, Any]:
         """Return all field definitions for this model."""
-        result: dict[str, Any] = self._client.execute(self._model, "fields_get")
-        return result
+        return self._client.fields_get(self._model)
 
     # -- Messaging -----------------------------------------------------------
 

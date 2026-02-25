@@ -1956,6 +1956,86 @@ def model_delete(
             raise typer.Exit(1)
 
 
+@model_app.command("fields")
+def model_fields(
+    model: Annotated[str, typer.Argument(help="Model name")],
+    field_names: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to inspect"),
+    ] = None,
+    attributes: Annotated[
+        list[str] | None,
+        typer.Option("--attr", "-a", help="Field attributes to return (e.g. string, type)"),
+    ] = None,
+    field_type: Annotated[
+        str | None,
+        typer.Option("--type", "-t", help="Filter by field type (e.g. many2one, char, boolean)"),
+    ] = None,
+    required_only: Annotated[
+        bool,
+        typer.Option("--required", help="Show only required fields"),
+    ] = False,
+    search: Annotated[
+        str | None,
+        typer.Option("--search", "-s", help="Filter fields by name substring"),
+    ] = None,
+) -> None:
+    """Show field definitions for a model.
+
+    Examples:
+        vodoo model fields res.partner
+        vodoo model fields res.partner -a string -a type -a required
+        vodoo model fields res.partner --type many2one
+        vodoo model fields res.partner --required
+        vodoo model fields res.partner -f name -f email
+        vodoo model fields res.partner --search tax
+    """
+    from rich.table import Table
+
+    client = get_client()
+
+    with _handle_errors():
+        result = client.fields_get(model, fields=field_names, attributes=attributes)
+
+        # Apply filters
+        if field_type:
+            result = {k: v for k, v in result.items() if v.get("type") == field_type}
+        if required_only:
+            result = {k: v for k, v in result.items() if v.get("required")}
+        if search:
+            search_lower = search.lower()
+            result = {
+                k: v
+                for k, v in result.items()
+                if search_lower in k.lower() or search_lower in str(v.get("string", "")).lower()
+            }
+
+        if not result:
+            console.print("[yellow]No fields found matching the criteria.[/yellow]")
+            raise typer.Exit(0)
+
+        # Determine which attribute columns to show
+        cols = attributes or ["string", "type", "required", "readonly", "relation"]
+
+        table = Table(title=f"{model} — {len(result)} fields")
+        table.add_column("Field", style="cyan")
+        for col in cols:
+            table.add_column(col)
+
+        for fname in sorted(result):
+            fdef = result[fname]
+            row = [fname]
+            for col in cols:
+                val = fdef.get(col, "")
+                if isinstance(val, bool):
+                    row.append("✓" if val else "")
+                else:
+                    row.append(str(val) if val else "")
+            table.add_row(*row)
+
+        console.print(table)
+
+
 @model_app.command("call")
 def model_call(
     model: Annotated[str, typer.Argument(help="Model name")],

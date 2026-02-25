@@ -129,8 +129,7 @@ async def get_record(
 
 async def list_fields(client: AsyncOdooClient, model: str) -> dict[str, Any]:
     """Get all available fields for a model."""
-    result: dict[str, Any] = await client.execute(model, "fields_get")
-    return result
+    return await client.fields_get(model)
 
 
 async def set_record_fields(
