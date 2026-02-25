@@ -41,6 +41,7 @@ except PackageNotFoundError:
 
 from vodoo.aio.client import AsyncOdooClient
 from vodoo.client import OdooClient
+from vodoo.cmd import Cmd
 from vodoo.config import OdooConfig
 from vodoo.content import HTML, Markdown
 from vodoo.exceptions import (
@@ -63,6 +64,7 @@ __all__ = [
     "HTML",
     "AsyncOdooClient",
     "AuthenticationError",
+    "Cmd",
     "ConfigurationError",
     "FieldParsingError",
     "Markdown",
