@@ -68,13 +68,17 @@ class ProjectNamespace(_ProjectAttrs, DomainNamespace):
 
 
 def display_stages(stages: list[dict[str, Any]]) -> None:
-    """Display stages in a table or TSV format.
+    """Display stages in a table, TSV, or JSON format.
 
     Args:
         stages: List of stage dictionaries
 
     """
-    from vodoo.base import _is_simple_output
+    from vodoo.base import _is_simple_output, is_json_output, json_print
+
+    if is_json_output():
+        json_print(stages)
+        return
 
     if _is_simple_output():
         print("id\tname\tsequence\tfold")

@@ -19,6 +19,8 @@ from vodoo.base import (
     display_tags,
     download_attachment,
     get_record,
+    is_json_output,
+    json_print,
 )
 from vodoo.client import OdooClient
 from vodoo.config import (
@@ -46,27 +48,45 @@ from vodoo.security import (
 
 
 @contextmanager
-def _handle_errors() -> Any:
+def _handle_errors() -> Any:  # noqa: PLR0912
     """Catch Vodoo/Odoo exceptions and exit with a formatted error message."""
     try:
         yield
     except RecordNotFoundError as e:
-        console.print(f"[red]Not found:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "not_found"})
+        else:
+            console.print(f"[red]Not found:[/red] {e}")
         raise typer.Exit(1) from e
     except (OdooAccessError, OdooAccessDeniedError) as e:
-        console.print(f"[red]Access denied:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "access_denied"})
+        else:
+            console.print(f"[red]Access denied:[/red] {e}")
         raise typer.Exit(1) from e
     except AuthenticationError as e:
-        console.print(f"[red]Authentication failed:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "authentication"})
+        else:
+            console.print(f"[red]Authentication failed:[/red] {e}")
         raise typer.Exit(1) from e
     except TransportError as e:
-        console.print(f"[red]Server error:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "server_error"})
+        else:
+            console.print(f"[red]Server error:[/red] {e}")
         raise typer.Exit(1) from e
     except VodooError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "vodoo_error"})
+        else:
+            console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
     except Exception as e:
-        console.print(f"[red]Unexpected error:[/red] {e}")
+        if is_json_output():
+            json_print({"error": str(e), "type": "unexpected"})
+        else:
+            console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -147,7 +167,7 @@ config_app = typer.Typer(
 app.add_typer(config_app, name="config")
 
 # Global state for CLI runtime configuration
-_console_config: dict[str, bool] = {"simple": False}
+_console_config: dict[str, bool] = {"simple": False, "json": False}
 _instance_config: dict[str, str | None] = {"name": None}
 
 console = Console()
@@ -180,6 +200,10 @@ def main_callback(
         bool,
         typer.Option("--simple", help="Plain TSV output instead of rich tables"),
     ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="JSON output for programmatic consumption"),
+    ] = False,
     instance: Annotated[
         str | None,
         typer.Option("--instance", "-i", help="Instance/profile name to use"),
@@ -196,13 +220,17 @@ def main_callback(
     ] = False,
 ) -> None:
     """Global options for vodoo CLI."""
+    if simple and json_output:
+        msg = "--simple and --json are mutually exclusive"
+        raise typer.BadParameter(msg)
     _console_config["simple"] = simple
+    _console_config["json"] = json_output
     _instance_config["name"] = instance
     global console  # noqa: PLW0603
     console = get_console()
     # Synchronise the base module's output configuration so that display
     # functions use the same console / simple-output mode.
-    configure_output(console=console, simple=simple)
+    configure_output(console=console, simple=simple, json_mode=json_output)
 
 
 def get_client() -> OdooClient:
@@ -396,7 +424,7 @@ def _show_fields(  # noqa: PLR0912
             console.print("[dim]Use --field-name to see details for a specific field[/dim]")
 
 
-def _download_all(
+def _download_all(  # noqa: PLR0912
     record_type: str,
     record_id: int,
     list_attachments_fn: Callable[..., list[dict[str, Any]]],
@@ -407,24 +435,39 @@ def _download_all(
     """Shared implementation for all ``download-all`` sub-commands."""
     attachments = list_attachments_fn(record_id)
     if not attachments:
-        console.print(f"[yellow]No attachments found for {record_type} {record_id}[/yellow]")
+        if is_json_output():
+            json_print({"ok": True, "id": record_id, "files": []})
+        else:
+            console.print(f"[yellow]No attachments found for {record_type} {record_id}[/yellow]")
         return
 
     if extension:
         ext = extension.lower().lstrip(".")
         filtered = [att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")]
         if not filtered:
-            console.print(
-                f"[yellow]No {ext} attachments found for {record_type} {record_id}[/yellow]"
-            )
+            if is_json_output():
+                json_print({"ok": True, "id": record_id, "files": []})
+            else:
+                console.print(
+                    f"[yellow]No {ext} attachments found for {record_type} {record_id}[/yellow]"
+                )
             return
-        console.print(f"[cyan]Downloading {len(filtered)} .{ext} attachments...[/cyan]")
-    else:
+        if not is_json_output():
+            console.print(f"[cyan]Downloading {len(filtered)} .{ext} attachments...[/cyan]")
+    elif not is_json_output():
         console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
 
     downloaded_files = download_fn(record_id, output_dir, extension=extension)
 
-    if downloaded_files:
+    if is_json_output():
+        json_print(
+            {
+                "ok": True,
+                "id": record_id,
+                "files": [str(f) for f in downloaded_files],
+            }
+        )
+    elif downloaded_files:
         console.print(f"\n[green]Successfully downloaded {len(downloaded_files)} files:[/green]")
         for file_path in downloaded_files:
             console.print(f"  - {file_path}")
@@ -458,7 +501,8 @@ def helpdesk_list(
     with _handle_errors():
         tickets = client.helpdesk.list(domain=domain, limit=limit, fields=fields)
         display_records(tickets, title="Helpdesk Tickets")
-        console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
 
 
 @helpdesk_app.command("show")
@@ -479,7 +523,9 @@ def helpdesk_show(
     with _handle_errors():
         ticket = client.helpdesk.get(ticket_id, fields=fields)
 
-        if fields:
+        if is_json_output():
+            json_print(ticket)
+        elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Ticket #{ticket_id}[/bold cyan]\n")
             for key, value in sorted(ticket.items()):
@@ -508,7 +554,10 @@ def helpdesk_comment(
             ticket_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added comment to ticket {ticket_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": ticket_id, "action": "comment"})
+            else:
+                console.print(f"[green]Successfully added comment to ticket {ticket_id}[/green]")
         else:
             console.print(f"[red]Failed to add comment to ticket {ticket_id}[/red]")
             raise typer.Exit(1)
@@ -534,7 +583,10 @@ def helpdesk_note(
             ticket_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added note to ticket {ticket_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": ticket_id, "action": "note"})
+            else:
+                console.print(f"[green]Successfully added note to ticket {ticket_id}[/green]")
         else:
             console.print(f"[red]Failed to add note to ticket {ticket_id}[/red]")
             raise typer.Exit(1)
@@ -548,7 +600,8 @@ def helpdesk_tags() -> None:
     with _handle_errors():
         tags = client.helpdesk.tags()
         display_tags(tags)
-        console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
 @helpdesk_app.command("tag")
@@ -561,7 +614,10 @@ def helpdesk_tag(
 
     with _handle_errors():
         client.helpdesk.add_tag(ticket_id, tag_id)
-        console.print(f"[green]Successfully added tag {tag_id} to ticket {ticket_id}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "id": ticket_id, "tag_id": tag_id, "action": "tag"})
+        else:
+            console.print(f"[green]Successfully added tag {tag_id} to ticket {ticket_id}[/green]")
 
 
 @helpdesk_app.command("chatter")
@@ -581,7 +637,9 @@ def helpdesk_chatter(
 
     with _handle_errors():
         messages = client.helpdesk.messages(ticket_id, limit=limit)
-        if messages:
+        if is_json_output():
+            json_print(messages)
+        elif messages:
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for ticket {ticket_id}[/yellow]")
@@ -596,7 +654,9 @@ def helpdesk_attachments(
 
     with _handle_errors():
         attachments = client.helpdesk.attachments(ticket_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -616,7 +676,10 @@ def helpdesk_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        else:
+            console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
 
 @helpdesk_app.command("download-all")
@@ -701,9 +764,12 @@ def helpdesk_set(
             values[field] = value
         success = client.helpdesk.set(ticket_id, values)
         if success:
-            console.print(f"[green]Successfully updated ticket {ticket_id}[/green]")
-            for field, value in values.items():
-                console.print(f"  {field} = {value}")
+            if is_json_output():
+                json_print({"ok": True, "id": ticket_id, "updated": values})
+            else:
+                console.print(f"[green]Successfully updated ticket {ticket_id}[/green]")
+                for field, value in values.items():
+                    console.print(f"  {field} = {value}")
         else:
             console.print(f"[red]Failed to set fields on ticket {ticket_id}[/red]")
             raise typer.Exit(1)
@@ -723,14 +789,17 @@ def helpdesk_attach(
 
     with _handle_errors():
         attachment_id = client.helpdesk.attach(ticket_id, file_path, name=name)
-        console.print(
-            f"[green]Successfully attached {file_path.name} to ticket {ticket_id}[/green]"
-        )
-        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+        if is_json_output():
+            json_print({"ok": True, "id": ticket_id, "attachment_id": attachment_id})
+        else:
+            console.print(
+                f"[green]Successfully attached {file_path.name} to ticket {ticket_id}[/green]"
+            )
+            console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
-        # Show ticket URL for verification
-        url = client.helpdesk.url(ticket_id)
-        console.print(f"\n[cyan]View ticket:[/cyan] {url}")
+            # Show ticket URL for verification
+            url = client.helpdesk.url(ticket_id)
+            console.print(f"\n[cyan]View ticket:[/cyan] {url}")
 
 
 @helpdesk_app.command("url")
@@ -742,7 +811,10 @@ def helpdesk_url(
 
     with _handle_errors():
         url = client.helpdesk.url(ticket_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": ticket_id})
+        else:
+            console.print(url)
 
 
 # Project task commands
@@ -774,7 +846,8 @@ def project_list(
     with _handle_errors():
         tasks = client.tasks.list(domain=domain, limit=limit, fields=fields)
         display_records(tasks, title="Project Tasks")
-        console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
 
 @project_task_app.command("create")
@@ -812,11 +885,13 @@ def project_task_create(
             tag_ids=tag_id,
             parent_id=parent_id,
         )
-        console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
-
-        # Show the URL
-        url = client.tasks.url(task_id)
-        console.print(f"\n[cyan]View task:[/cyan] {url}")
+        if is_json_output():
+            json_print({"ok": True, "id": task_id, "name": name})
+        else:
+            console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
+            # Show the URL
+            url = client.tasks.url(task_id)
+            console.print(f"\n[cyan]View task:[/cyan] {url}")
 
 
 @project_task_app.command("show")
@@ -837,7 +912,9 @@ def project_show(
     with _handle_errors():
         task = client.tasks.get(task_id, fields=fields)
 
-        if fields:
+        if is_json_output():
+            json_print(task)
+        elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Task #{task_id}[/bold cyan]\n")
             for key, value in sorted(task.items()):
@@ -866,7 +943,10 @@ def project_comment(
             task_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added comment to task {task_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": task_id, "action": "comment"})
+            else:
+                console.print(f"[green]Successfully added comment to task {task_id}[/green]")
         else:
             console.print(f"[red]Failed to add comment to task {task_id}[/red]")
             raise typer.Exit(1)
@@ -890,7 +970,10 @@ def project_note(
     with _handle_errors():
         success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            console.print(f"[green]Successfully added note to task {task_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": task_id, "action": "note"})
+            else:
+                console.print(f"[green]Successfully added note to task {task_id}[/green]")
         else:
             console.print(f"[red]Failed to add note to task {task_id}[/red]")
             raise typer.Exit(1)
@@ -904,7 +987,8 @@ def project_tags() -> None:
     with _handle_errors():
         tags = client.tasks.tags()
         display_tags(tags, title="Project Tags")
-        console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
 @project_task_app.command("tag")
@@ -917,7 +1001,10 @@ def project_tag(
 
     with _handle_errors():
         client.tasks.add_tag(task_id, tag_id)
-        console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "id": task_id, "tag_id": tag_id, "action": "tag"})
+        else:
+            console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
 
 
 @project_task_app.command("tag-create")
@@ -930,7 +1017,10 @@ def project_tag_create(
 
     with _handle_errors():
         tag_id = client.tasks.create_tag(name, color=color)
-        console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "id": tag_id, "name": name})
+        else:
+            console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
 
 
 @project_task_app.command("tag-delete")
@@ -949,7 +1039,10 @@ def project_tag_delete(
     with _handle_errors():
         success = client.tasks.delete_tag(tag_id)
         if success:
-            console.print(f"[green]Successfully deleted tag {tag_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": tag_id, "action": "delete"})
+            else:
+                console.print(f"[green]Successfully deleted tag {tag_id}[/green]")
         else:
             console.print(f"[red]Failed to delete tag {tag_id}[/red]")
             raise typer.Exit(1)
@@ -972,7 +1065,9 @@ def project_chatter(
 
     with _handle_errors():
         messages = client.tasks.messages(task_id, limit=limit)
-        if messages:
+        if is_json_output():
+            json_print(messages)
+        elif messages:
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for task {task_id}[/yellow]")
@@ -987,7 +1082,9 @@ def project_attachments(
 
     with _handle_errors():
         attachments = client.tasks.attachments(task_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -1007,7 +1104,10 @@ def project_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        else:
+            console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
 
 @project_task_app.command("download-all")
@@ -1092,9 +1192,12 @@ def project_set(
             values[field] = value
         success = client.tasks.set(task_id, values)
         if success:
-            console.print(f"[green]Successfully updated task {task_id}[/green]")
-            for field, value in values.items():
-                console.print(f"  {field} = {value}")
+            if is_json_output():
+                json_print({"ok": True, "id": task_id, "updated": values})
+            else:
+                console.print(f"[green]Successfully updated task {task_id}[/green]")
+                for field, value in values.items():
+                    console.print(f"  {field} = {value}")
         else:
             console.print(f"[red]Failed to set fields on task {task_id}[/red]")
             raise typer.Exit(1)
@@ -1114,8 +1217,13 @@ def project_attach(
 
     with _handle_errors():
         attachment_id = client.tasks.attach(task_id, file_path, name=name)
-        console.print(f"[green]Successfully attached {file_path.name} to task {task_id}[/green]")
-        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+        if is_json_output():
+            json_print({"ok": True, "id": task_id, "attachment_id": attachment_id})
+        else:
+            console.print(
+                f"[green]Successfully attached {file_path.name} to task {task_id}[/green]"
+            )
+            console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show task URL for verification
         url = client.tasks.url(task_id)
@@ -1131,7 +1239,10 @@ def project_url(
 
     with _handle_errors():
         url = client.tasks.url(task_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": task_id})
+        else:
+            console.print(url)
 
 
 # Project (project.project) commands
@@ -1163,7 +1274,8 @@ def project_project_list(
     with _handle_errors():
         projects = client.projects.list(domain=domain, limit=limit, fields=fields)
         display_records(projects, title="Projects")
-        console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
 
 
 @project_project_app.command("show")
@@ -1184,7 +1296,9 @@ def project_project_show(
     with _handle_errors():
         project = client.projects.get(project_id, fields=fields)
 
-        if fields:
+        if is_json_output():
+            json_print(project)
+        elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Project #{project_id}[/bold cyan]\n")
             for key, value in sorted(project.items()):
@@ -1213,7 +1327,10 @@ def project_project_comment(
             project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added comment to project {project_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": project_id, "action": "comment"})
+            else:
+                console.print(f"[green]Successfully added comment to project {project_id}[/green]")
         else:
             console.print(f"[red]Failed to add comment to project {project_id}[/red]")
             raise typer.Exit(1)
@@ -1239,7 +1356,10 @@ def project_project_note(
             project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added note to project {project_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": project_id, "action": "note"})
+            else:
+                console.print(f"[green]Successfully added note to project {project_id}[/green]")
         else:
             console.print(f"[red]Failed to add note to project {project_id}[/red]")
             raise typer.Exit(1)
@@ -1262,7 +1382,9 @@ def project_project_chatter(
 
     with _handle_errors():
         messages = client.projects.messages(project_id, limit=limit)
-        if messages:
+        if is_json_output():
+            json_print(messages)
+        elif messages:
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for project {project_id}[/yellow]")
@@ -1277,7 +1399,9 @@ def project_project_attachments(
 
     with _handle_errors():
         attachments = client.projects.attachments(project_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -1338,9 +1462,12 @@ def project_project_set(
             values[field] = value
         success = client.projects.set(project_id, values)
         if success:
-            console.print(f"[green]Successfully updated project {project_id}[/green]")
-            for field, value in values.items():
-                console.print(f"  {field} = {value}")
+            if is_json_output():
+                json_print({"ok": True, "id": project_id, "updated": values})
+            else:
+                console.print(f"[green]Successfully updated project {project_id}[/green]")
+                for field, value in values.items():
+                    console.print(f"  {field} = {value}")
         else:
             console.print(f"[red]Failed to set fields on project {project_id}[/red]")
             raise typer.Exit(1)
@@ -1360,10 +1487,13 @@ def project_project_attach(
 
     with _handle_errors():
         attachment_id = client.projects.attach(project_id, file_path, name=name)
-        console.print(
-            f"[green]Successfully attached {file_path.name} to project {project_id}[/green]"
-        )
-        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+        if is_json_output():
+            json_print({"ok": True, "id": project_id, "attachment_id": attachment_id})
+        else:
+            console.print(
+                f"[green]Successfully attached {file_path.name} to project {project_id}[/green]"
+            )
+            console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
         # Show project URL for verification
         url = client.projects.url(project_id)
@@ -1379,7 +1509,10 @@ def project_project_url(
 
     with _handle_errors():
         url = client.projects.url(project_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": project_id})
+        else:
+            console.print(url)
 
 
 @project_project_app.command("stages")
@@ -1403,7 +1536,8 @@ def project_project_stages(
         stages = client.projects.stages(project_id=project_id)
         if stages:
             display_stages(stages)
-            console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
+            if not is_json_output():
+                console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
         elif project_id:
             console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
         else:
@@ -1436,7 +1570,8 @@ def knowledge_list(
     with _handle_errors():
         articles = client.knowledge.list(domain=domain, limit=limit)
         display_records(articles, title="Knowledge Articles")
-        console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
 
 
 @knowledge_app.command("create")
@@ -1470,10 +1605,14 @@ def knowledge_create(
             category=category,
             icon=icon,
         )
-        console.print(f"[green]Successfully created article '{name}' with ID {article_id}[/green]")
-
-        url = client.knowledge.url(article_id)
-        console.print(f"\n[cyan]View article:[/cyan] {url}")
+        if is_json_output():
+            json_print({"ok": True, "id": article_id, "name": name})
+        else:
+            console.print(
+                f"[green]Successfully created article '{name}' with ID {article_id}[/green]"
+            )
+            url = client.knowledge.url(article_id)
+            console.print(f"\n[cyan]View article:[/cyan] {url}")
 
 
 @knowledge_app.command("show")
@@ -1510,7 +1649,10 @@ def knowledge_comment(
             article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added comment to article {article_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": article_id, "action": "comment"})
+            else:
+                console.print(f"[green]Successfully added comment to article {article_id}[/green]")
         else:
             console.print(f"[red]Failed to add comment to article {article_id}[/red]")
             raise typer.Exit(1)
@@ -1535,7 +1677,10 @@ def knowledge_note(
             article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            console.print(f"[green]Successfully added note to article {article_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": article_id, "action": "note"})
+            else:
+                console.print(f"[green]Successfully added note to article {article_id}[/green]")
         else:
             console.print(f"[red]Failed to add note to article {article_id}[/red]")
             raise typer.Exit(1)
@@ -1554,7 +1699,9 @@ def knowledge_chatter(
 
     with _handle_errors():
         messages = client.knowledge.messages(article_id, limit=limit)
-        if messages:
+        if is_json_output():
+            json_print(messages)
+        elif messages:
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for article {article_id}[/yellow]")
@@ -1569,7 +1716,9 @@ def knowledge_attachments(
 
     with _handle_errors():
         attachments = client.knowledge.attachments(article_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -1585,7 +1734,10 @@ def knowledge_url(
 
     with _handle_errors():
         url = client.knowledge.url(article_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": article_id})
+        else:
+            console.print(url)
 
 
 # Security commands
@@ -1838,10 +1990,13 @@ def model_create(
             field, value = parse_field_assignment(client, model, 0, field_assignment)
             values[field] = value
         record_id = client.generic.create(model, values)
-        console.print(f"[green]Successfully created record with ID {record_id}[/green]")
-        console.print(f"Model: {model}")
-        for field, value in values.items():
-            console.print(f"  {field} = {value}")
+        if is_json_output():
+            json_print({"ok": True, "id": record_id, "model": model})
+        else:
+            console.print(f"[green]Successfully created record with ID {record_id}[/green]")
+            console.print(f"Model: {model}")
+            for field, value in values.items():
+                console.print(f"  {field} = {value}")
 
 
 @model_app.command("read")
@@ -1876,9 +2031,12 @@ def model_read(
         if record_id:
             # Read specific record
             record = get_record(client, model, record_id, fields=fields)
-            console.print(f"\n[bold cyan]Record #{record_id} from {model}[/bold cyan]\n")
-            for key, value in sorted(record.items()):
-                console.print(f"[bold]{key}:[/bold] {value}")
+            if is_json_output():
+                json_print(record)
+            else:
+                console.print(f"\n[bold cyan]Record #{record_id} from {model}[/bold cyan]\n")
+                for key, value in sorted(record.items()):
+                    console.print(f"[bold]{key}:[/bold] {value}")
         else:
             # Search records
             import json
@@ -1892,7 +2050,9 @@ def model_read(
                 limit=limit,
             )
 
-            if records:
+            if is_json_output():
+                json_print(records)
+            elif records:
                 display_records(records, title=f"{model} Records")
                 console.print(f"\n[dim]Found {len(records)} records[/dim]")
             else:
@@ -1933,10 +2093,13 @@ def model_update(
             values[field] = value
         success = client.generic.update(model, record_id, values)
         if success:
-            console.print(f"[green]Successfully updated record {record_id}[/green]")
-            console.print(f"Model: {model}")
-            for field, value in values.items():
-                console.print(f"  {field} = {value}")
+            if is_json_output():
+                json_print({"ok": True, "id": record_id, "model": model, "updated": values})
+            else:
+                console.print(f"[green]Successfully updated record {record_id}[/green]")
+                console.print(f"Model: {model}")
+                for field, value in values.items():
+                    console.print(f"  {field} = {value}")
         else:
             console.print(f"[red]Failed to update record {record_id}[/red]")
             raise typer.Exit(1)
@@ -1957,7 +2120,12 @@ def model_delete(
     with _handle_errors():
         success = client.generic.delete(model, record_id)
         if success:
-            console.print(f"[green]Successfully deleted record {record_id} from {model}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": record_id, "model": model, "action": "delete"})
+            else:
+                console.print(
+                    f"[green]Successfully deleted record {record_id} from {model}[/green]"
+                )
         else:
             console.print(f"[red]Failed to delete record {record_id}[/red]")
             raise typer.Exit(1)
@@ -2017,30 +2185,31 @@ def model_fields(
                 if search_lower in k.lower() or search_lower in str(v.get("string", "")).lower()
             }
 
-        if not result:
+        if is_json_output():
+            json_print(result)
+        elif not result:
             console.print("[yellow]No fields found matching the criteria.[/yellow]")
-            raise typer.Exit(0)
+        else:
+            # Determine which attribute columns to show
+            cols = attributes or ["string", "type", "required", "readonly", "relation"]
 
-        # Determine which attribute columns to show
-        cols = attributes or ["string", "type", "required", "readonly", "relation"]
-
-        table = Table(title=f"{model} — {len(result)} fields")
-        table.add_column("Field", style="cyan")
-        for col in cols:
-            table.add_column(col)
-
-        for fname in sorted(result):
-            fdef = result[fname]
-            row = [fname]
+            table = Table(title=f"{model} — {len(result)} fields")
+            table.add_column("Field", style="cyan")
             for col in cols:
-                val = fdef.get(col, "")
-                if isinstance(val, bool):
-                    row.append("✓" if val else "")
-                else:
-                    row.append(str(val) if val else "")
-            table.add_row(*row)
+                table.add_column(col)
 
-        console.print(table)
+            for fname in sorted(result):
+                fdef = result[fname]
+                row = [fname]
+                for col in cols:
+                    val = fdef.get(col, "")
+                    if isinstance(val, bool):
+                        row.append("✓" if val else "")
+                    else:
+                        row.append(str(val) if val else "")
+                table.add_row(*row)
+
+            console.print(table)
 
 
 @model_app.command("call")
@@ -2070,8 +2239,11 @@ def model_call(
             kwargs=kwargs,
         )
 
-        console.print("[green]Method executed successfully[/green]")
-        console.print(f"Result: {result}")
+        if is_json_output():
+            json_print(result)
+        else:
+            console.print("[green]Method executed successfully[/green]")
+            console.print(f"Result: {result}")
 
 
 # CRM commands
@@ -2126,7 +2298,8 @@ def crm_list(
     with _handle_errors():
         leads = client.crm.list(domain=domain, limit=limit, fields=fields)
         display_records(leads, title="CRM Leads")
-        console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
 
 
 @crm_app.command("show")
@@ -2146,7 +2319,9 @@ def crm_show(
 
     with _handle_errors():
         lead = client.crm.get(lead_id, fields=fields)
-        if fields:
+        if is_json_output():
+            json_print(lead)
+        elif fields:
             console.print(f"\n[bold cyan]Lead #{lead_id}[/bold cyan]\n")
             for key, value in sorted(lead.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
@@ -2171,7 +2346,10 @@ def crm_comment(
     with _handle_errors():
         success = client.crm.comment(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            console.print(f"[green]Successfully added comment to lead {lead_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": lead_id, "action": "comment"})
+            else:
+                console.print(f"[green]Successfully added comment to lead {lead_id}[/green]")
         else:
             console.print(f"[red]Failed to add comment to lead {lead_id}[/red]")
             raise typer.Exit(1)
@@ -2194,7 +2372,10 @@ def crm_note(
     with _handle_errors():
         success = client.crm.note(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            console.print(f"[green]Successfully added note to lead {lead_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": lead_id, "action": "note"})
+            else:
+                console.print(f"[green]Successfully added note to lead {lead_id}[/green]")
         else:
             raise typer.Exit(1)
 
@@ -2207,7 +2388,8 @@ def crm_tags() -> None:
     with _handle_errors():
         tags = client.crm.tags()
         display_tags(tags)
-        console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
 @crm_app.command("tag")
@@ -2220,7 +2402,10 @@ def crm_tag(
 
     with _handle_errors():
         client.crm.add_tag(lead_id, tag_id)
-        console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "id": lead_id, "tag_id": tag_id, "action": "tag"})
+        else:
+            console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
 
 
 @crm_app.command("chatter")
@@ -2234,7 +2419,9 @@ def crm_chatter(
 
     with _handle_errors():
         messages = client.crm.messages(lead_id, limit=limit)
-        if messages:
+        if is_json_output():
+            json_print(messages)
+        elif messages:
             display_messages(messages, show_html=show_html)
         else:
             console.print(f"[yellow]No messages found for lead {lead_id}[/yellow]")
@@ -2249,7 +2436,9 @@ def crm_attachments(
 
     with _handle_errors():
         attachments = client.crm.attachments(lead_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -2266,7 +2455,10 @@ def crm_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        else:
+            console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
 
 @crm_app.command("download-all")
@@ -2335,9 +2527,12 @@ def crm_set(
             values[field] = value
         success = client.crm.set(lead_id, values)
         if success:
-            console.print(f"[green]Successfully updated lead {lead_id}[/green]")
-            for field, value in values.items():
-                console.print(f"  {field} = {value}")
+            if is_json_output():
+                json_print({"ok": True, "id": lead_id, "updated": values})
+            else:
+                console.print(f"[green]Successfully updated lead {lead_id}[/green]")
+                for field, value in values.items():
+                    console.print(f"  {field} = {value}")
         else:
             console.print(f"[red]Failed to update lead {lead_id}[/red]")
             raise typer.Exit(1)
@@ -2354,10 +2549,15 @@ def crm_attach(
 
     with _handle_errors():
         attachment_id = client.crm.attach(lead_id, file_path, name=name)
-        console.print(f"[green]Successfully attached {file_path.name} to lead {lead_id}[/green]")
-        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
-        url = client.crm.url(lead_id)
-        console.print(f"\n[cyan]View lead:[/cyan] {url}")
+        if is_json_output():
+            json_print({"ok": True, "id": lead_id, "attachment_id": attachment_id})
+        else:
+            console.print(
+                f"[green]Successfully attached {file_path.name} to lead {lead_id}[/green]"
+            )
+            console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+            url = client.crm.url(lead_id)
+            console.print(f"\n[cyan]View lead:[/cyan] {url}")
 
 
 @crm_app.command("url")
@@ -2369,7 +2569,10 @@ def crm_url(
 
     with _handle_errors():
         url = client.crm.url(lead_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": lead_id})
+        else:
+            console.print(url)
 
 
 # Accounting move commands
@@ -2420,7 +2623,8 @@ def account_move_list(
             order="date desc, id desc",
         )
         display_records(moves, title="Account Moves")
-        console.print(f"\n[dim]Found {len(moves)} account moves[/dim]")
+        if not is_json_output():
+            console.print(f"\n[dim]Found {len(moves)} account moves[/dim]")
 
 
 @account_move_app.command("show")
@@ -2436,7 +2640,9 @@ def account_move_show(
 
     with _handle_errors():
         move = client.account_moves.get(move_id, fields=fields)
-        if fields:
+        if is_json_output():
+            json_print(move)
+        elif fields:
             console.print(f"\n[bold cyan]Account Move #{move_id}[/bold cyan]\n")
             for key, value in sorted(move.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
@@ -2453,7 +2659,9 @@ def account_move_attachments(
 
     with _handle_errors():
         attachments = client.account_moves.attachments(move_id)
-        if attachments:
+        if is_json_output():
+            json_print(attachments)
+        elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
         else:
@@ -2473,7 +2681,10 @@ def account_move_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        console.print(f"[green]Downloaded attachment to {output_path}[/green]")
+        if is_json_output():
+            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        else:
+            console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
 
 @account_move_app.command("download-all")
@@ -2515,10 +2726,13 @@ def account_move_attach(
 
     with _handle_errors():
         attachment_id = client.account_moves.attach(move_id, file_path, name=name)
-        console.print(
-            f"[green]Successfully attached {file_path.name} to account move {move_id}[/green]"
-        )
-        console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
+        if is_json_output():
+            json_print({"ok": True, "id": move_id, "attachment_id": attachment_id})
+        else:
+            console.print(
+                f"[green]Successfully attached {file_path.name} to account move {move_id}[/green]"
+            )
+            console.print(f"[dim]Attachment ID: {attachment_id}[/dim]")
 
 
 @account_move_app.command("fields")
@@ -2547,7 +2761,10 @@ def account_move_url(
 
     with _handle_errors():
         url = client.account_moves.url(move_id)
-        console.print(url)
+        if is_json_output():
+            json_print({"url": url, "id": move_id})
+        else:
+            console.print(url)
 
 
 # Timer commands
@@ -2560,6 +2777,11 @@ def timer_status() -> None:
 
     with _handle_errors():
         timesheets = client.timer.list()
+
+        if is_json_output():
+            json_print([ts.to_dict() for ts in timesheets])
+            return
+
         if not timesheets:
             console.print("[yellow]No timesheets found for today[/yellow]")
             return
@@ -2617,17 +2839,19 @@ def timer_start(
     with _handle_errors():
         if source == "task":
             client.timer.start_task(record_id)
-            console.print(f"[green]▶ Started timer on task {record_id}[/green]")
         elif source == "ticket":
             client.timer.start_ticket(record_id)
-            console.print(f"[green]▶ Started timer on ticket {record_id}[/green]")
         elif source == "timesheet":
             client.timer.start_timesheet(record_id)
-            console.print(f"[green]▶ Started timer on timesheet {record_id}[/green]")
         else:
             console.print(f"[red]Unknown source type: {source}[/red]")
             console.print("[dim]Use: task, ticket, or timesheet[/dim]")
             raise typer.Exit(1)
+
+        if is_json_output():
+            json_print({"ok": True, "id": record_id, "source": source, "action": "start"})
+        else:
+            console.print(f"[green]▶ Started timer on {source} {record_id}[/green]")
 
 
 @timer_app.command("stop")
@@ -2650,10 +2874,15 @@ def timer_stop(
     with _handle_errors():
         if timesheet_id is not None:
             client.timer.stop_timesheet(timesheet_id)
-            console.print(f"[green]⏹ Stopped timer on timesheet {timesheet_id}[/green]")
+            if is_json_output():
+                json_print({"ok": True, "id": timesheet_id, "action": "stop"})
+            else:
+                console.print(f"[green]⏹ Stopped timer on timesheet {timesheet_id}[/green]")
         else:
             stopped = client.timer.stop()
-            if stopped:
+            if is_json_output():
+                json_print({"ok": True, "stopped": [ts.to_dict() for ts in stopped]})
+            elif stopped:
                 console.print(f"[green]⏹ Stopped {len(stopped)} timer(s):[/green]")
                 for ts in stopped:
                     console.print(f"  - {ts.display_label} ({ts.elapsed_formatted})")
@@ -2668,6 +2897,11 @@ def timer_active() -> None:
 
     with _handle_errors():
         active = client.timer.active()
+
+        if is_json_output():
+            json_print([ts.to_dict() for ts in active])
+            return
+
         if not active:
             console.print("[yellow]No running timers[/yellow]")
             return

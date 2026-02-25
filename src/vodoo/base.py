@@ -59,9 +59,15 @@ def _decode_attachment_record(att: dict[str, Any], att_id: int) -> tuple[int, st
 
 _output_console: Console | None = None
 _output_simple: bool = False
+_output_json: bool = False
 
 
-def configure_output(*, console: Console | None = None, simple: bool = False) -> None:
+def configure_output(
+    *,
+    console: Console | None = None,
+    simple: bool = False,
+    json_mode: bool = False,
+) -> None:
     """Configure the output console and mode.
 
     Called by the CLI layer.  Library users may call this to customise
@@ -74,12 +80,14 @@ def configure_output(*, console: Console | None = None, simple: bool = False) ->
         console: Rich Console instance to use for output.
         simple: If ``True``, display functions emit plain TSV instead of
             rich tables.
+        json_mode: If ``True``, display functions emit JSON output.
 
     """
-    global _output_console, _output_simple  # noqa: PLW0603
+    global _output_console, _output_simple, _output_json  # noqa: PLW0603
     if console is not None:
         _output_console = console
     _output_simple = simple
+    _output_json = json_mode
 
 
 def _get_console() -> Console:
@@ -95,6 +103,21 @@ def _get_console() -> Console:
 def _is_simple_output() -> bool:
     """Return ``True`` when plain/TSV output is requested."""
     return _output_simple
+
+
+def is_json_output() -> bool:
+    """Return ``True`` when JSON output is requested."""
+    return _output_json
+
+
+def json_print(data: Any) -> None:
+    """Print data as JSON to stdout.
+
+    Used by display functions and CLI commands when ``--json`` is active.
+    """
+    import json
+
+    print(json.dumps(data, default=str, ensure_ascii=False))
 
 
 def list_records(
@@ -150,13 +173,17 @@ def _format_field_value(value: Any) -> str:
 
 
 def display_records(records: list[dict[str, Any]], title: str = "Records") -> None:
-    """Display records in a table or TSV format.
+    """Display records in a table, TSV, or JSON format.
 
     Args:
         records: List of record dictionaries
         title: Table title
 
     """
+    if is_json_output():
+        json_print(records)
+        return
+
     if not records:
         if _is_simple_output():
             print("No records found")
@@ -280,6 +307,10 @@ def display_record_detail(  # noqa: PLR0912
         record_type: Human-readable record type (e.g., "Ticket", "Task")
 
     """
+    if is_json_output():
+        json_print(record)
+        return
+
     if _is_simple_output():
         # Simple key: value format
         print(f"id: {record['id']}")
@@ -541,13 +572,17 @@ def list_tags(client: OdooClient, model: str) -> list[dict[str, Any]]:
 
 
 def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
-    """Display tags in a table or TSV format.
+    """Display tags in a table, TSV, or JSON format.
 
     Args:
         tags: List of tag dictionaries
         title: Table title
 
     """
+    if is_json_output():
+        json_print(tags)
+        return
+
     if _is_simple_output():
         print("id\tname\tcolor")
         for tag in tags:
@@ -668,6 +703,10 @@ def display_messages(messages: list[dict[str, Any]], show_html: bool = False) ->
         parser.feed(unescape(body))
         return parser.get_text()
 
+    if is_json_output():
+        json_print(messages)
+        return
+
     if not messages:
         print("No messages found") if _is_simple_output() else _get_console().print(
             "[yellow]No messages found[/yellow]"
@@ -749,12 +788,16 @@ def list_attachments(
 
 
 def display_attachments(attachments: list[dict[str, Any]]) -> None:
-    """Display attachments in a table or TSV format.
+    """Display attachments in a table, TSV, or JSON format.
 
     Args:
         attachments: List of attachment dictionaries
 
     """
+    if is_json_output():
+        json_print(attachments)
+        return
+
     if _is_simple_output():
         print("id\tname\tsize_kb\tmimetype\tcreate_date")
         for att in attachments:

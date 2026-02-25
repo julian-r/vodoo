@@ -92,6 +92,19 @@ class Timesheet:
         label = self.source.name if self.source.kind != "standalone" else (self.name or "Timesheet")
         return f"{self.source.icon} {label}"
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dictionary for JSON output."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "project_name": self.project_name,
+            "source": {"kind": self.source.kind, "id": self.source.id, "name": self.source.name},
+            "unit_amount": self.unit_amount,
+            "state": self.state.value,
+            "elapsed": self.elapsed_formatted,
+            "date": self.date,
+        }
+
 
 @dataclass
 class TimerHandle:
