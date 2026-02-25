@@ -48,6 +48,12 @@ def _parse_raw_value(field: str, value: str) -> Any:
         except json.JSONDecodeError as e:
             msg = f"Invalid JSON for field '{field}': {e}"
             raise FieldParsingError(msg) from e
+    elif (value.startswith("[") and value.endswith("]")) or (
+        value.startswith("{") and value.endswith("}")
+    ):
+        # Auto-detect JSON arrays/objects (e.g. x2many ORM command tuples)
+        with contextlib.suppress(json.JSONDecodeError):
+            parsed_value = json.loads(value)
     elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
         parsed_value = int(value)
     elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
