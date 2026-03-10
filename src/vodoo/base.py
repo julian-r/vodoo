@@ -60,6 +60,7 @@ def _decode_attachment_record(att: dict[str, Any], att_id: int) -> tuple[int, st
 _output_console: Console | None = None
 _output_simple: bool = False
 _output_json: bool = False
+_output_toon: bool = False
 
 
 def configure_output(
@@ -67,6 +68,7 @@ def configure_output(
     console: Console | None = None,
     simple: bool = False,
     json_mode: bool = False,
+    toon_mode: bool = False,
 ) -> None:
     """Configure the output console and mode.
 
@@ -81,13 +83,15 @@ def configure_output(
         simple: If ``True``, display functions emit plain TSV instead of
             rich tables.
         json_mode: If ``True``, display functions emit JSON output.
+        toon_mode: If ``True``, display functions emit TOON output.
 
     """
-    global _output_console, _output_simple, _output_json  # noqa: PLW0603
+    global _output_console, _output_simple, _output_json, _output_toon  # noqa: PLW0603
     if console is not None:
         _output_console = console
     _output_simple = simple
     _output_json = json_mode
+    _output_toon = toon_mode
 
 
 def _get_console() -> Console:
@@ -110,6 +114,16 @@ def is_json_output() -> bool:
     return _output_json
 
 
+def is_toon_output() -> bool:
+    """Return ``True`` when TOON output is requested."""
+    return _output_toon
+
+
+def is_structured_output() -> bool:
+    """Return ``True`` when any structured output (JSON or TOON) is requested."""
+    return _output_json or _output_toon
+
+
 def json_print(data: Any) -> None:
     """Print data as JSON to stdout.
 
@@ -118,6 +132,24 @@ def json_print(data: Any) -> None:
     import json
 
     print(json.dumps(data, default=str, ensure_ascii=False))
+
+
+def toon_print(data: Any) -> None:
+    """Print data as TOON to stdout.
+
+    Used by display functions and CLI commands when ``--toon`` is active.
+    """
+    from toon_format import encode  # type: ignore[import-not-found]
+
+    print(encode(data))
+
+
+def structured_print(data: Any) -> None:
+    """Print data in the active structured format (JSON or TOON)."""
+    if _output_toon:
+        toon_print(data)
+    else:
+        json_print(data)
 
 
 def mask_binary_fields(
@@ -246,8 +278,8 @@ def display_records(records: list[dict[str, Any]], title: str = "Records") -> No
         title: Table title
 
     """
-    if is_json_output():
-        json_print(records)
+    if is_structured_output():
+        structured_print(records)
         return
 
     if not records:
@@ -373,8 +405,8 @@ def display_record_detail(  # noqa: PLR0912
         record_type: Human-readable record type (e.g., "Ticket", "Task")
 
     """
-    if is_json_output():
-        json_print(record)
+    if is_structured_output():
+        structured_print(record)
         return
 
     if _is_simple_output():
@@ -645,8 +677,8 @@ def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
         title: Table title
 
     """
-    if is_json_output():
-        json_print(tags)
+    if is_structured_output():
+        structured_print(tags)
         return
 
     if _is_simple_output():
@@ -769,8 +801,8 @@ def display_messages(messages: list[dict[str, Any]], show_html: bool = False) ->
         parser.feed(unescape(body))
         return parser.get_text()
 
-    if is_json_output():
-        json_print(messages)
+    if is_structured_output():
+        structured_print(messages)
         return
 
     if not messages:
@@ -860,8 +892,8 @@ def display_attachments(attachments: list[dict[str, Any]]) -> None:
         attachments: List of attachment dictionaries
 
     """
-    if is_json_output():
-        json_print(attachments)
+    if is_structured_output():
+        structured_print(attachments)
         return
 
     if _is_simple_output():

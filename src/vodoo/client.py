@@ -18,6 +18,20 @@ from vodoo.transport import (
 )
 
 
+def _normalize_false(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replace ``False`` values with ``None`` in record dicts.
+
+    Odoo's legacy JSON-RPC returns ``false`` for empty Many2one / relational
+    fields.  The JSON-2 transport already normalises these to ``None``.
+    Doing it here ensures consistent behaviour regardless of transport.
+    """
+    for rec in records:
+        for key, value in rec.items():
+            if value is False:
+                rec[key] = None
+    return records
+
+
 class OdooClient:
     """Odoo client for external API access.
 
@@ -181,7 +195,7 @@ class OdooClient:
         fields: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Read records by IDs."""
-        return self._transport.read(model, ids, fields)
+        return _normalize_false(self._transport.read(model, ids, fields))
 
     def search_read(
         self,
@@ -193,7 +207,9 @@ class OdooClient:
         order: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search and read records in one call."""
-        return self._transport.search_read(model, domain, fields, limit, offset, order)
+        return _normalize_false(
+            self._transport.search_read(model, domain, fields, limit, offset, order)
+        )
 
     def create(
         self,

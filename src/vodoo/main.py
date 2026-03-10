@@ -20,10 +20,10 @@ from vodoo.base import (
     display_tags,
     download_attachment,
     get_record,
-    is_json_output,
-    json_print,
+    is_structured_output,
     mask_binary_fields,
     save_binary_field,
+    structured_print,
 )
 from vodoo.client import OdooClient
 from vodoo.config import (
@@ -56,38 +56,38 @@ def _handle_errors() -> Any:  # noqa: PLR0912
     try:
         yield
     except RecordNotFoundError as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "not_found"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "not_found"})
         else:
             console.print(f"[red]Not found:[/red] {e}")
         raise typer.Exit(1) from e
     except (OdooAccessError, OdooAccessDeniedError) as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "access_denied"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "access_denied"})
         else:
             console.print(f"[red]Access denied:[/red] {e}")
         raise typer.Exit(1) from e
     except AuthenticationError as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "authentication"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "authentication"})
         else:
             console.print(f"[red]Authentication failed:[/red] {e}")
         raise typer.Exit(1) from e
     except TransportError as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "server_error"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "server_error"})
         else:
             console.print(f"[red]Server error:[/red] {e}")
         raise typer.Exit(1) from e
     except VodooError as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "vodoo_error"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "vodoo_error"})
         else:
             console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
     except Exception as e:
-        if is_json_output():
-            json_print({"error": str(e), "type": "unexpected"})
+        if is_structured_output():
+            structured_print({"error": str(e), "type": "unexpected"})
         else:
             console.print(f"[red]Unexpected error:[/red] {e}")
         raise typer.Exit(1) from e
@@ -169,8 +169,39 @@ config_app = typer.Typer(
 )
 app.add_typer(config_app, name="config")
 
+
+def _make_sub_callback() -> Callable[..., None]:
+    """Create a subcommand callback that accepts output format flags.
+
+    This allows ``vodoo crm list --json`` in addition to ``vodoo --json crm list``.
+    """
+
+    def _callback(
+        simple: Annotated[bool, typer.Option("--simple", help="Plain TSV output")] = False,
+        json_output: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
+        toon_output: Annotated[bool, typer.Option("--toon", help="TOON output")] = False,
+    ) -> None:
+        _apply_output_config(simple, json_output, toon_output)
+
+    return _callback
+
+
+for _sub_app in (
+    helpdesk_app,
+    project_task_app,
+    project_project_app,
+    knowledge_app,
+    model_app,
+    crm_app,
+    account_move_app,
+    security_app,
+    timer_app,
+    config_app,
+):
+    _sub_app.callback(invoke_without_command=True)(_make_sub_callback())
+
 # Global state for CLI runtime configuration
-_console_config: dict[str, bool] = {"simple": False, "json": False}
+_console_config: dict[str, bool] = {"simple": False, "json": False, "toon": False}
 _instance_config: dict[str, str | None] = {"name": None}
 
 console = Console()
@@ -197,6 +228,35 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _apply_output_config(
+    simple: bool = False,
+    json_output: bool = False,
+    toon_output: bool = False,
+    instance: str | None = None,
+) -> None:
+    """Apply output configuration from either global or subcommand flags."""
+    exclusive = sum([simple, json_output, toon_output])
+    if exclusive > 1:
+        msg = "--simple, --json, and --toon are mutually exclusive"
+        raise typer.BadParameter(msg)
+    # Only override if a flag was explicitly set (avoid resetting global state
+    # when the subcommand callback fires without flags).
+    if simple or json_output or toon_output:
+        _console_config["simple"] = simple
+        _console_config["json"] = json_output
+        _console_config["toon"] = toon_output
+    if instance is not None:
+        _instance_config["name"] = instance
+    global console  # noqa: PLW0603
+    console = get_console()
+    configure_output(
+        console=console,
+        simple=_console_config["simple"],
+        json_mode=_console_config["json"],
+        toon_mode=_console_config["toon"],
+    )
+
+
 @app.callback()
 def main_callback(
     simple: Annotated[
@@ -206,6 +266,10 @@ def main_callback(
     json_output: Annotated[
         bool,
         typer.Option("--json", help="JSON output for programmatic consumption"),
+    ] = False,
+    toon_output: Annotated[
+        bool,
+        typer.Option("--toon", help="TOON output (compact token-oriented notation)"),
     ] = False,
     instance: Annotated[
         str | None,
@@ -223,17 +287,7 @@ def main_callback(
     ] = False,
 ) -> None:
     """Global options for vodoo CLI."""
-    if simple and json_output:
-        msg = "--simple and --json are mutually exclusive"
-        raise typer.BadParameter(msg)
-    _console_config["simple"] = simple
-    _console_config["json"] = json_output
-    _instance_config["name"] = instance
-    global console  # noqa: PLW0603
-    console = get_console()
-    # Synchronise the base module's output configuration so that display
-    # functions use the same console / simple-output mode.
-    configure_output(console=console, simple=simple, json_mode=json_output)
+    _apply_output_config(simple, json_output, toon_output, instance)
 
 
 def get_client() -> OdooClient:
@@ -391,6 +445,17 @@ def _show_fields(  # noqa: PLR0912
     """Shared implementation for all ``fields`` sub-commands."""
     if record_id:
         record = get_record_fn(record_id)
+
+        if is_structured_output():
+            if field_name:
+                if field_name in record:
+                    structured_print({field_name: record[field_name]})
+                else:
+                    structured_print({"error": f"Field '{field_name}' not found"})
+            else:
+                structured_print(record)
+            return
+
         console.print(f"\n[bold cyan]Fields for {record_type} #{record_id}[/bold cyan]\n")
 
         if field_name:
@@ -403,6 +468,17 @@ def _show_fields(  # noqa: PLR0912
                 console.print(f"[bold]{key}:[/bold] {value}")
     else:
         fields = list_fields_fn()
+
+        if is_structured_output():
+            if field_name:
+                if field_name in fields:
+                    structured_print({field_name: fields[field_name]})
+                else:
+                    structured_print({"error": f"Field '{field_name}' not found"})
+            else:
+                structured_print(fields)
+            return
+
         console.print(f"\n[bold cyan]Available {record_type} Fields[/bold cyan]\n")
 
         if field_name:
@@ -438,8 +514,8 @@ def _download_all(  # noqa: PLR0912
     """Shared implementation for all ``download-all`` sub-commands."""
     attachments = list_attachments_fn(record_id)
     if not attachments:
-        if is_json_output():
-            json_print({"ok": True, "id": record_id, "files": []})
+        if is_structured_output():
+            structured_print({"ok": True, "id": record_id, "files": []})
         else:
             console.print(f"[yellow]No attachments found for {record_type} {record_id}[/yellow]")
         return
@@ -448,22 +524,22 @@ def _download_all(  # noqa: PLR0912
         ext = extension.lower().lstrip(".")
         filtered = [att for att in attachments if att.get("name", "").lower().endswith(f".{ext}")]
         if not filtered:
-            if is_json_output():
-                json_print({"ok": True, "id": record_id, "files": []})
+            if is_structured_output():
+                structured_print({"ok": True, "id": record_id, "files": []})
             else:
                 console.print(
                     f"[yellow]No {ext} attachments found for {record_type} {record_id}[/yellow]"
                 )
             return
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"[cyan]Downloading {len(filtered)} .{ext} attachments...[/cyan]")
-    elif not is_json_output():
+    elif not is_structured_output():
         console.print(f"[cyan]Downloading {len(attachments)} attachments...[/cyan]")
 
     downloaded_files = download_fn(record_id, output_dir, extension=extension)
 
-    if is_json_output():
-        json_print(
+    if is_structured_output():
+        structured_print(
             {
                 "ok": True,
                 "id": record_id,
@@ -504,7 +580,7 @@ def helpdesk_list(
     with _handle_errors():
         tickets = client.helpdesk.list(domain=domain, limit=limit, fields=fields)
         display_records(tickets, title="Helpdesk Tickets")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(tickets)} tickets[/dim]")
 
 
@@ -526,8 +602,8 @@ def helpdesk_show(
     with _handle_errors():
         ticket = client.helpdesk.get(ticket_id, fields=fields)
 
-        if is_json_output():
-            json_print(ticket)
+        if is_structured_output():
+            structured_print(ticket)
         elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Ticket #{ticket_id}[/bold cyan]\n")
@@ -557,8 +633,8 @@ def helpdesk_comment(
             ticket_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": ticket_id, "action": "comment"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": ticket_id, "action": "comment"})
             else:
                 console.print(f"[green]Successfully added comment to ticket {ticket_id}[/green]")
         else:
@@ -586,8 +662,8 @@ def helpdesk_note(
             ticket_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": ticket_id, "action": "note"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": ticket_id, "action": "note"})
             else:
                 console.print(f"[green]Successfully added note to ticket {ticket_id}[/green]")
         else:
@@ -603,7 +679,7 @@ def helpdesk_tags() -> None:
     with _handle_errors():
         tags = client.helpdesk.tags()
         display_tags(tags)
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
@@ -617,8 +693,8 @@ def helpdesk_tag(
 
     with _handle_errors():
         client.helpdesk.add_tag(ticket_id, tag_id)
-        if is_json_output():
-            json_print({"ok": True, "id": ticket_id, "tag_id": tag_id, "action": "tag"})
+        if is_structured_output():
+            structured_print({"ok": True, "id": ticket_id, "tag_id": tag_id, "action": "tag"})
         else:
             console.print(f"[green]Successfully added tag {tag_id} to ticket {ticket_id}[/green]")
 
@@ -640,8 +716,8 @@ def helpdesk_chatter(
 
     with _handle_errors():
         messages = client.helpdesk.messages(ticket_id, limit=limit)
-        if is_json_output():
-            json_print(messages)
+        if is_structured_output():
+            structured_print(messages)
         elif messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -657,8 +733,8 @@ def helpdesk_attachments(
 
     with _handle_errors():
         attachments = client.helpdesk.attachments(ticket_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -679,8 +755,8 @@ def helpdesk_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        if is_json_output():
-            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        if is_structured_output():
+            structured_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
         else:
             console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
@@ -767,8 +843,8 @@ def helpdesk_set(
             values[field] = value
         success = client.helpdesk.set(ticket_id, values)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": ticket_id, "updated": values})
+            if is_structured_output():
+                structured_print({"ok": True, "id": ticket_id, "updated": values})
             else:
                 console.print(f"[green]Successfully updated ticket {ticket_id}[/green]")
                 for field, value in values.items():
@@ -792,8 +868,8 @@ def helpdesk_attach(
 
     with _handle_errors():
         attachment_id = client.helpdesk.attach(ticket_id, file_path, name=name)
-        if is_json_output():
-            json_print({"ok": True, "id": ticket_id, "attachment_id": attachment_id})
+        if is_structured_output():
+            structured_print({"ok": True, "id": ticket_id, "attachment_id": attachment_id})
         else:
             console.print(
                 f"[green]Successfully attached {file_path.name} to ticket {ticket_id}[/green]"
@@ -814,8 +890,8 @@ def helpdesk_url(
 
     with _handle_errors():
         url = client.helpdesk.url(ticket_id)
-        if is_json_output():
-            json_print({"url": url, "id": ticket_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": ticket_id})
         else:
             console.print(url)
 
@@ -849,7 +925,7 @@ def project_list(
     with _handle_errors():
         tasks = client.tasks.list(domain=domain, limit=limit, fields=fields)
         display_records(tasks, title="Project Tasks")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
 
@@ -888,8 +964,8 @@ def project_task_create(
             tag_ids=tag_id,
             parent_id=parent_id,
         )
-        if is_json_output():
-            json_print({"ok": True, "id": task_id, "name": name})
+        if is_structured_output():
+            structured_print({"ok": True, "id": task_id, "name": name})
         else:
             console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
             # Show the URL
@@ -915,8 +991,8 @@ def project_show(
     with _handle_errors():
         task = client.tasks.get(task_id, fields=fields)
 
-        if is_json_output():
-            json_print(task)
+        if is_structured_output():
+            structured_print(task)
         elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Task #{task_id}[/bold cyan]\n")
@@ -946,8 +1022,8 @@ def project_comment(
             task_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": task_id, "action": "comment"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": task_id, "action": "comment"})
             else:
                 console.print(f"[green]Successfully added comment to task {task_id}[/green]")
         else:
@@ -973,8 +1049,8 @@ def project_note(
     with _handle_errors():
         success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": task_id, "action": "note"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": task_id, "action": "note"})
             else:
                 console.print(f"[green]Successfully added note to task {task_id}[/green]")
         else:
@@ -990,7 +1066,7 @@ def project_tags() -> None:
     with _handle_errors():
         tags = client.tasks.tags()
         display_tags(tags, title="Project Tags")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
@@ -1004,8 +1080,8 @@ def project_tag(
 
     with _handle_errors():
         client.tasks.add_tag(task_id, tag_id)
-        if is_json_output():
-            json_print({"ok": True, "id": task_id, "tag_id": tag_id, "action": "tag"})
+        if is_structured_output():
+            structured_print({"ok": True, "id": task_id, "tag_id": tag_id, "action": "tag"})
         else:
             console.print(f"[green]Successfully added tag {tag_id} to task {task_id}[/green]")
 
@@ -1020,8 +1096,8 @@ def project_tag_create(
 
     with _handle_errors():
         tag_id = client.tasks.create_tag(name, color=color)
-        if is_json_output():
-            json_print({"ok": True, "id": tag_id, "name": name})
+        if is_structured_output():
+            structured_print({"ok": True, "id": tag_id, "name": name})
         else:
             console.print(f"[green]Successfully created tag '{name}' with ID {tag_id}[/green]")
 
@@ -1042,8 +1118,8 @@ def project_tag_delete(
     with _handle_errors():
         success = client.tasks.delete_tag(tag_id)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": tag_id, "action": "delete"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": tag_id, "action": "delete"})
             else:
                 console.print(f"[green]Successfully deleted tag {tag_id}[/green]")
         else:
@@ -1068,8 +1144,8 @@ def project_chatter(
 
     with _handle_errors():
         messages = client.tasks.messages(task_id, limit=limit)
-        if is_json_output():
-            json_print(messages)
+        if is_structured_output():
+            structured_print(messages)
         elif messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -1085,8 +1161,8 @@ def project_attachments(
 
     with _handle_errors():
         attachments = client.tasks.attachments(task_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1107,8 +1183,8 @@ def project_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        if is_json_output():
-            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        if is_structured_output():
+            structured_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
         else:
             console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
@@ -1195,8 +1271,8 @@ def project_set(
             values[field] = value
         success = client.tasks.set(task_id, values)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": task_id, "updated": values})
+            if is_structured_output():
+                structured_print({"ok": True, "id": task_id, "updated": values})
             else:
                 console.print(f"[green]Successfully updated task {task_id}[/green]")
                 for field, value in values.items():
@@ -1220,8 +1296,8 @@ def project_attach(
 
     with _handle_errors():
         attachment_id = client.tasks.attach(task_id, file_path, name=name)
-        if is_json_output():
-            json_print({"ok": True, "id": task_id, "attachment_id": attachment_id})
+        if is_structured_output():
+            structured_print({"ok": True, "id": task_id, "attachment_id": attachment_id})
         else:
             console.print(
                 f"[green]Successfully attached {file_path.name} to task {task_id}[/green]"
@@ -1242,8 +1318,8 @@ def project_url(
 
     with _handle_errors():
         url = client.tasks.url(task_id)
-        if is_json_output():
-            json_print({"url": url, "id": task_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": task_id})
         else:
             console.print(url)
 
@@ -1277,7 +1353,7 @@ def project_project_list(
     with _handle_errors():
         projects = client.projects.list(domain=domain, limit=limit, fields=fields)
         display_records(projects, title="Projects")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(projects)} projects[/dim]")
 
 
@@ -1299,8 +1375,8 @@ def project_project_show(
     with _handle_errors():
         project = client.projects.get(project_id, fields=fields)
 
-        if is_json_output():
-            json_print(project)
+        if is_structured_output():
+            structured_print(project)
         elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Project #{project_id}[/bold cyan]\n")
@@ -1330,8 +1406,8 @@ def project_project_comment(
             project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": project_id, "action": "comment"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": project_id, "action": "comment"})
             else:
                 console.print(f"[green]Successfully added comment to project {project_id}[/green]")
         else:
@@ -1359,8 +1435,8 @@ def project_project_note(
             project_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": project_id, "action": "note"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": project_id, "action": "note"})
             else:
                 console.print(f"[green]Successfully added note to project {project_id}[/green]")
         else:
@@ -1385,8 +1461,8 @@ def project_project_chatter(
 
     with _handle_errors():
         messages = client.projects.messages(project_id, limit=limit)
-        if is_json_output():
-            json_print(messages)
+        if is_structured_output():
+            structured_print(messages)
         elif messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -1402,8 +1478,8 @@ def project_project_attachments(
 
     with _handle_errors():
         attachments = client.projects.attachments(project_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1465,8 +1541,8 @@ def project_project_set(
             values[field] = value
         success = client.projects.set(project_id, values)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": project_id, "updated": values})
+            if is_structured_output():
+                structured_print({"ok": True, "id": project_id, "updated": values})
             else:
                 console.print(f"[green]Successfully updated project {project_id}[/green]")
                 for field, value in values.items():
@@ -1490,8 +1566,8 @@ def project_project_attach(
 
     with _handle_errors():
         attachment_id = client.projects.attach(project_id, file_path, name=name)
-        if is_json_output():
-            json_print({"ok": True, "id": project_id, "attachment_id": attachment_id})
+        if is_structured_output():
+            structured_print({"ok": True, "id": project_id, "attachment_id": attachment_id})
         else:
             console.print(
                 f"[green]Successfully attached {file_path.name} to project {project_id}[/green]"
@@ -1512,8 +1588,8 @@ def project_project_url(
 
     with _handle_errors():
         url = client.projects.url(project_id)
-        if is_json_output():
-            json_print({"url": url, "id": project_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": project_id})
         else:
             console.print(url)
 
@@ -1539,7 +1615,7 @@ def project_project_stages(
         stages = client.projects.stages(project_id=project_id)
         if stages:
             display_stages(stages)
-            if not is_json_output():
+            if not is_structured_output():
                 console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
         elif project_id:
             console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
@@ -1573,7 +1649,7 @@ def knowledge_list(
     with _handle_errors():
         articles = client.knowledge.list(domain=domain, limit=limit)
         display_records(articles, title="Knowledge Articles")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(articles)} articles[/dim]")
 
 
@@ -1608,8 +1684,8 @@ def knowledge_create(
             category=category,
             icon=icon,
         )
-        if is_json_output():
-            json_print({"ok": True, "id": article_id, "name": name})
+        if is_structured_output():
+            structured_print({"ok": True, "id": article_id, "name": name})
         else:
             console.print(
                 f"[green]Successfully created article '{name}' with ID {article_id}[/green]"
@@ -1652,8 +1728,8 @@ def knowledge_comment(
             article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": article_id, "action": "comment"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": article_id, "action": "comment"})
             else:
                 console.print(f"[green]Successfully added comment to article {article_id}[/green]")
         else:
@@ -1680,8 +1756,8 @@ def knowledge_note(
             article_id, message, user_id=author_id, markdown=not no_markdown
         )
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": article_id, "action": "note"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": article_id, "action": "note"})
             else:
                 console.print(f"[green]Successfully added note to article {article_id}[/green]")
         else:
@@ -1702,8 +1778,8 @@ def knowledge_chatter(
 
     with _handle_errors():
         messages = client.knowledge.messages(article_id, limit=limit)
-        if is_json_output():
-            json_print(messages)
+        if is_structured_output():
+            structured_print(messages)
         elif messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -1719,8 +1795,8 @@ def knowledge_attachments(
 
     with _handle_errors():
         attachments = client.knowledge.attachments(article_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -1737,8 +1813,8 @@ def knowledge_url(
 
     with _handle_errors():
         url = client.knowledge.url(article_id)
-        if is_json_output():
-            json_print({"url": url, "id": article_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": article_id})
         else:
             console.print(url)
 
@@ -1993,8 +2069,8 @@ def model_create(
             field, value = parse_field_assignment(client, model, 0, field_assignment)
             values[field] = value
         record_id = client.generic.create(model, values)
-        if is_json_output():
-            json_print({"ok": True, "id": record_id, "model": model})
+        if is_structured_output():
+            structured_print({"ok": True, "id": record_id, "model": model})
         else:
             console.print(f"[green]Successfully created record with ID {record_id}[/green]")
             console.print(f"Model: {model}")
@@ -2070,8 +2146,8 @@ def model_read(  # noqa: PLR0912
                 record.get("name", record.get("display_name", f"{model}_{record_id}"))
             )
             saved = save_binary_field(data, out_path)
-            if is_json_output():
-                json_print(
+            if is_structured_output():
+                structured_print(
                     {
                         "ok": True,
                         "id": record_id,
@@ -2093,8 +2169,8 @@ def model_read(  # noqa: PLR0912
             record = get_record(client, model, record_id, fields=fields)
             if not raw_binary and binary_fields:
                 mask_binary_fields([record], binary_fields)
-            if is_json_output():
-                json_print(record)
+            if is_structured_output():
+                structured_print(record)
             else:
                 console.print(f"\n[bold cyan]Record #{record_id} from {model}[/bold cyan]\n")
                 for key, value in sorted(record.items()):
@@ -2115,8 +2191,8 @@ def model_read(  # noqa: PLR0912
             if not raw_binary and binary_fields:
                 mask_binary_fields(records, binary_fields)
 
-            if is_json_output():
-                json_print(records)
+            if is_structured_output():
+                structured_print(records)
             elif records:
                 display_records(records, title=f"{model} Records")
                 console.print(f"\n[dim]Found {len(records)} records[/dim]")
@@ -2158,8 +2234,8 @@ def model_update(
             values[field] = value
         success = client.generic.update(model, record_id, values)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": record_id, "model": model, "updated": values})
+            if is_structured_output():
+                structured_print({"ok": True, "id": record_id, "model": model, "updated": values})
             else:
                 console.print(f"[green]Successfully updated record {record_id}[/green]")
                 console.print(f"Model: {model}")
@@ -2185,8 +2261,8 @@ def model_delete(
     with _handle_errors():
         success = client.generic.delete(model, record_id)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": record_id, "model": model, "action": "delete"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": record_id, "model": model, "action": "delete"})
             else:
                 console.print(
                     f"[green]Successfully deleted record {record_id} from {model}[/green]"
@@ -2250,8 +2326,8 @@ def model_fields(
                 if search_lower in k.lower() or search_lower in str(v.get("string", "")).lower()
             }
 
-        if is_json_output():
-            json_print(result)
+        if is_structured_output():
+            structured_print(result)
         elif not result:
             console.print("[yellow]No fields found matching the criteria.[/yellow]")
         else:
@@ -2304,8 +2380,8 @@ def model_call(
             kwargs=kwargs,
         )
 
-        if is_json_output():
-            json_print(result)
+        if is_structured_output():
+            structured_print(result)
         else:
             console.print("[green]Method executed successfully[/green]")
             console.print(f"Result: {result}")
@@ -2363,7 +2439,7 @@ def crm_list(
     with _handle_errors():
         leads = client.crm.list(domain=domain, limit=limit, fields=fields)
         display_records(leads, title="CRM Leads")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(leads)} leads/opportunities[/dim]")
 
 
@@ -2384,8 +2460,8 @@ def crm_show(
 
     with _handle_errors():
         lead = client.crm.get(lead_id, fields=fields)
-        if is_json_output():
-            json_print(lead)
+        if is_structured_output():
+            structured_print(lead)
         elif fields:
             console.print(f"\n[bold cyan]Lead #{lead_id}[/bold cyan]\n")
             for key, value in sorted(lead.items()):
@@ -2411,8 +2487,8 @@ def crm_comment(
     with _handle_errors():
         success = client.crm.comment(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": lead_id, "action": "comment"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": lead_id, "action": "comment"})
             else:
                 console.print(f"[green]Successfully added comment to lead {lead_id}[/green]")
         else:
@@ -2437,11 +2513,12 @@ def crm_note(
     with _handle_errors():
         success = client.crm.note(lead_id, message, user_id=author_id, markdown=not no_markdown)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": lead_id, "action": "note"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": lead_id, "action": "note"})
             else:
                 console.print(f"[green]Successfully added note to lead {lead_id}[/green]")
         else:
+            console.print(f"[red]Failed to add note to lead {lead_id}[/red]")
             raise typer.Exit(1)
 
 
@@ -2453,7 +2530,7 @@ def crm_tags() -> None:
     with _handle_errors():
         tags = client.crm.tags()
         display_tags(tags)
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(tags)} tags[/dim]")
 
 
@@ -2467,8 +2544,8 @@ def crm_tag(
 
     with _handle_errors():
         client.crm.add_tag(lead_id, tag_id)
-        if is_json_output():
-            json_print({"ok": True, "id": lead_id, "tag_id": tag_id, "action": "tag"})
+        if is_structured_output():
+            structured_print({"ok": True, "id": lead_id, "tag_id": tag_id, "action": "tag"})
         else:
             console.print(f"[green]Successfully added tag {tag_id} to lead {lead_id}[/green]")
 
@@ -2484,8 +2561,8 @@ def crm_chatter(
 
     with _handle_errors():
         messages = client.crm.messages(lead_id, limit=limit)
-        if is_json_output():
-            json_print(messages)
+        if is_structured_output():
+            structured_print(messages)
         elif messages:
             display_messages(messages, show_html=show_html)
         else:
@@ -2501,8 +2578,8 @@ def crm_attachments(
 
     with _handle_errors():
         attachments = client.crm.attachments(lead_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -2520,8 +2597,8 @@ def crm_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        if is_json_output():
-            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        if is_structured_output():
+            structured_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
         else:
             console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
@@ -2592,8 +2669,8 @@ def crm_set(
             values[field] = value
         success = client.crm.set(lead_id, values)
         if success:
-            if is_json_output():
-                json_print({"ok": True, "id": lead_id, "updated": values})
+            if is_structured_output():
+                structured_print({"ok": True, "id": lead_id, "updated": values})
             else:
                 console.print(f"[green]Successfully updated lead {lead_id}[/green]")
                 for field, value in values.items():
@@ -2614,8 +2691,8 @@ def crm_attach(
 
     with _handle_errors():
         attachment_id = client.crm.attach(lead_id, file_path, name=name)
-        if is_json_output():
-            json_print({"ok": True, "id": lead_id, "attachment_id": attachment_id})
+        if is_structured_output():
+            structured_print({"ok": True, "id": lead_id, "attachment_id": attachment_id})
         else:
             console.print(
                 f"[green]Successfully attached {file_path.name} to lead {lead_id}[/green]"
@@ -2634,13 +2711,107 @@ def crm_url(
 
     with _handle_errors():
         url = client.crm.url(lead_id)
-        if is_json_output():
-            json_print({"url": url, "id": lead_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": lead_id})
         else:
             console.print(url)
 
 
+@crm_app.command("create")
+def crm_create(
+    name: Annotated[str, typer.Argument(help="Lead/opportunity name")],
+    partner_id: Annotated[
+        int | None, typer.Option("--partner", "-p", help="Customer partner ID")
+    ] = None,
+    revenue: Annotated[
+        float | None, typer.Option("--revenue", "-r", help="Expected revenue")
+    ] = None,
+    stage_id: Annotated[int | None, typer.Option("--stage", help="Pipeline stage ID")] = None,
+    user_id: Annotated[int | None, typer.Option("--user", "-u", help="Salesperson user ID")] = None,
+    team_id: Annotated[int | None, typer.Option("--team", help="Sales team ID")] = None,
+    tag_id: Annotated[
+        list[int] | None, typer.Option("--tag", "-t", help="Tag ID (can repeat)")
+    ] = None,
+    lead_type: Annotated[
+        str, typer.Option("--type", help="Type: 'lead' or 'opportunity'")
+    ] = "opportunity",
+) -> None:
+    """Create a new CRM lead or opportunity.
+
+    Examples:
+        vodoo crm create "New deal" --revenue 5000
+        vodoo crm create "Prospect" --type lead --partner 42
+        vodoo crm create "Big deal" -r 50000 --stage 3 --user 5 --tag 1 --tag 2
+    """
+    client = get_client()
+
+    with _handle_errors():
+        lead_id = client.crm.create(
+            name=name,
+            partner_id=partner_id,
+            expected_revenue=revenue,
+            stage_id=stage_id,
+            user_id=user_id,
+            team_id=team_id,
+            tag_ids=tag_id,
+            lead_type=lead_type,
+        )
+        if is_structured_output():
+            structured_print({"ok": True, "id": lead_id, "name": name})
+        else:
+            console.print(
+                f"[green]Successfully created {lead_type} '{name}' with ID {lead_id}[/green]"
+            )
+            url = client.crm.url(lead_id)
+            console.print(f"\n[cyan]View {lead_type}:[/cyan] {url}")
+
+
+@crm_app.command("stages")
+def crm_stages(
+    team_id: Annotated[int | None, typer.Option("--team", help="Filter by sales team ID")] = None,
+) -> None:
+    """List CRM pipeline stages."""
+    client = get_client()
+
+    with _handle_errors():
+        stages = client.crm.stages(team_id=team_id)
+        from vodoo.crm import display_crm_stages
+
+        display_crm_stages(stages)
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(stages)} stages[/dim]")
+
+
 # Accounting move commands
+
+
+@crm_app.command("pipeline")
+def crm_pipeline(
+    team: Annotated[str | None, typer.Option("--team", help="Filter by sales team name")] = None,
+    user: Annotated[str | None, typer.Option("--user", help="Filter by salesperson name")] = None,
+    health: Annotated[
+        bool, typer.Option("--health", help="Show health flags (stale, missing data)")
+    ] = False,
+    deals: Annotated[
+        bool, typer.Option("--deals", help="Expand individual deals under each stage")
+    ] = False,
+) -> None:
+    """Show pipeline summary with stage counts, revenue, and weighted totals.
+
+    Examples:
+        vodoo crm pipeline
+        vodoo crm pipeline --team "Sales"
+        vodoo crm pipeline --health --deals
+        vodoo --json crm pipeline
+    """
+    client = get_client()
+
+    with _handle_errors():
+        from vodoo.crm import compute_health_flags, display_pipeline
+
+        summary = client.crm.pipeline(team=team, user=user)
+        flags = compute_health_flags(summary) if health else None
+        display_pipeline(summary, show_deals=deals, show_health=health, health_flags=flags)
 
 
 @account_move_app.command("list")
@@ -2688,7 +2859,7 @@ def account_move_list(
             order="date desc, id desc",
         )
         display_records(moves, title="Account Moves")
-        if not is_json_output():
+        if not is_structured_output():
             console.print(f"\n[dim]Found {len(moves)} account moves[/dim]")
 
 
@@ -2705,8 +2876,8 @@ def account_move_show(
 
     with _handle_errors():
         move = client.account_moves.get(move_id, fields=fields)
-        if is_json_output():
-            json_print(move)
+        if is_structured_output():
+            structured_print(move)
         elif fields:
             console.print(f"\n[bold cyan]Account Move #{move_id}[/bold cyan]\n")
             for key, value in sorted(move.items()):
@@ -2724,8 +2895,8 @@ def account_move_attachments(
 
     with _handle_errors():
         attachments = client.account_moves.attachments(move_id)
-        if is_json_output():
-            json_print(attachments)
+        if is_structured_output():
+            structured_print(attachments)
         elif attachments:
             display_attachments(attachments)
             console.print(f"\n[dim]Found {len(attachments)} attachments[/dim]")
@@ -2746,8 +2917,8 @@ def account_move_download(
 
     with _handle_errors():
         output_path = download_attachment(client, attachment_id, output)
-        if is_json_output():
-            json_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
+        if is_structured_output():
+            structured_print({"ok": True, "attachment_id": attachment_id, "path": str(output_path)})
         else:
             console.print(f"[green]Downloaded attachment to {output_path}[/green]")
 
@@ -2791,8 +2962,8 @@ def account_move_attach(
 
     with _handle_errors():
         attachment_id = client.account_moves.attach(move_id, file_path, name=name)
-        if is_json_output():
-            json_print({"ok": True, "id": move_id, "attachment_id": attachment_id})
+        if is_structured_output():
+            structured_print({"ok": True, "id": move_id, "attachment_id": attachment_id})
         else:
             console.print(
                 f"[green]Successfully attached {file_path.name} to account move {move_id}[/green]"
@@ -2826,8 +2997,8 @@ def account_move_url(
 
     with _handle_errors():
         url = client.account_moves.url(move_id)
-        if is_json_output():
-            json_print({"url": url, "id": move_id})
+        if is_structured_output():
+            structured_print({"url": url, "id": move_id})
         else:
             console.print(url)
 
@@ -2843,8 +3014,8 @@ def timer_status() -> None:
     with _handle_errors():
         timesheets = client.timer.list()
 
-        if is_json_output():
-            json_print([ts.to_dict() for ts in timesheets])
+        if is_structured_output():
+            structured_print([ts.to_dict() for ts in timesheets])
             return
 
         if not timesheets:
@@ -2913,8 +3084,8 @@ def timer_start(
             console.print("[dim]Use: task, ticket, or timesheet[/dim]")
             raise typer.Exit(1)
 
-        if is_json_output():
-            json_print({"ok": True, "id": record_id, "source": source, "action": "start"})
+        if is_structured_output():
+            structured_print({"ok": True, "id": record_id, "source": source, "action": "start"})
         else:
             console.print(f"[green]▶ Started timer on {source} {record_id}[/green]")
 
@@ -2939,14 +3110,14 @@ def timer_stop(
     with _handle_errors():
         if timesheet_id is not None:
             client.timer.stop_timesheet(timesheet_id)
-            if is_json_output():
-                json_print({"ok": True, "id": timesheet_id, "action": "stop"})
+            if is_structured_output():
+                structured_print({"ok": True, "id": timesheet_id, "action": "stop"})
             else:
                 console.print(f"[green]⏹ Stopped timer on timesheet {timesheet_id}[/green]")
         else:
             stopped = client.timer.stop()
-            if is_json_output():
-                json_print({"ok": True, "stopped": [ts.to_dict() for ts in stopped]})
+            if is_structured_output():
+                structured_print({"ok": True, "stopped": [ts.to_dict() for ts in stopped]})
             elif stopped:
                 console.print(f"[green]⏹ Stopped {len(stopped)} timer(s):[/green]")
                 for ts in stopped:
@@ -2963,8 +3134,8 @@ def timer_active() -> None:
     with _handle_errors():
         active = client.timer.active()
 
-        if is_json_output():
-            json_print([ts.to_dict() for ts in active])
+        if is_structured_output():
+            structured_print([ts.to_dict() for ts in active])
             return
 
         if not active:

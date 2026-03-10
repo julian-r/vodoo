@@ -7,8 +7,8 @@ from vodoo.base import (
     _get_console,
     _html_to_markdown,
     _is_simple_output,
-    is_json_output,
-    json_print,
+    is_structured_output,
+    structured_print,
 )
 from vodoo.content import Markdown
 
@@ -106,8 +106,8 @@ class KnowledgeNamespace(_KnowledgeAttrs, DomainNamespace):
 
 def display_article_detail(article: dict[str, Any], show_html: bool = False) -> None:
     """Display detailed knowledge article information with body content."""
-    if is_json_output():
-        json_print(article)
+    if is_structured_output():
+        structured_print(article)
         return
 
     if _is_simple_output():

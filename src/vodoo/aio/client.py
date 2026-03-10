@@ -11,6 +11,7 @@ from vodoo.aio.transport import (
     AsyncLegacyTransport,
     AsyncOdooTransport,
 )
+from vodoo.client import _normalize_false
 from vodoo.config import OdooConfig
 from vodoo.content import process_values
 from vodoo.exceptions import VodooError
@@ -196,7 +197,7 @@ class AsyncOdooClient:
     ) -> list[dict[str, Any]]:
         """Read records by IDs."""
         transport = await self._ensure_transport()
-        return await transport.read(model, ids, fields)
+        return _normalize_false(await transport.read(model, ids, fields))
 
     async def search_read(
         self,
@@ -209,7 +210,9 @@ class AsyncOdooClient:
     ) -> list[dict[str, Any]]:
         """Search and read records in one call."""
         transport = await self._ensure_transport()
-        return await transport.search_read(model, domain, fields, limit, offset, order)
+        return _normalize_false(
+            await transport.search_read(model, domain, fields, limit, offset, order)
+        )
 
     async def create(
         self,
