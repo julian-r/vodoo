@@ -139,7 +139,7 @@ def toon_print(data: Any) -> None:
 
     Used by display functions and CLI commands when ``--toon`` is active.
     """
-    from toon_format import encode  # type: ignore[import-not-found]
+    from toon_format import encode
 
     print(encode(data))
 

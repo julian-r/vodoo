@@ -60,6 +60,7 @@ class OdooClient:
         self.username = config.username
         self.password = config.password
         self._retry = config.retry_config
+        self._extra_headers = config.http_headers
 
         if transport is not None:
             self._transport = transport
@@ -72,6 +73,7 @@ class OdooClient:
                 username=self.username,
                 password=self.password,
                 retry=self._retry,
+                extra_headers=self._extra_headers,
             )
 
         # Domain namespaces
@@ -103,6 +105,7 @@ class OdooClient:
             username=self.username,
             password=self.password,
             retry=self._retry,
+            extra_headers=self._extra_headers,
         )
         try:
             json2.authenticate()
@@ -115,6 +118,7 @@ class OdooClient:
                 username=self.username,
                 password=self.password,
                 retry=self._retry,
+                extra_headers=self._extra_headers,
             )
 
     def close(self) -> None:

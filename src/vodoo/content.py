@@ -31,9 +31,9 @@ class HTML(str):
 
 def _markdown_to_html(text: str) -> str:
     """Convert markdown text to HTML."""
-    import markdown as md  # type: ignore[import-untyped]
+    import markdown as md
 
-    return md.markdown(  # type: ignore[no-any-return]
+    return md.markdown(
         text,
         extensions=["extra", "nl2br", "sane_lists"],
     )

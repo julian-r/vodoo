@@ -52,6 +52,7 @@ class AsyncOdooClient:
         self.username = config.username
         self.password = config.password
         self._retry = config.retry_config
+        self._extra_headers = config.http_headers
 
         self._transport: AsyncOdooTransport | None = transport
         self._auto_detect = auto_detect
@@ -85,6 +86,7 @@ class AsyncOdooClient:
                     username=self.username,
                     password=self.password,
                     retry=self._retry,
+                    extra_headers=self._extra_headers,
                 )
             return self._transport
 
@@ -112,6 +114,7 @@ class AsyncOdooClient:
             username=self.username,
             password=self.password,
             retry=self._retry,
+            extra_headers=self._extra_headers,
         )
         try:
             await json2.authenticate()
@@ -124,6 +127,7 @@ class AsyncOdooClient:
                 username=self.username,
                 password=self.password,
                 retry=self._retry,
+                extra_headers=self._extra_headers,
             )
 
     async def close(self) -> None:
