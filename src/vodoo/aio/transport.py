@@ -40,6 +40,7 @@ class AsyncOdooTransport(ABC):
         *,
         timeout: int = 30,
         retry: RetryConfig | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.database = database.strip()
@@ -48,7 +49,8 @@ class AsyncOdooTransport(ABC):
         self.timeout = timeout
         self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
-        self._http = httpx.AsyncClient(timeout=timeout)
+        self._extra_headers = extra_headers or {}
+        self._http = httpx.AsyncClient(timeout=timeout, headers=self._extra_headers)
 
     async def get_uid(self) -> int:
         """Get authenticated user ID, authenticating if needed."""

@@ -74,10 +74,10 @@ def display_stages(stages: list[dict[str, Any]]) -> None:
         stages: List of stage dictionaries
 
     """
-    from vodoo.base import _is_simple_output, is_json_output, json_print
+    from vodoo.base import _is_simple_output, is_structured_output, structured_print
 
-    if is_json_output():
-        json_print(stages)
+    if is_structured_output():
+        structured_print(stages)
         return
 
     if _is_simple_output():

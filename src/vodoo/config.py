@@ -239,6 +239,10 @@ class OdooConfig(BaseSettings):
         DEFAULT_RETRY.backoff_max,
         description="Maximum backoff delay in seconds",
     )
+    http_headers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Extra HTTP headers sent with every request (JSON object)",
+    )
 
     @model_validator(mode="before")
     @classmethod

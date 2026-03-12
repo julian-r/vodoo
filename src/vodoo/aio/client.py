@@ -11,6 +11,7 @@ from vodoo.aio.transport import (
     AsyncLegacyTransport,
     AsyncOdooTransport,
 )
+from vodoo.client import _normalize_false
 from vodoo.config import OdooConfig
 from vodoo.content import process_values
 from vodoo.exceptions import VodooError
@@ -51,6 +52,7 @@ class AsyncOdooClient:
         self.username = config.username
         self.password = config.password
         self._retry = config.retry_config
+        self._extra_headers = config.http_headers
 
         self._transport: AsyncOdooTransport | None = transport
         self._auto_detect = auto_detect
@@ -84,6 +86,7 @@ class AsyncOdooClient:
                     username=self.username,
                     password=self.password,
                     retry=self._retry,
+                    extra_headers=self._extra_headers,
                 )
             return self._transport
 
@@ -111,6 +114,7 @@ class AsyncOdooClient:
             username=self.username,
             password=self.password,
             retry=self._retry,
+            extra_headers=self._extra_headers,
         )
         try:
             await json2.authenticate()
@@ -123,6 +127,7 @@ class AsyncOdooClient:
                 username=self.username,
                 password=self.password,
                 retry=self._retry,
+                extra_headers=self._extra_headers,
             )
 
     async def close(self) -> None:
@@ -196,7 +201,7 @@ class AsyncOdooClient:
     ) -> list[dict[str, Any]]:
         """Read records by IDs."""
         transport = await self._ensure_transport()
-        return await transport.read(model, ids, fields)
+        return _normalize_false(await transport.read(model, ids, fields))
 
     async def search_read(
         self,
@@ -209,7 +214,9 @@ class AsyncOdooClient:
     ) -> list[dict[str, Any]]:
         """Search and read records in one call."""
         transport = await self._ensure_transport()
-        return await transport.search_read(model, domain, fields, limit, offset, order)
+        return _normalize_false(
+            await transport.search_read(model, domain, fields, limit, offset, order)
+        )
 
     async def create(
         self,

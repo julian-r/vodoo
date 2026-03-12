@@ -69,6 +69,7 @@ class OdooTransport(ABC):
         *,
         timeout: int = 30,
         retry: RetryConfig | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.database = database.strip()
@@ -77,7 +78,8 @@ class OdooTransport(ABC):
         self.timeout = timeout
         self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
-        self._http = httpx.Client(timeout=timeout)
+        self._extra_headers = extra_headers or {}
+        self._http = httpx.Client(timeout=timeout, headers=self._extra_headers)
 
     @property
     def uid(self) -> int:

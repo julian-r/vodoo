@@ -549,6 +549,73 @@ class TestCRM:
         finally:
             client.generic.delete("crm.tag", tag_id)
 
+    def test_create_lead(self, client: OdooClient) -> None:
+        lead_id = client.crm.create(
+            "Created via vodoo",
+            expected_revenue=10_000,
+            lead_type="opportunity",
+        )
+        try:
+            assert lead_id > 0
+            lead = client.crm.get(lead_id)
+            assert lead["name"] == "Created via vodoo"
+            assert lead["expected_revenue"] == 10_000
+            assert lead["type"] == "opportunity"
+        finally:
+            with contextlib.suppress(Exception):
+                client.generic.delete("crm.lead", lead_id)
+
+    def test_create_lead_with_tags(self, client: OdooClient) -> None:
+        tag_id = client.generic.create("crm.tag", {"name": "vodoo-create-tag"})
+        try:
+            lead_id = client.crm.create("Tagged lead", tag_ids=[tag_id])
+            try:
+                lead = client.crm.get(lead_id, fields=["tag_ids"])
+                assert tag_id in lead.get("tag_ids", [])
+            finally:
+                with contextlib.suppress(Exception):
+                    client.generic.delete("crm.lead", lead_id)
+        finally:
+            with contextlib.suppress(Exception):
+                client.generic.delete("crm.tag", tag_id)
+
+    def test_stages(self, client: OdooClient) -> None:
+        stages = client.crm.stages()
+        assert len(stages) > 0
+        assert "id" in stages[0]
+        assert "name" in stages[0]
+        assert "sequence" in stages[0]
+
+    def test_empty_relations_are_none(self, client: OdooClient) -> None:
+        """Empty Many2one fields should be None, not False."""
+        # Create a lead without a partner to get an empty partner_id
+        lead_id = client.crm.create("No-partner lead")
+        try:
+            lead = client.crm.get(lead_id, fields=["partner_id"])
+            # Should be None (not False) after normalization
+            assert lead["partner_id"] is None
+        finally:
+            with contextlib.suppress(Exception):
+                client.generic.delete("crm.lead", lead_id)
+
+    def test_pipeline(self, client: OdooClient) -> None:
+        summary = client.crm.pipeline()
+        assert "stages" in summary
+        assert "totals" in summary
+        assert "deals" in summary
+        assert summary["totals"]["deals"] >= 1  # at least the fixture lead
+
+    def test_pipeline_health(self, client: OdooClient) -> None:
+        from vodoo.crm import compute_health_flags
+
+        summary = client.crm.pipeline()
+        flags = compute_health_flags(summary)
+        assert isinstance(flags, list)
+        # Fixture lead has no partner and no salesperson — expect flags
+        for f in flags:
+            assert "severity" in f
+            assert "rule" in f
+
     def test_download_all_attachments(self, client: OdooClient) -> None:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(b"%PDF-fake-content")
