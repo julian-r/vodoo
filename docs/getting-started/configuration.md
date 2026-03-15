@@ -63,6 +63,14 @@ vodoo config test --instance staging
 | `ODOO_RETRY_COUNT` | Maximum retries for transient errors | `2` |
 | `ODOO_RETRY_BACKOFF` | Base backoff delay in seconds (exponential) | `0.5` |
 | `ODOO_RETRY_MAX_BACKOFF` | Maximum backoff delay in seconds | `30.0` |
+| `ODOO_HTTP_HEADERS` | Extra HTTP headers as JSON object (e.g. for reverse proxies) | `{}` |
+| `ODOO_HTTP_HEADERS_CMD` | Command that derives HTTP headers | `None` |
+| `ODOO_HTTP_HEADERS_CMD_OUTPUT` | Command stdout format (`json` or `token`) | `json` |
+| `ODOO_HTTP_HEADERS_CMD_HEADER` | Header name used when output mode is `token` | `None` |
+| `ODOO_HTTP_HEADERS_CMD_TIMEOUT` | Timeout in seconds for `ODOO_HTTP_HEADERS_CMD` | `120` |
+| `ODOO_HTTP_HEADERS_CACHE_BACKEND` | Cache backend for command headers (`keyring` or `none`) | `keyring` |
+| `ODOO_HTTP_HEADERS_CACHE_KEY` | Optional cache key override for command headers | auto |
+| `ODOO_HTTP_HEADERS_CACHE_TTL` | Fallback cache TTL in seconds when no expiry is returned | `300` |
 
 ## Example Config Files
 
@@ -124,6 +132,109 @@ Requirements:
 - You must be signed in (`op signin`)
 
 If `ODOO_PASSWORD_REF` is set, it takes precedence over `ODOO_PASSWORD`.
+
+## Custom HTTP Headers
+
+If your Odoo instance is behind a reverse proxy that requires additional headers (e.g. Cloudflare Zero Trust), set `ODOO_HTTP_HEADERS` to a JSON object. These headers are sent with every request.
+
+```bash
+ODOO_HTTP_HEADERS='{"CF-Access-Client-Id": "your-client-id.access", "CF-Access-Client-Secret": "your-client-secret"}'
+```
+
+For short-lived tokens, you can also use `ODOO_HTTP_HEADERS_CMD`.
+The command is executed directly (without a shell) and must print JSON to stdout
+in one of these formats:
+
+```json
+{"Header-Name": "value"}
+```
+
+or:
+
+```json
+{
+  "headers": {"Header-Name": "value"},
+  "expires_at": "2026-03-15T12:34:56Z"
+}
+```
+
+You can also return `expires_in` (seconds) instead of `expires_at`.
+
+By default, command-derived headers are cached in your OS keychain/keyring
+(`ODOO_HTTP_HEADERS_CACHE_BACKEND=keyring`). This requires the Python `keyring` package.
+Set `ODOO_HTTP_HEADERS_CACHE_BACKEND=none` to disable caching.
+
+Vodoo automatically provides `ODOO_URL`, `ODOO_DATABASE`, and `ODOO_USERNAME`
+to the command environment. You can also reference these as placeholders in the
+command string (for example `{ODOO_URL}`).
+
+### Cloudflare Zero Trust (recommended)
+
+Use Cloudflare's short-lived user token flow with token output mode:
+
+```bash
+ODOO_HTTP_HEADERS_CMD='cloudflared access token -app={ODOO_URL}'
+ODOO_HTTP_HEADERS_CMD_OUTPUT=token
+ODOO_HTTP_HEADERS_CMD_HEADER=CF-Access-Token
+ODOO_HTTP_HEADERS_CMD_TIMEOUT=120
+```
+
+First-time login (once per app/session):
+
+```bash
+cloudflared access login https://odoo.example.com
+```
+
+Optional auto-bootstrap (tries token, falls back to interactive login, retries token):
+
+```bash
+ODOO_HTTP_HEADERS_CMD='sh -lc "cloudflared access token -app={ODOO_URL} || (cloudflared access login {ODOO_URL} >/dev/null && cloudflared access token -app={ODOO_URL})"'
+ODOO_HTTP_HEADERS_CMD_OUTPUT=token
+ODOO_HTTP_HEADERS_CMD_HEADER=CF-Access-Token
+ODOO_HTTP_HEADERS_CMD_TIMEOUT=120
+```
+
+Common pitfall: `ODOO_HTTP_HEADERS_CMD` is the command, while
+`ODOO_HTTP_HEADERS_CMD_HEADER` must only be the header name (for example `CF-Access-Token`).
+
+Example instance profile (`~/.config/vodoo/instances/makespan.env`):
+
+```bash
+ODOO_URL=https://odoo.makespan.com
+ODOO_DATABASE=odoo_prod
+ODOO_USERNAME=you@example.com
+ODOO_PASSWORD=your-odoo-api-key
+ODOO_HTTP_HEADERS_CMD='cloudflared access token -app={ODOO_URL}'
+ODOO_HTTP_HEADERS_CMD_OUTPUT=token
+ODOO_HTTP_HEADERS_CMD_HEADER=CF-Access-Token
+ODOO_HTTP_HEADERS_CMD_TIMEOUT=120
+ODOO_HTTP_HEADERS_CACHE_BACKEND=keyring
+ODOO_HTTP_HEADERS_CACHE_TTL=300
+```
+
+If both `ODOO_HTTP_HEADERS_CMD` and `ODOO_HTTP_HEADERS` are set, explicit
+`ODOO_HTTP_HEADERS` values win on key conflicts.
+
+This is provider-agnostic and works with any proxy or middleware that expects custom headers.
+
+### Troubleshooting Cloudflare Access
+
+If you see a `302 Found` redirect to `*.cloudflareaccess.com/cdn-cgi/access/login/...`,
+Vodoo reached Cloudflare without a valid Access token.
+
+Checklist:
+
+1. Ensure command variables are correct:
+   - `ODOO_HTTP_HEADERS_CMD` contains the command
+   - `ODOO_HTTP_HEADERS_CMD_OUTPUT=token`
+   - `ODOO_HTTP_HEADERS_CMD_HEADER=CF-Access-Token`
+2. Run one-time login:
+   - `cloudflared access login https://your-odoo-host`
+3. Verify token command manually:
+   - `cloudflared access token -app=https://your-odoo-host`
+4. Increase timeout for interactive flows:
+   - `ODOO_HTTP_HEADERS_CMD_TIMEOUT=120` (or higher)
+5. If needed, use auto-bootstrap fallback command shown above.
 
 ## Programmatic Configuration
 

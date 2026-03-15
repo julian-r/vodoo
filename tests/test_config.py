@@ -17,6 +17,14 @@ _REQUIRED_ENV_KEYS = [
     "ODOO_USERNAME",
     "ODOO_PASSWORD",
     "ODOO_PASSWORD_REF",
+    "ODOO_HTTP_HEADERS",
+    "ODOO_HTTP_HEADERS_CMD",
+    "ODOO_HTTP_HEADERS_CMD_TIMEOUT",
+    "ODOO_HTTP_HEADERS_CMD_OUTPUT",
+    "ODOO_HTTP_HEADERS_CMD_HEADER",
+    "ODOO_HTTP_HEADERS_CACHE_BACKEND",
+    "ODOO_HTTP_HEADERS_CACHE_KEY",
+    "ODOO_HTTP_HEADERS_CACHE_TTL",
     "VODOO_INSTANCE",
 ]
 
@@ -345,4 +353,163 @@ class TestSecretResolution:
                     database="db",
                     username="user",
                     password_ref="op://vault/item/password",
+                )
+
+
+class TestHttpHeadersCommand:
+    class _FakeKeyring:
+        def __init__(self) -> None:
+            self.store: dict[tuple[str, str], str] = {}
+
+        def get_password(self, service: str, username: str) -> str | None:
+            return self.store.get((service, username))
+
+        def set_password(self, service: str, username: str, password: str) -> None:
+            self.store[(service, username)] = password
+
+    def test_http_headers_cmd_resolves_and_merges_static_headers(self) -> None:
+        fake_keyring = self._FakeKeyring()
+
+        with (
+            patch("vodoo.config._get_keyring_backend", return_value=fake_keyring),
+            patch("vodoo.config.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["headers-cmd"],
+                returncode=0,
+                stdout='{"X-Test":"dynamic","X-Only":"yes"}\n',
+                stderr="",
+            )
+
+            cfg = OdooConfig(
+                url="https://secure.example.com",
+                database="db",
+                username="user",
+                password="secret",
+                http_headers_cmd="headers-cmd",
+                http_headers={"X-Test": "static"},
+                http_headers_cache_backend="none",
+            )
+
+        assert cfg.http_headers == {"X-Test": "static", "X-Only": "yes"}
+        assert mock_run.call_count == 1
+        command_env = mock_run.call_args.kwargs["env"]
+        assert command_env["ODOO_URL"] == "https://secure.example.com"
+        assert command_env["ODOO_DATABASE"] == "db"
+        assert command_env["ODOO_USERNAME"] == "user"
+
+    def test_http_headers_cmd_uses_keyring_cache(self) -> None:
+        fake_keyring = self._FakeKeyring()
+
+        with (
+            patch("vodoo.config._get_keyring_backend", return_value=fake_keyring),
+            patch("vodoo.config.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["headers-cmd"],
+                returncode=0,
+                stdout='{"headers":{"X-Test":"dynamic"},"expires_in":600}\n',
+                stderr="",
+            )
+
+            first = OdooConfig(
+                url="https://secure.example.com",
+                database="db",
+                username="user",
+                password="secret",
+                http_headers_cmd="headers-cmd",
+                http_headers_cache_backend="keyring",
+            )
+            second = OdooConfig(
+                url="https://secure.example.com",
+                database="db",
+                username="user",
+                password="secret",
+                http_headers_cmd="headers-cmd",
+                http_headers_cache_backend="keyring",
+            )
+
+        assert first.http_headers == {"X-Test": "dynamic"}
+        assert second.http_headers == {"X-Test": "dynamic"}
+        assert mock_run.call_count == 1
+
+    def test_http_headers_cmd_invalid_json_raises(self) -> None:
+        with patch("vodoo.config.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["headers-cmd"],
+                returncode=0,
+                stdout="not-json\n",
+                stderr="",
+            )
+
+            with pytest.raises(ConfigurationError, match="must output valid JSON"):
+                OdooConfig(
+                    url="https://secure.example.com",
+                    database="db",
+                    username="user",
+                    password="secret",
+                    http_headers_cmd="headers-cmd",
+                    http_headers_cache_backend="none",
+                )
+
+    def test_http_headers_cmd_token_mode(self) -> None:
+        with patch("vodoo.config.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["cloudflared", "access", "token", "-app=https://secure.example.com"],
+                returncode=0,
+                stdout="token-value\n",
+                stderr="",
+            )
+
+            cfg = OdooConfig(
+                url="https://secure.example.com",
+                database="db",
+                username="user",
+                password="secret",
+                http_headers_cmd="cloudflared access token -app={ODOO_URL}",
+                http_headers_cmd_output="token",
+                http_headers_cmd_header="CF-Access-Token",
+                http_headers_cache_backend="none",
+            )
+
+        assert cfg.http_headers == {"CF-Access-Token": "token-value"}
+        assert mock_run.call_args.args[0] == [
+            "cloudflared",
+            "access",
+            "token",
+            "-app=https://secure.example.com",
+        ]
+
+    def test_http_headers_cmd_token_mode_requires_header(self) -> None:
+        with pytest.raises(ConfigurationError, match="ODOO_HTTP_HEADERS_CMD_HEADER is required"):
+            OdooConfig(
+                url="https://secure.example.com",
+                database="db",
+                username="user",
+                password="secret",
+                http_headers_cmd="cloudflared access token -app={ODOO_URL}",
+                http_headers_cmd_output="token",
+                http_headers_cache_backend="none",
+            )
+
+    def test_http_headers_cmd_keyring_requires_package(self) -> None:
+        with (
+            patch("vodoo.config._get_keyring_backend", side_effect=ConfigurationError("missing")),
+            patch("vodoo.config.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["headers-cmd"],
+                returncode=0,
+                stdout='{"X-Test":"dynamic"}\n',
+                stderr="",
+            )
+
+            with pytest.raises(ConfigurationError, match="missing"):
+                OdooConfig(
+                    url="https://secure.example.com",
+                    database="db",
+                    username="user",
+                    password="secret",
+                    http_headers_cmd="headers-cmd",
+                    http_headers_cache_backend="keyring",
                 )
