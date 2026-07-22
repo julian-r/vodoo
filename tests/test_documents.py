@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -21,7 +22,17 @@ class _StubClient:
     def __init__(self) -> None:
         self.search_results: list[dict[str, Any]] = []
         self.read_results: list[dict[str, Any]] = []
+        self.fields_result: dict[str, Any] = {"folder_id": {"relation": "documents.document"}}
         self.calls: list[tuple[str, Any]] = []
+
+    def fields_get(
+        self,
+        model: str,
+        fields: list[str] | None = None,
+        attributes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append(("fields_get", (model, fields, attributes)))
+        return self.fields_result
 
     def search_read(self, model: str, **kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append(("search_read", (model, kwargs)))
@@ -44,6 +55,14 @@ class _StubClient:
 
 
 class _StubAsyncClient(_StubClient):
+    async def fields_get(  # type: ignore[override]
+        self,
+        model: str,
+        fields: list[str] | None = None,
+        attributes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return super().fields_get(model, fields, attributes)
+
     async def search_read(self, model: str, **kwargs: Any) -> list[dict[str, Any]]:  # type: ignore[override]
         return super().search_read(model, **kwargs)
 
@@ -107,16 +126,42 @@ def test_resolve_folder_rejects_missing_and_ambiguous_names() -> None:
         documents.resolve_folder("Invoices")
 
 
-def test_folders_filters_folder_records() -> None:
+@pytest.mark.parametrize(
+    ("folder_model", "expected_domain"),
+    [
+        ("documents.folder", []),
+        ("documents.document", [("type", "=", "folder")]),
+    ],
+)
+def test_folders_supports_old_and_new_schemas(
+    folder_model: str, expected_domain: list[Any]
+) -> None:
     client = _StubClient()
+    client.fields_result = {"folder_id": {"relation": folder_model}}
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
 
     documents.folders(limit=10)
 
+    assert client.calls[0] == (
+        "fields_get",
+        ("documents.document", ["folder_id"], ["relation"]),
+    )
     _, (model, kwargs) = client.calls[-1]
-    assert model == "documents.document"
-    assert kwargs["domain"] == [("type", "=", "folder")]
+    assert model == folder_model
+    assert kwargs["domain"] == expected_domain
     assert kwargs["limit"] == 10
+
+
+def test_resolve_folder_uses_legacy_folder_model() -> None:
+    client = _StubClient()
+    client.fields_result = {"folder_id": {"relation": "documents.folder"}}
+    client.search_results = [{"id": 12, "name": "Invoices"}]
+    documents = DocumentNamespace(client)  # type: ignore[arg-type]
+
+    assert documents.resolve_folder("Invoices") == 12
+    _, (model, kwargs) = client.calls[-1]
+    assert model == "documents.folder"
+    assert kwargs["domain"] == [("name", "=", "Invoices")]
 
 
 def test_download_decodes_data_and_uses_document_name(tmp_path: Path) -> None:
@@ -132,10 +177,36 @@ def test_download_decodes_data_and_uses_document_name(tmp_path: Path) -> None:
     assert output.read_bytes() == b"contents"
 
 
-def test_download_missing_document_raises() -> None:
-    documents = DocumentNamespace(_StubClient())  # type: ignore[arg-type]
+def test_download_sanitizes_remote_name(tmp_path: Path) -> None:
+    client = _StubClient()
+    client.read_results = [{"name": "../outside.txt", "datas": base64.b64encode(b"safe").decode()}]
+    documents = DocumentNamespace(client)  # type: ignore[arg-type]
+
+    output = documents.download_file(7, tmp_path)
+
+    assert output == (tmp_path / "outside.txt").resolve()
+    assert output.read_bytes() == b"safe"
+
+
+def test_download_allows_empty_binary_data(tmp_path: Path) -> None:
+    client = _StubClient()
+    client.read_results = [{"name": "empty.txt", "datas": ""}]
+    documents = DocumentNamespace(client)  # type: ignore[arg-type]
+
+    output = documents.download_file(8, tmp_path)
+
+    assert output.read_bytes() == b""
+
+
+def test_download_missing_document_or_data_raises() -> None:
+    client = _StubClient()
+    documents = DocumentNamespace(client)  # type: ignore[arg-type]
     with pytest.raises(RecordNotFoundError):
         documents.download_file(404)
+
+    client.read_results = [{"name": "link"}]
+    with pytest.raises(RecordNotFoundError):
+        documents.download_file(405)
 
 
 def test_async_upload_and_download(tmp_path: Path) -> None:
@@ -147,12 +218,35 @@ def test_async_upload_and_download(tmp_path: Path) -> None:
 
     document_id = asyncio.run(documents.upload(source, folder="Inbox"))
     client.read_results = [
-        {"name": "download.txt", "datas": base64.b64encode(b"downloaded").decode()}
+        {"name": "../download.txt", "datas": base64.b64encode(b"downloaded").decode()}
     ]
-    output = asyncio.run(documents.download_file(document_id, tmp_path / "output.txt"))
+    output = asyncio.run(documents.download_file(document_id, tmp_path))
 
     assert document_id == 42
+    assert output == (tmp_path / "download.txt").resolve()
     assert output.read_bytes() == b"downloaded"
+
+
+def test_async_folders_supports_legacy_schema() -> None:
+    client = _StubAsyncClient()
+    client.fields_result = {"folder_id": {"relation": "documents.folder"}}
+    documents = AsyncDocumentNamespace(client)  # type: ignore[arg-type]
+
+    asyncio.run(documents.folders())
+
+    _, (model, kwargs) = client.calls[-1]
+    assert model == "documents.folder"
+    assert kwargs["domain"] == []
+
+
+def test_async_download_allows_empty_binary_data(tmp_path: Path) -> None:
+    client = _StubAsyncClient()
+    client.read_results = [{"name": "empty.txt", "datas": ""}]
+    documents = AsyncDocumentNamespace(client)  # type: ignore[arg-type]
+
+    output = asyncio.run(documents.download_file(8, tmp_path))
+
+    assert output.read_bytes() == b""
 
 
 def test_document_cli_exposes_suggested_commands() -> None:
@@ -182,3 +276,33 @@ def test_document_upload_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     assert result.exit_code == 0
     assert "Successfully uploaded" in result.output
     assert "88" in result.output
+
+
+def test_document_upload_cli_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    source = tmp_path / "invoice.pdf"
+    source.write_bytes(b"data")
+
+    class _Documents:
+        def upload(self, file_path: Path, *, folder: str, name: str | None) -> int:
+            assert file_path == source
+            assert folder == "12"
+            assert name == "custom.pdf"
+            return 89
+
+    monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=_Documents()))
+    result = CliRunner().invoke(
+        app,
+        [
+            "--json",
+            "document",
+            "upload",
+            str(source),
+            "--folder",
+            "12",
+            "--name",
+            "custom.pdf",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"ok": True, "id": 89, "name": "custom.pdf"}

@@ -29,6 +29,7 @@ GROUP_META: dict[str, str] = {
     "account-move": "Manage Odoo accounting moves (`account.move`) and attachments.",
     "activity": "Manage Odoo activities (`mail.activity`).",
     "knowledge": "Manage Odoo Knowledge articles (requires Odoo Enterprise).",
+    "document": "Manage Odoo Documents files and folders (requires Odoo Enterprise).",
     "timer": "Manage timers and timesheets.",
     "model": (
         "Generic CRUD operations for any Odoo model. "
@@ -247,14 +248,14 @@ def main() -> None:
         # Generate per-group page
         content = generate_group_doc(group_name, group, ctx)
         out_path = DOCS_DIR / f"{group_name}.md"
-        out_path.write_text(content + "\n", encoding="utf-8")
+        out_path.write_text(content.rstrip() + "\n", encoding="utf-8")
         print(f"  Generated {out_path}")
         groups.append((group_name, group, content))
 
     # Generate index
     index_content = generate_index(groups)
     index_path = DOCS_DIR / "index.md"
-    index_path.write_text(index_content + "\n", encoding="utf-8")
+    index_path.write_text(index_content.rstrip() + "\n", encoding="utf-8")
     print(f"  Generated {index_path}")
 
     print(f"\n✓ Generated {len(groups) + 1} CLI reference pages")

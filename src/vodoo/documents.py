@@ -24,17 +24,47 @@ class _DocumentAttrs:
     _record_type = "Document"
 
 
+def _folder_domain(folder_model: str, name: str | None = None) -> list[Any]:
+    """Build a folder search domain for old and new Documents schemas."""
+    domain: list[Any] = []
+    if folder_model == "documents.document":
+        domain.append(("type", "=", "folder"))
+    if name is not None:
+        domain.append(("name", "=", name))
+    return domain
+
+
+def _safe_document_filename(name: Any, document_id: int) -> str:
+    """Return a basename safe to join beneath a local output directory."""
+    filename = str(name or "").replace("\\", "/").rsplit("/", maxsplit=1)[-1]
+    if filename in {"", ".", ".."}:
+        return f"document_{document_id}"
+    return filename
+
+
 class DocumentNamespace(_DocumentAttrs, DomainNamespace):
     """Namespace for the ``documents.document`` model."""
+
+    def _folder_model(self) -> str:
+        fields = self._client.fields_get(
+            self._model,
+            fields=["folder_id"],
+            attributes=["relation"],
+        )
+        relation = fields.get("folder_id", {}).get("relation")
+        if not isinstance(relation, str) or not relation:
+            raise VodooError("Could not determine the Odoo Documents folder model")
+        return relation
 
     def resolve_folder(self, folder: int | str) -> int:
         """Resolve a folder ID or exact folder name to its record ID."""
         if isinstance(folder, int) or folder.isdigit():
             return int(folder)
 
+        folder_model = self._folder_model()
         matches = self._client.search_read(
-            self._model,
-            domain=[("type", "=", "folder"), ("name", "=", folder)],
+            folder_model,
+            domain=_folder_domain(folder_model, folder),
             fields=["id", "name"],
             limit=2,
             order="id",
@@ -47,9 +77,11 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
 
     def folders(self, limit: int | None = 50) -> list[dict[str, Any]]:
         """List available document folders."""
-        return self.list(
-            domain=[("type", "=", "folder")],
-            fields=["id", "name", "folder_id", "create_date"],
+        folder_model = self._folder_model()
+        return self._client.search_read(
+            folder_model,
+            domain=_folder_domain(folder_model),
+            fields=["id", "name"],
             limit=limit,
             order="name, id",
         )
@@ -78,14 +110,17 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
     def download_file(self, document_id: int, output: Path | str | None = None) -> Path:
         """Download a document and return the resolved output path."""
         records = self._client.read(self._model, [document_id], fields=["name", "datas"])
-        if not records or not records[0].get("datas"):
+        if not records:
             raise RecordNotFoundError(self._model, document_id)
 
         document = records[0]
-        filename = str(document.get("name") or f"document_{document_id}")
+        data = document.get("datas")
+        if data is None or data is False:
+            raise RecordNotFoundError(self._model, document_id)
+        filename = _safe_document_filename(document.get("name"), document_id)
         output_path = Path(output) if output is not None else Path.cwd() / filename
         if output_path.is_dir():
             output_path /= filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(base64.b64decode(document["datas"]))
+        output_path.write_bytes(base64.b64decode(data))
         return output_path.resolve()

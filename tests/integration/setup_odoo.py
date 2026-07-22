@@ -291,7 +291,7 @@ def main() -> None:
     ap.add_argument(
         "--enterprise",
         action="store_true",
-        help="Enterprise edition — install helpdesk, knowledge, timesheet modules",
+        help="Enterprise edition — install helpdesk, knowledge, documents, timesheet modules",
     )
     args = ap.parse_args()
 
@@ -317,7 +317,12 @@ def main() -> None:
 
     # Enterprise modules (optional)
     if args.enterprise:
-        install_modules(base_url, db_name, uid, ["helpdesk", "knowledge", "timesheet_grid"])
+        install_modules(
+            base_url,
+            db_name,
+            uid,
+            ["helpdesk", "knowledge", "documents", "timesheet_grid"],
+        )
 
     # Create API key via odoo shell inside the container
     print("Creating API key …")
