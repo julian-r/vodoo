@@ -63,6 +63,78 @@ def test_set_displays_html_field_as_markdown_by_default(fake_client: _FakeClient
     ]
 
 
+def test_set_preserves_authored_markdown_without_changing_write_payload(
+    fake_client: _FakeClient,
+) -> None:
+    markdown = """![Architecture](https://example.com/diagram.png)
+
+> Preserve this quote.
+
+```python
+print(\"hello\")
+```
+
+| Name | Value |
+| --- | --- |
+| one | two |"""
+    expected_html = """<p><img alt="Architecture" src="https://example.com/diagram.png" /></p>
+<blockquote>
+<p>Preserve this quote.</p>
+</blockquote>
+<pre><code class="language-python">print(&quot;hello&quot;)
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>one</td>
+<td>two</td>
+</tr>
+</tbody>
+</table>"""
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--json",
+            "project-task",
+            "set",
+            "42",
+            f"description={markdown}",
+            "name=Keep me unchanged",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["updated"] == {
+        "description": markdown,
+        "name": "Keep me unchanged",
+    }
+    assert fake_client.tasks.updates == [
+        (42, {"description": expected_html, "name": "Keep me unchanged"})
+    ]
+
+
+def test_set_no_markdown_displays_raw_html_readably_by_default(
+    fake_client: _FakeClient,
+) -> None:
+    raw_html = "<h2>Raw HTML</h2><p><strong>Bold</strong></p>"
+
+    result = CliRunner().invoke(
+        app,
+        ["--json", "project-task", "set", "42", f"description={raw_html}", "--no-markdown"],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["updated"]["description"] == "## Raw HTML\n\n\n**Bold**"
+    assert fake_client.tasks.updates == [(42, {"description": raw_html})]
+
+
 def test_set_html_flag_displays_raw_html(fake_client: _FakeClient) -> None:
     result = CliRunner().invoke(
         app,
