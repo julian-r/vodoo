@@ -129,6 +129,14 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
                 True,
                 False,
             ),
+            RuleDefinition(
+                "project.milestone",
+                "[('project_id.message_partner_ids', 'in', [user.partner_id.id])]",
+                True,
+                True,
+                True,
+                False,
+            ),
         ),
     ),
     GroupDefinition(

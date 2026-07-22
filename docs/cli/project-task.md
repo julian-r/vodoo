@@ -278,3 +278,14 @@ Get the web URL for a task.
 |----------|------|-------------|
 | `task_id` | INT | Task ID |
 
+### milestone set
+
+Assign a project task to a milestone.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+| `milestone_id` | INT | Milestone ID |
+

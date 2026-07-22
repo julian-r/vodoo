@@ -1,7 +1,9 @@
 """Main CLI application for Vodoo."""
 
+import re
 from collections.abc import Callable
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -39,6 +41,7 @@ from vodoo.exceptions import (
     OdooAccessDeniedError,
     OdooAccessError,
     RecordNotFoundError,
+    RecordOperationError,
     TransportError,
     VodooError,
 )
@@ -113,12 +116,26 @@ project_task_app = typer.Typer(
 )
 app.add_typer(project_task_app, name="project-task")
 
+project_task_milestone_app = typer.Typer(
+    name="milestone",
+    help="Project task milestone operations",
+    no_args_is_help=True,
+)
+project_task_app.add_typer(project_task_milestone_app, name="milestone")
+
 project_project_app = typer.Typer(
     name="project",
     help="Project operations",
     no_args_is_help=True,
 )
 app.add_typer(project_project_app, name="project")
+
+project_milestone_app = typer.Typer(
+    name="milestone",
+    help="Project milestone operations",
+    no_args_is_help=True,
+)
+project_project_app.add_typer(project_milestone_app, name="milestone")
 
 knowledge_app = typer.Typer(
     name="knowledge",
@@ -189,7 +206,9 @@ def _make_sub_callback() -> Callable[..., None]:
 for _sub_app in (
     helpdesk_app,
     project_task_app,
+    project_task_milestone_app,
     project_project_app,
+    project_milestone_app,
     knowledge_app,
     model_app,
     crm_app,
@@ -1324,6 +1343,30 @@ def project_url(
             console.print(url)
 
 
+@project_task_milestone_app.command("set")
+def project_task_milestone_set(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """Assign a project task to a milestone."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.set_milestone(task_id, milestone_id)
+        if not success:
+            raise RecordOperationError(
+                f"Failed to assign milestone {milestone_id} to task {task_id}"
+            )
+        if is_structured_output():
+            structured_print(
+                {"ok": True, "id": task_id, "milestone_id": milestone_id, "action": "set"}
+            )
+        else:
+            console.print(
+                f"[green]Successfully assigned milestone {milestone_id} to task {task_id}[/green]"
+            )
+
+
 # Project (project.project) commands
 
 
@@ -1621,6 +1664,82 @@ def project_project_stages(
             console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
         else:
             console.print("[yellow]No stages found[/yellow]")
+
+
+@project_milestone_app.command("list")
+def project_milestone_list(
+    project: Annotated[
+        str,
+        typer.Option("--project", "-p", help="Project ID or exact name"),
+    ],
+) -> None:
+    """List milestones for a project."""
+    client = get_client()
+
+    with _handle_errors():
+        milestones = client.projects.milestones(project)
+        display_records(milestones, title="Project Milestones")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(milestones)} milestones[/dim]")
+
+
+@project_milestone_app.command("create")
+def project_milestone_create(
+    project: Annotated[
+        str,
+        typer.Option("--project", "-p", help="Project ID or exact name"),
+    ],
+    name: Annotated[str, typer.Option("--name", "-n", help="Milestone name")],
+    deadline: Annotated[str, typer.Option("--deadline", "-d", help="Deadline (YYYY-MM-DD)")],
+) -> None:
+    """Create a milestone for a project."""
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", deadline) is None:
+            raise ValueError
+        date.fromisoformat(deadline)
+    except ValueError as exc:
+        raise typer.BadParameter("must use YYYY-MM-DD", param_hint="--deadline") from exc
+
+    client = get_client()
+    with _handle_errors():
+        milestone_id = client.projects.create_milestone(project, name, deadline)
+        if is_structured_output():
+            structured_print({"ok": True, "id": milestone_id, "name": name})
+        else:
+            console.print(
+                f"[green]Successfully created milestone '{name}' with ID {milestone_id}[/green]"
+            )
+
+
+@project_milestone_app.command("reach")
+def project_milestone_reach(
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """Mark a milestone as reached."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.projects.reach_milestone(milestone_id)
+        if not success:
+            raise RecordOperationError(f"Failed to mark milestone {milestone_id} as reached")
+        if is_structured_output():
+            structured_print({"ok": True, "id": milestone_id, "action": "reach"})
+        else:
+            console.print(f"[green]Successfully marked milestone {milestone_id} as reached[/green]")
+
+
+@project_milestone_app.command("tasks")
+def project_milestone_tasks(
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """List tasks assigned to a milestone."""
+    client = get_client()
+
+    with _handle_errors():
+        tasks = client.projects.milestone_tasks(milestone_id)
+        display_records(tasks, title=f"Tasks for Milestone {milestone_id}")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
 
 # Knowledge commands
