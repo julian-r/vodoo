@@ -64,6 +64,7 @@ class AsyncOdooClient:
         self.tasks = _make_tasks(self)
         self.projects = _make_projects(self)
         self.account_moves = _make_account_moves(self)
+        self.activities = _make_activities(self)
         self.knowledge = _make_knowledge(self)
         self.timer = _make_timer(self)
         self.security = _make_security(self)
@@ -321,6 +322,12 @@ def _make_account_moves(client: AsyncOdooClient) -> Any:
     from vodoo.aio.account_moves import AsyncAccountMoveNamespace
 
     return AsyncAccountMoveNamespace(client)
+
+
+def _make_activities(client: AsyncOdooClient) -> Any:
+    from vodoo.aio.activities import AsyncActivityNamespace
+
+    return AsyncActivityNamespace(client)
 
 
 def _make_knowledge(client: AsyncOdooClient) -> Any:

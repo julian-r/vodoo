@@ -82,6 +82,7 @@ class OdooClient:
         self.tasks = _make_tasks(self)
         self.projects = _make_projects(self)
         self.account_moves = _make_account_moves(self)
+        self.activities = _make_activities(self)
         self.knowledge = _make_knowledge(self)
         self.timer = _make_timer(self)
         self.security = _make_security(self)
@@ -313,6 +314,12 @@ def _make_account_moves(client: OdooClient) -> Any:
     from vodoo.account_moves import AccountMoveNamespace
 
     return AccountMoveNamespace(client)
+
+
+def _make_activities(client: OdooClient) -> Any:
+    from vodoo.activities import ActivityNamespace
+
+    return ActivityNamespace(client)
 
 
 def _make_knowledge(client: OdooClient) -> Any:

@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from vodoo.account_moves import build_account_move_domain
+from vodoo.activities import build_activity_domain
 from vodoo.base import (
     configure_output,
     detect_binary_fields,
@@ -148,6 +149,13 @@ account_move_app = typer.Typer(
 )
 app.add_typer(account_move_app, name="account-move")
 
+activity_app = typer.Typer(
+    name="activity",
+    help="Activity operations",
+    no_args_is_help=True,
+)
+app.add_typer(activity_app, name="activity")
+
 security_app = typer.Typer(
     name="security",
     help="Security group utilities",
@@ -194,6 +202,7 @@ for _sub_app in (
     model_app,
     crm_app,
     account_move_app,
+    activity_app,
     security_app,
     timer_app,
     config_app,
@@ -2812,6 +2821,77 @@ def crm_pipeline(
         summary = client.crm.pipeline(team=team, user=user)
         flags = compute_health_flags(summary) if health else None
         display_pipeline(summary, show_deals=deals, show_health=health, health_flags=flags)
+
+
+@activity_app.command("list")
+def activity_list(
+    model: Annotated[
+        str | None,
+        typer.Option(help="Filter by related model (e.g. account.move)"),
+    ] = None,
+    user: Annotated[str | None, typer.Option(help="Filter by assigned user name")] = None,
+    activity_type: Annotated[
+        str | None,
+        typer.Option("--type", help="Filter by activity type name"),
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of activities")] = 50,
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """List activities."""
+    client = get_client()
+    domain = build_activity_domain(model=model, user=user, activity_type=activity_type)
+
+    with _handle_errors():
+        activities = client.activities.list(
+            domain=domain,
+            limit=limit,
+            fields=fields,
+            order="date_deadline asc, id asc",
+        )
+        display_records(activities, title="Activities")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(activities)} activities[/dim]")
+
+
+@activity_app.command("show")
+def activity_show(
+    activity_id: Annotated[int, typer.Argument(help="Activity ID")],
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """Show detailed activity information."""
+    client = get_client()
+
+    with _handle_errors():
+        activity = client.activities.get(activity_id, fields=fields)
+        if is_structured_output():
+            structured_print(activity)
+        elif fields:
+            console.print(f"\n[bold cyan]Activity #{activity_id}[/bold cyan]\n")
+            for key, value in sorted(activity.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+        else:
+            display_record_detail(activity, record_type="Activity")
+
+
+@activity_app.command("done")
+def activity_done(
+    activity_id: Annotated[int, typer.Argument(help="Activity ID")],
+) -> None:
+    """Mark an activity as done."""
+    client = get_client()
+
+    with _handle_errors():
+        client.activities.done(activity_id)
+        if is_structured_output():
+            structured_print({"ok": True, "id": activity_id})
+        else:
+            console.print(f"[green]Marked activity {activity_id} as done[/green]")
 
 
 @account_move_app.command("list")
