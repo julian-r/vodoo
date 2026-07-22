@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.documents import _DocumentAttrs, _folder_domain, _safe_document_filename
+from vodoo.documents import (
+    _decode_document_data,
+    _DocumentAttrs,
+    _folder_domain,
+    _safe_document_filename,
+)
 from vodoo.exceptions import RecordNotFoundError, VodooError
 
 
@@ -78,18 +83,20 @@ class AsyncDocumentNamespace(_DocumentAttrs, AsyncDomainNamespace):
 
     async def download_file(self, document_id: int, output: Path | str | None = None) -> Path:
         """Download a document and return the resolved output path."""
-        records = await self._client.read(self._model, [document_id], fields=["name", "datas"])
+        records = await self._client.read(
+            self._model,
+            [document_id],
+            fields=["name", "type", "file_size", "datas"],
+        )
         if not records:
             raise RecordNotFoundError(self._model, document_id)
 
         document = records[0]
-        data = document.get("datas")
-        if data is None or data is False:
-            raise RecordNotFoundError(self._model, document_id)
+        data = _decode_document_data(document, document_id)
         filename = _safe_document_filename(document.get("name"), document_id)
         output_path = Path(output) if output is not None else Path.cwd() / filename
         if output_path.is_dir():
             output_path /= filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(base64.b64decode(data))
+        output_path.write_bytes(data)
         return output_path.resolve()

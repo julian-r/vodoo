@@ -177,14 +177,24 @@ def test_download_decodes_data_and_uses_document_name(tmp_path: Path) -> None:
     assert output.read_bytes() == b"contents"
 
 
-def test_download_sanitizes_remote_name(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("remote_name", "safe_name"),
+    [
+        ("../outside.txt", "outside.txt"),
+        (r"C:\\drive.txt", "drive.txt"),
+        ("C:drive.txt", "C_drive.txt"),
+        ("report.txt:alternate", "report.txt_alternate"),
+        ("CON", "_CON"),
+    ],
+)
+def test_download_sanitizes_remote_name(tmp_path: Path, remote_name: str, safe_name: str) -> None:
     client = _StubClient()
-    client.read_results = [{"name": "../outside.txt", "datas": base64.b64encode(b"safe").decode()}]
+    client.read_results = [{"name": remote_name, "datas": base64.b64encode(b"safe").decode()}]
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
 
     output = documents.download_file(7, tmp_path)
 
-    assert output == (tmp_path / "outside.txt").resolve()
+    assert output == (tmp_path / safe_name).resolve()
     assert output.read_bytes() == b"safe"
 
 
@@ -198,15 +208,42 @@ def test_download_allows_empty_binary_data(tmp_path: Path) -> None:
     assert output.read_bytes() == b""
 
 
+@pytest.mark.parametrize("normalized_data", [None, False])
+def test_download_allows_normalized_empty_binary_data(
+    tmp_path: Path, normalized_data: None | bool
+) -> None:
+    client = _StubClient()
+    client.read_results = [
+        {
+            "name": "empty.txt",
+            "type": "binary",
+            "file_size": 0,
+            "datas": normalized_data,
+        }
+    ]
+    documents = DocumentNamespace(client)  # type: ignore[arg-type]
+
+    output = documents.download_file(8, tmp_path)
+
+    assert output.read_bytes() == b""
+    _, (_, _, fields) = client.calls[-1]
+    assert fields == ["name", "type", "file_size", "datas"]
+
+
 def test_download_missing_document_or_data_raises() -> None:
     client = _StubClient()
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
     with pytest.raises(RecordNotFoundError):
         documents.download_file(404)
 
-    client.read_results = [{"name": "link"}]
-    with pytest.raises(RecordNotFoundError):
-        documents.download_file(405)
+    for document in (
+        {"name": "folder", "type": "folder", "file_size": 0, "datas": None},
+        {"name": "link", "type": "url", "file_size": 0, "datas": None},
+        {"name": "missing.pdf", "type": "binary", "file_size": 10, "datas": None},
+    ):
+        client.read_results = [document]
+        with pytest.raises(RecordNotFoundError):
+            documents.download_file(405)
 
 
 def test_async_upload_and_download(tmp_path: Path) -> None:
@@ -239,9 +276,19 @@ def test_async_folders_supports_legacy_schema() -> None:
     assert kwargs["domain"] == []
 
 
-def test_async_download_allows_empty_binary_data(tmp_path: Path) -> None:
+@pytest.mark.parametrize("normalized_data", [None, False])
+def test_async_download_allows_normalized_empty_binary_data(
+    tmp_path: Path, normalized_data: None | bool
+) -> None:
     client = _StubAsyncClient()
-    client.read_results = [{"name": "empty.txt", "datas": ""}]
+    client.read_results = [
+        {
+            "name": "empty.txt",
+            "type": "binary",
+            "file_size": 0,
+            "datas": normalized_data,
+        }
+    ]
     documents = AsyncDocumentNamespace(client)  # type: ignore[arg-type]
 
     output = asyncio.run(documents.download_file(8, tmp_path))
@@ -306,3 +353,75 @@ def test_document_upload_cli_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {"ok": True, "id": 89, "name": "custom.pdf"}
+
+
+def test_document_cli_json_delegates_list_folders_and_download(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class _Documents:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, Any]] = []
+
+        def resolve_folder(self, folder: str) -> int:
+            self.calls.append(("resolve_folder", folder))
+            return 12
+
+        def list(self, *, domain: list[Any], limit: int) -> list[dict[str, Any]]:
+            self.calls.append(("list", (domain, limit)))
+            return [{"id": 4, "name": "invoice.pdf"}]
+
+        def folders(self, *, limit: int) -> list[dict[str, Any]]:
+            self.calls.append(("folders", limit))
+            return [{"id": 12, "name": "Invoices"}]
+
+        def download_file(self, document_id: int, output: Path | None) -> Path:
+            self.calls.append(("download_file", (document_id, output)))
+            return tmp_path / "invoice.pdf"
+
+    documents = _Documents()
+    monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=documents))
+    runner = CliRunner()
+
+    list_result = runner.invoke(
+        app,
+        ["--json", "document", "list", "--folder", "Invoices", "--limit", "2"],
+    )
+    folders_result = runner.invoke(app, ["--json", "document", "folders", "--limit", "3"])
+    output = tmp_path / "custom.pdf"
+    download_result = runner.invoke(
+        app,
+        ["--json", "document", "download", "4", "--output", str(output)],
+    )
+
+    assert list_result.exit_code == 0
+    assert json.loads(list_result.output) == [{"id": 4, "name": "invoice.pdf"}]
+    assert folders_result.exit_code == 0
+    assert json.loads(folders_result.output) == [{"id": 12, "name": "Invoices"}]
+    assert download_result.exit_code == 0
+    assert json.loads(download_result.output) == {
+        "ok": True,
+        "id": 4,
+        "path": str(tmp_path / "invoice.pdf"),
+    }
+    assert documents.calls == [
+        ("resolve_folder", "Invoices"),
+        ("list", ([("type", "=", "binary"), ("folder_id", "=", 12)], 2)),
+        ("folders", 3),
+        ("download_file", (4, output)),
+    ]
+
+
+def test_document_cli_json_reports_vodoo_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Documents:
+        def list(self, *, domain: list[Any], limit: int) -> list[dict[str, Any]]:
+            del domain, limit
+            raise VodooError("Documents unavailable")
+
+    monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=_Documents()))
+    result = CliRunner().invoke(app, ["--json", "document", "list"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.output) == {
+        "error": "Documents unavailable",
+        "type": "vodoo_error",
+    }

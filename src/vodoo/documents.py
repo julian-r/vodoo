@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -34,12 +35,36 @@ def _folder_domain(folder_model: str, name: str | None = None) -> list[Any]:
     return domain
 
 
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{number}" for number in range(1, 10)),
+    *(f"LPT{number}" for number in range(1, 10)),
+}
+
+
 def _safe_document_filename(name: Any, document_id: int) -> str:
-    """Return a basename safe to join beneath a local output directory."""
+    """Return a cross-platform basename safe for a local output directory."""
     filename = str(name or "").replace("\\", "/").rsplit("/", maxsplit=1)[-1]
+    filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", filename).rstrip(". ")
+    stem = filename.split(".", maxsplit=1)[0].upper()
+    if stem in _WINDOWS_RESERVED_NAMES:
+        filename = f"_{filename}"
     if filename in {"", ".", ".."}:
         return f"document_{document_id}"
     return filename
+
+
+def _decode_document_data(document: dict[str, Any], document_id: int) -> bytes:
+    """Decode document data, preserving normalized zero-byte binary files."""
+    data = document.get("datas")
+    if data is not None and data is not False:
+        return base64.b64decode(data)
+    if document.get("type") == "binary" and document.get("file_size") == 0:
+        return b""
+    raise RecordNotFoundError("documents.document", document_id)
 
 
 class DocumentNamespace(_DocumentAttrs, DomainNamespace):
@@ -109,18 +134,20 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
 
     def download_file(self, document_id: int, output: Path | str | None = None) -> Path:
         """Download a document and return the resolved output path."""
-        records = self._client.read(self._model, [document_id], fields=["name", "datas"])
+        records = self._client.read(
+            self._model,
+            [document_id],
+            fields=["name", "type", "file_size", "datas"],
+        )
         if not records:
             raise RecordNotFoundError(self._model, document_id)
 
         document = records[0]
-        data = document.get("datas")
-        if data is None or data is False:
-            raise RecordNotFoundError(self._model, document_id)
+        data = _decode_document_data(document, document_id)
         filename = _safe_document_filename(document.get("name"), document_id)
         output_path = Path(output) if output is not None else Path.cwd() / filename
         if output_path.is_dir():
             output_path /= filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(base64.b64decode(data))
+        output_path.write_bytes(data)
         return output_path.resolve()

@@ -1005,16 +1005,17 @@ class TestDocuments:
             "documents.document", fields=["folder_id"], attributes=["relation"]
         )
         folder_model = str(folder_field["folder_id"]["relation"])
-        folder_values: dict[str, Any] = {"name": "Vodoo Test Documents Folder"}
+        folder_name = f"Vodoo Test Documents Folder {time.time_ns()}"
+        folder_values: dict[str, Any] = {"name": folder_name}
         if folder_model == "documents.document":
             folder_values["type"] = "folder"
 
         folder_id = client.generic.create(folder_model, folder_values)
         document_id: int | None = None
-        source = tmp_path / "vodoo-document.txt"
-        source.write_bytes(b"vodoo documents integration")
+        source = tmp_path / "vodoo-empty-document.txt"
+        source.write_bytes(b"")
         try:
-            document_id = client.documents.upload(source, folder=folder_id)
+            document_id = client.documents.upload(source, folder=folder_name)
             documents = client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name

@@ -10,6 +10,7 @@ Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 import asyncio
 import contextlib
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -989,7 +990,8 @@ class TestAsyncDocuments:
             "documents.document", fields=["folder_id"], attributes=["relation"]
         )
         folder_model = str(folder_field["folder_id"]["relation"])
-        folder_values: dict[str, Any] = {"name": "Vodoo Async Test Documents Folder"}
+        folder_name = f"Vodoo Async Test Documents Folder {time.time_ns()}"
+        folder_values: dict[str, Any] = {"name": folder_name}
         if folder_model == "documents.document":
             folder_values["type"] = "folder"
 
@@ -998,7 +1000,7 @@ class TestAsyncDocuments:
         source = tmp_path / "vodoo-async-document.txt"
         source.write_bytes(b"vodoo async documents integration")
         try:
-            document_id = await async_client.documents.upload(source, folder=folder_id)
+            document_id = await async_client.documents.upload(source, folder=folder_name)
             documents = await async_client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name
