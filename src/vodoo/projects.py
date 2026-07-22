@@ -74,7 +74,7 @@ def display_stages(stages: list[dict[str, Any]]) -> None:
         stages: List of stage dictionaries
 
     """
-    from vodoo.base import _is_simple_output, is_structured_output, structured_print
+    from vodoo.base import _get_console, _is_simple_output, is_structured_output, structured_print
 
     if is_structured_output():
         structured_print(stages)
@@ -86,10 +86,9 @@ def display_stages(stages: list[dict[str, Any]]) -> None:
             fold = "true" if stage.get("fold") else "false"
             print(f"{stage['id']}\t{stage['name']}\t{stage.get('sequence', '')}\t{fold}")
     else:
-        from rich.console import Console
         from rich.table import Table
 
-        console = Console()
+        console = _get_console()
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("ID", style="cyan", justify="right")
         table.add_column("Name", style="green")

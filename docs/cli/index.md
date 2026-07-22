@@ -26,9 +26,10 @@ vodoo <command> --help
 
 ## Output Modes
 
-By default, Vodoo uses Rich tables for colorful terminal output. Use `--simple` on list commands for plain TSV output suitable for piping:
+By default, Vodoo uses Rich tables for colorful terminal output. Use `--no-color` to preserve the normal layout without ANSI escape sequences, or `--simple` on list commands for plain TSV output suitable for piping:
 
 ```bash
+vodoo --no-color project-task show 189
 vodoo helpdesk list --simple | cut -f1,2
 ```
 
