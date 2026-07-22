@@ -5,10 +5,12 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Iterator
 from unittest.mock import Mock
 
 import pytest
+from typer import rich_utils
 from typer.testing import CliRunner
 
 from vodoo import main
@@ -44,6 +46,7 @@ def _run_cli_forced_terminal(*args: str) -> tuple[int, bytes]:
     env = os.environ.copy()
     env.pop("NO_COLOR", None)
     env["FORCE_COLOR"] = "1"
+    env["TERM"] = "xterm-256color"
     executable = shutil.which("vodoo")
     assert executable is not None
     result = subprocess.run(
@@ -146,8 +149,11 @@ def test_subcommand_no_color_is_supported(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_no_color_applies_to_project_stage_tables(
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Project stage tables switch from styled to unstyled output."""
+    monkeypatch.setenv("TERM", "xterm-256color")
+    _set_console_config(_DEFAULT_CONSOLE_CONFIG)
     display_stages([{"id": 2, "name": "In Progress", "sequence": 10, "fold": False}])
     styled_output = capsys.readouterr().out
 
@@ -158,3 +164,30 @@ def test_no_color_applies_to_project_stage_tables(
     assert "\x1b" in styled_output
     assert "In Progress" in unstyled_output
     assert "\x1b" not in unstyled_output
+
+
+def test_cli_restores_force_terminal_after_system_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Early no-color parsing does not leak Typer's Rich configuration."""
+    app_mock = Mock(side_effect=SystemExit(2))
+    monkeypatch.setattr(main, "app", app_mock)
+    monkeypatch.setattr(sys, "argv", ["vodoo", "--no-color", "--invalid-option"])
+    monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", True)
+
+    with pytest.raises(SystemExit, match="2"):
+        main.cli()
+
+    assert rich_utils.FORCE_TERMINAL is True
+    app_mock.assert_called_once_with(color=False)
+
+
+def test_cli_ignores_no_color_after_option_terminator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A positional --no-color value does not alter process styling state."""
+    app_mock = Mock()
+    monkeypatch.setattr(main, "app", app_mock)
+    monkeypatch.setattr(sys, "argv", ["vodoo", "model", "call", "--", "--no-color"])
+    monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", True)
+
+    main.cli()
+
+    assert rich_utils.FORCE_TERMINAL is True
+    app_mock.assert_called_once_with()

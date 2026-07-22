@@ -3196,13 +3196,19 @@ def timer_active() -> None:
 
 def cli() -> None:
     """Run the CLI, applying no-color mode before Typer parses arguments."""
-    no_color = "--no-color" in sys.argv[1:]
+    args = sys.argv[1:]
+    option_end = args.index("--") if "--" in args else len(args)
+    no_color = "--no-color" in args[:option_end]
     if no_color:
         from typer import rich_utils
 
-        rich_utils.FORCE_TERMINAL = False
-        _apply_output_config(no_color=True)
-        app(color=False)
+        previous_force_terminal = rich_utils.FORCE_TERMINAL
+        try:
+            rich_utils.FORCE_TERMINAL = False
+            _apply_output_config(no_color=True)
+            app(color=False)
+        finally:
+            rich_utils.FORCE_TERMINAL = previous_force_terminal
     else:
         app()
 
