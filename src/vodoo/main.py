@@ -2871,12 +2871,10 @@ def activity_show(
         activity = client.activities.get(activity_id, fields=fields)
         if is_structured_output():
             structured_print(activity)
-        elif fields:
+        else:
             console.print(f"\n[bold cyan]Activity #{activity_id}[/bold cyan]\n")
             for key, value in sorted(activity.items()):
                 console.print(f"[bold]{key}:[/bold] {value}")
-        else:
-            display_record_detail(activity, record_type="Activity")
 
 
 @activity_app.command("done")

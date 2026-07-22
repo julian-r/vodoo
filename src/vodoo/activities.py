@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from vodoo._domain import DomainNamespace
+from vodoo.exceptions import RecordOperationError
 
 
 class _ActivityAttrs:
@@ -35,7 +36,11 @@ class ActivityNamespace(_ActivityAttrs, DomainNamespace):
     """Namespace for ``mail.activity`` operations."""
 
     def done(self, activity_id: int) -> Any:
-        """Mark an activity as done and return Odoo's action result."""
+        """Mark an active activity as done and return Odoo's action result."""
+        activity = self.get(activity_id, fields=["active"])
+        if not activity.get("active"):
+            msg = f"Activity {activity_id} is already done"
+            raise RecordOperationError(msg)
         return self._client.execute(self._model, "action_done", [activity_id])
 
 
