@@ -4,6 +4,7 @@ from typing import Any, ClassVar
 
 from vodoo._domain import DomainNamespace
 from vodoo.content import Markdown
+from vodoo.exceptions import RecordNotFoundError, RecordOperationError
 
 
 def _build_task_values(
@@ -38,6 +39,16 @@ def _build_task_values(
 
     context: dict[str, Any] = {"default_project_id": project_id}
     return values, context
+
+
+def _project_id(record: dict[str, Any]) -> int | None:
+    """Extract a project ID from an Odoo many2one value."""
+    value = record.get("project_id")
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, (list, tuple)) and value:
+        return int(value[0])
+    return None
 
 
 class _TaskAttrs:
@@ -90,6 +101,27 @@ class TaskNamespace(_TaskAttrs, DomainNamespace):
             name, project_id, description, user_ids, tag_ids, parent_id, **kwargs
         )
         return self._client.create(self._model, values, context=context)
+
+    def set_milestone(self, task_id: int, milestone_id: int) -> bool:
+        """Assign a task to a milestone in the same project."""
+        tasks = self._client.read(self._model, [task_id], fields=["project_id"])
+        if not tasks:
+            raise RecordNotFoundError(self._model, task_id)
+
+        milestones = self._client.read("project.milestone", [milestone_id], fields=["project_id"])
+        if not milestones:
+            raise RecordNotFoundError("project.milestone", milestone_id)
+
+        task_project_id = _project_id(tasks[0])
+        milestone_project_id = _project_id(milestones[0])
+        if task_project_id is None or milestone_project_id is None:
+            raise RecordOperationError("Task and milestone must both belong to a project")
+        if task_project_id != milestone_project_id:
+            raise RecordOperationError(
+                f"Task {task_id} and milestone {milestone_id} belong to different projects"
+            )
+
+        return self._client.write(self._model, [task_id], {"milestone_id": milestone_id})
 
     def create_tag(self, name: str, color: int | None = None) -> int:
         """Create a new project tag.

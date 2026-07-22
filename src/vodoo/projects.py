@@ -5,9 +5,28 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from vodoo._domain import DomainNamespace
+from vodoo.exceptions import VodooError
 
-# Fields for stage listing
+# Fields for stage and milestone listing
 STAGE_FIELDS = ["id", "name", "sequence", "fold", "project_ids"]
+MILESTONE_FIELDS = [
+    "id",
+    "name",
+    "project_id",
+    "deadline",
+    "is_reached",
+    "reached_date",
+    "is_deadline_exceeded",
+]
+MILESTONE_TASK_FIELDS = [
+    "id",
+    "name",
+    "project_id",
+    "milestone_id",
+    "stage_id",
+    "user_ids",
+    "priority",
+]
 
 
 class _ProjectAttrs:
@@ -64,6 +83,59 @@ class ProjectNamespace(_ProjectAttrs, DomainNamespace):
             domain=domain,
             fields=STAGE_FIELDS,
             order="sequence",
+        )
+
+    def resolve_project_id(self, project: int | str) -> int:
+        """Resolve a project ID or exact project name to an ID."""
+        if isinstance(project, int) or project.isdigit():
+            return int(project)
+
+        candidates = self._client.search_read(
+            self._model,
+            domain=[("name", "=ilike", project)],
+            fields=["id", "name"],
+            order="id",
+        )
+        matches = [
+            candidate
+            for candidate in candidates
+            if str(candidate.get("name", "")).casefold() == project.casefold()
+        ]
+        if not matches:
+            raise VodooError(f"Project {project!r} not found")
+        if len(matches) > 1:
+            raise VodooError(f"Project name {project!r} is ambiguous; use a project ID")
+        return int(matches[0]["id"])
+
+    def milestones(self, project: int | str) -> list[dict[str, Any]]:
+        """List milestones for a project ID or exact project name."""
+        project_id = self.resolve_project_id(project)
+        return self._client.search_read(
+            "project.milestone",
+            domain=[("project_id", "=", project_id)],
+            fields=MILESTONE_FIELDS,
+            order="deadline, id",
+        )
+
+    def create_milestone(self, project: int | str, name: str, deadline: str) -> int:
+        """Create a milestone for a project ID or exact project name."""
+        project_id = self.resolve_project_id(project)
+        return self._client.create(
+            "project.milestone",
+            {"project_id": project_id, "name": name, "deadline": deadline},
+        )
+
+    def reach_milestone(self, milestone_id: int) -> bool:
+        """Mark a milestone as reached."""
+        return self._client.write("project.milestone", [milestone_id], {"is_reached": True})
+
+    def milestone_tasks(self, milestone_id: int) -> list[dict[str, Any]]:
+        """List tasks assigned to a milestone."""
+        return self._client.search_read(
+            "project.task",
+            domain=[("milestone_id", "=", milestone_id)],
+            fields=MILESTONE_TASK_FIELDS,
+            order="id",
         )
 
 

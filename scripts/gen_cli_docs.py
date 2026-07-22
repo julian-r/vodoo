@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import click
@@ -100,6 +101,24 @@ def generate_command_doc(cmd: click.Command, cmd_name: str) -> str:
     return "\n".join(lines)
 
 
+def iter_leaf_commands(
+    group: click.Group,
+    ctx: click.Context,
+    prefix: str = "",
+) -> Iterator[tuple[str, click.Command]]:
+    """Yield leaf commands from a group, including nested command paths."""
+    group_ctx = click.Context(group, parent=ctx)
+    for command_name in group.list_commands(group_ctx):
+        command = group.get_command(group_ctx, command_name)
+        if command is None:
+            continue
+        full_name = f"{prefix} {command_name}".strip()
+        if isinstance(command, click.Group):
+            yield from iter_leaf_commands(command, group_ctx, full_name)
+        else:
+            yield full_name, command
+
+
 def generate_group_doc(group_name: str, group: click.Group, ctx: click.Context) -> str:
     """Generate full Markdown documentation for a subcommand group."""
     lines: list[str] = []
@@ -121,11 +140,8 @@ def generate_group_doc(group_name: str, group: click.Group, ctx: click.Context) 
     lines.append("## Commands")
     lines.append("")
 
-    sub_ctx = click.Context(group, parent=ctx)
-    for cmd_name in group.list_commands(sub_ctx):
-        cmd = group.get_command(sub_ctx, cmd_name)
-        if cmd is not None:
-            lines.append(generate_command_doc(cmd, cmd_name))
+    for command_name, command in iter_leaf_commands(group, ctx):
+        lines.append(generate_command_doc(command, command_name))
 
     return "\n".join(lines)
 

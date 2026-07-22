@@ -183,3 +183,45 @@ Examples:
 |--------|------|-------------|
 | `--project` / `-p` | INT | Filter stages by project ID |
 
+### milestone list
+
+List milestones for a project.
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--project` / `-p` | TEXT | Project ID or exact name |
+
+### milestone create
+
+Create a milestone for a project.
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--project` / `-p` | TEXT | Project ID or exact name |
+| `--name` / `-n` | TEXT | Milestone name |
+| `--deadline` / `-d` | TEXT | Deadline (YYYY-MM-DD) |
+
+### milestone reach
+
+Mark a milestone as reached.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `milestone_id` | INT | Milestone ID |
+
+### milestone tasks
+
+List tasks assigned to a milestone.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `milestone_id` | INT | Milestone ID |
+

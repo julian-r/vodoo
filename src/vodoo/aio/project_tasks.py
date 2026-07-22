@@ -3,7 +3,8 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.project_tasks import _build_task_values, _TaskAttrs
+from vodoo.exceptions import RecordNotFoundError, RecordOperationError
+from vodoo.project_tasks import _build_task_values, _project_id, _TaskAttrs
 
 
 class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
@@ -24,6 +25,29 @@ class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
             name, project_id, description, user_ids, tag_ids, parent_id, **kwargs
         )
         return await self._client.create(self._model, values, context=context)
+
+    async def set_milestone(self, task_id: int, milestone_id: int) -> bool:
+        """Assign a task to a milestone in the same project."""
+        tasks = await self._client.read(self._model, [task_id], fields=["project_id"])
+        if not tasks:
+            raise RecordNotFoundError(self._model, task_id)
+
+        milestones = await self._client.read(
+            "project.milestone", [milestone_id], fields=["project_id"]
+        )
+        if not milestones:
+            raise RecordNotFoundError("project.milestone", milestone_id)
+
+        task_project_id = _project_id(tasks[0])
+        milestone_project_id = _project_id(milestones[0])
+        if task_project_id is None or milestone_project_id is None:
+            raise RecordOperationError("Task and milestone must both belong to a project")
+        if task_project_id != milestone_project_id:
+            raise RecordOperationError(
+                f"Task {task_id} and milestone {milestone_id} belong to different projects"
+            )
+
+        return await self._client.write(self._model, [task_id], {"milestone_id": milestone_id})
 
     async def create_tag(self, name: str, color: int | None = None) -> int:
         """Create a new project tag."""
