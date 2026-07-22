@@ -70,8 +70,37 @@ def message_post_sudo(
     message_type: str = "comment",
     is_note: bool = False,
     **kwargs: Any,
-) -> int:
+) -> bool:
     """Post a message or note as a specific user using sudo.
+
+    Returns:
+        True if successful
+    """
+    return bool(
+        message_post_sudo_with_id(
+            client,
+            model,
+            res_id,
+            body,
+            user_id=user_id,
+            message_type=message_type,
+            is_note=is_note,
+            **kwargs,
+        )
+    )
+
+
+def message_post_sudo_with_id(
+    client: OdooClient,
+    model: str,
+    res_id: int,
+    body: str,
+    user_id: int | None = None,
+    message_type: str = "comment",
+    is_note: bool = False,
+    **kwargs: Any,
+) -> int:
+    """Post a message or note as a specific user and return its message ID.
 
     Args:
         client: Odoo client

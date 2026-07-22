@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from vodoo._domain import _convert_to_html, _NamespaceBase
-from vodoo.aio.auth import message_post_sudo
+from vodoo.aio.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.exceptions import RecordNotFoundError
 
 if TYPE_CHECKING:
@@ -78,10 +78,15 @@ class AsyncDomainNamespace(_NamespaceBase):
         markdown: bool = True,
     ) -> bool:
         """Post a customer-visible comment on a record."""
-        message_id = await self.comment_with_id(
-            record_id, message, user_id=user_id, markdown=markdown
+        body = _convert_to_html(message, markdown)
+        return await message_post_sudo(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=False,
         )
-        return bool(message_id)
 
     async def comment_with_id(
         self,
@@ -92,7 +97,7 @@ class AsyncDomainNamespace(_NamespaceBase):
     ) -> int:
         """Post a customer-visible comment and return its message ID."""
         body = _convert_to_html(message, markdown)
-        return await message_post_sudo(
+        return await message_post_sudo_with_id(
             self._client,
             self._model,
             record_id,
@@ -109,8 +114,15 @@ class AsyncDomainNamespace(_NamespaceBase):
         markdown: bool = True,
     ) -> bool:
         """Post an internal note (not visible to customers)."""
-        message_id = await self.note_with_id(record_id, message, user_id=user_id, markdown=markdown)
-        return bool(message_id)
+        body = _convert_to_html(message, markdown)
+        return await message_post_sudo(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=True,
+        )
 
     async def note_with_id(
         self,
@@ -121,7 +133,7 @@ class AsyncDomainNamespace(_NamespaceBase):
     ) -> int:
         """Post an internal note and return its message ID."""
         body = _convert_to_html(message, markdown)
-        return await message_post_sudo(
+        return await message_post_sudo_with_id(
             self._client,
             self._model,
             record_id,

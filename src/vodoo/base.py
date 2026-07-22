@@ -485,15 +485,13 @@ def add_comment(
 
     """
     body = _convert_to_html(message, markdown)
-    return bool(
-        message_post_sudo(
-            client,
-            model,
-            record_id,
-            body,
-            user_id=user_id,
-            is_note=False,
-        )
+    return message_post_sudo(
+        client,
+        model,
+        record_id,
+        body,
+        user_id=user_id,
+        is_note=False,
     )
 
 
@@ -520,15 +518,13 @@ def add_note(
 
     """
     body = _convert_to_html(message, markdown)
-    return bool(
-        message_post_sudo(
-            client,
-            model,
-            record_id,
-            body,
-            user_id=user_id,
-            is_note=True,
-        )
+    return message_post_sudo(
+        client,
+        model,
+        record_id,
+        body,
+        user_id=user_id,
+        is_note=True,
     )
 
 
