@@ -178,7 +178,7 @@ HTML fields automatically convert markdown to HTML.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `lead_id` | INT | Lead/Opportunity ID |
-| `fields` | TEXT | Field assignments (field=value) |
+| `fields` | TEXT... | Field assignments (field=value) |
 
 **Options:**
 

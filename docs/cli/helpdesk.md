@@ -185,7 +185,7 @@ Paragraph text'
 | Argument | Type | Description |
 |----------|------|-------------|
 | `ticket_id` | INT | Ticket ID |
-| `fields` | TEXT | Field assignments in format 'field=value' or 'field+=amount' |
+| `fields` | TEXT... | Field assignments in format 'field=value' or 'field+=amount' |
 
 **Options:**
 

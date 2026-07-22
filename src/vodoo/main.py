@@ -50,6 +50,7 @@ from vodoo.exceptions import (
 )
 from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
 from vodoo.knowledge import display_article_detail
+from vodoo.project_tasks import _validate_schedule_values
 from vodoo.projects import display_stages
 from vodoo.security import (
     GROUP_DEFINITIONS,
@@ -125,6 +126,13 @@ project_task_milestone_app = typer.Typer(
     no_args_is_help=True,
 )
 project_task_app.add_typer(project_task_milestone_app, name="milestone")
+
+project_task_depends_app = typer.Typer(
+    name="depends",
+    help="Project task dependency operations",
+    no_args_is_help=True,
+)
+project_task_app.add_typer(project_task_depends_app, name="depends")
 
 project_project_app = typer.Typer(
     name="project",
@@ -217,6 +225,7 @@ for _sub_app in (
     helpdesk_app,
     project_task_app,
     project_task_milestone_app,
+    project_task_depends_app,
     project_project_app,
     project_milestone_app,
     knowledge_app,
@@ -927,6 +936,99 @@ def helpdesk_url(
 
 
 # Project task commands
+
+
+@project_task_depends_app.command("add")
+def project_task_depends_add(
+    task_id: Annotated[int, typer.Argument(help="Blocked task ID")],
+    blocked_by_ids: Annotated[
+        list[int], typer.Argument(help="IDs of tasks that must be completed first")
+    ],
+) -> None:
+    """Add one or more dependencies to a task without replacing existing dependencies."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.add_dependencies(task_id, blocked_by_ids)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_add"})
+        else:
+            console.print(f"[red]Failed to add dependencies to task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {
+                "ok": True,
+                "id": task_id,
+                "blocked_by_ids": blocked_by_ids,
+                "action": "depends_add",
+            }
+        )
+    else:
+        dependencies = ", ".join(str(dependency_id) for dependency_id in blocked_by_ids)
+        console.print(
+            f"[green]Successfully added dependencies {dependencies} to task {task_id}[/green]"
+        )
+
+
+@project_task_depends_app.command("clear")
+def project_task_depends_clear(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+) -> None:
+    """Remove all dependencies from a task."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.clear_dependencies(task_id)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_clear"})
+        else:
+            console.print(f"[red]Failed to clear dependencies from task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print({"ok": True, "id": task_id, "action": "depends_clear"})
+    else:
+        console.print(f"[green]Successfully cleared dependencies from task {task_id}[/green]")
+
+
+@project_task_app.command("schedule")
+def project_task_schedule(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    start: Annotated[
+        str, typer.Option("--start", help="Planned start datetime (YYYY-MM-DD HH:MM:SS)")
+    ],
+    end: Annotated[str, typer.Option("--end", help="Deadline (YYYY-MM-DD)")],
+) -> None:
+    """Set Gantt scheduling dates (requires Odoo Project Enterprise)."""
+    try:
+        _validate_schedule_values(start, end)
+    except ValueError as exc:
+        if is_structured_output():
+            structured_print({"error": str(exc), "type": "validation"})
+            raise typer.Exit(2) from exc
+        raise typer.BadParameter(str(exc)) from exc
+
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.schedule(task_id, start, end)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "schedule"})
+        else:
+            console.print(f"[red]Failed to schedule task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {"ok": True, "id": task_id, "start": start, "end": end, "action": "schedule"}
+        )
+    else:
+        console.print(f"[green]Successfully scheduled task {task_id} from {start} to {end}[/green]")
 
 
 @project_task_app.command("list")

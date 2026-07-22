@@ -132,7 +132,7 @@ Examples:
 | Argument | Type | Description |
 |----------|------|-------------|
 | `project_id` | INT | Project ID |
-| `fields` | TEXT | Field assignments in format 'field=value' or 'field+=amount' |
+| `fields` | TEXT... | Field assignments in format 'field=value' or 'field+=amount' |
 
 **Options:**
 

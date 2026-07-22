@@ -51,13 +51,20 @@ def format_type(param: click.Parameter) -> str:
         "boolean": "BOOL",
         "path": "PATH",
     }
-    return type_map.get(type_name, type_name.upper())
+    formatted = type_map.get(type_name, type_name.upper())
+    if isinstance(param, click.Argument) and param.nargs == -1:
+        return f"{formatted}..."
+    return formatted
 
 
-def generate_command_doc(cmd: click.Command, cmd_name: str) -> str:
-    """Generate Markdown documentation for a single command."""
+def generate_command_doc(
+    cmd: click.Command,
+    cmd_name: str,
+    heading_level: int = 3,
+) -> str:
+    """Generate Markdown documentation for a command and its nested commands."""
     lines: list[str] = []
-    lines.append(f"### {cmd_name}")
+    lines.append(f"{'#' * heading_level} {cmd_name}")
     lines.append("")
 
     # Help text
@@ -92,11 +99,22 @@ def generate_command_doc(cmd: click.Command, cmd_name: str) -> str:
             if opt.secondary_opts:
                 opt_str += " / " + " / ".join(f"`{o}`" for o in opt.secondary_opts)
             help_text = opt.help or ""
+            if opt.required and "required" not in help_text.casefold():
+                help_text += " (required)" if help_text else "required"
             default = opt.default
             if default is not None and default not in ((), False):
                 help_text += f" (default: {default})"
             lines.append(f"| {opt_str} | {format_type(opt)} | {help_text} |")
         lines.append("")
+
+    if isinstance(cmd, click.Group):
+        sub_ctx = click.Context(cmd)
+        for child_name in cmd.list_commands(sub_ctx):
+            child = cmd.get_command(sub_ctx, child_name)
+            if child is not None:
+                lines.append(
+                    generate_command_doc(child, f"{cmd_name} {child_name}", heading_level + 1)
+                )
 
     return "\n".join(lines)
 
