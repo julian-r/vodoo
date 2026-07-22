@@ -200,6 +200,7 @@ def test_set_help_documents_markdown_default_and_html_opt_out() -> None:
     result = CliRunner().invoke(app, ["project-task", "set", "--help"])
 
     assert result.exit_code == 0
-    assert "--html" in result.output
-    assert "raw HTML" in result.output
-    assert "markdown is the default" in result.output
+    output = click.unstyle(result.output)
+    assert "--html" in output
+    assert "raw HTML" in output
+    assert "markdown is the default" in output
