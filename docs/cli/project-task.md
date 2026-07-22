@@ -20,8 +20,8 @@ Set Gantt scheduling dates (requires Odoo Project Enterprise).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--start` | TEXT | Planned start datetime (YYYY-MM-DD HH:MM:SS) |
-| `--end` | TEXT | Deadline (YYYY-MM-DD) |
+| `--start` | TEXT | Planned start datetime (YYYY-MM-DD HH:MM:SS) (required) |
+| `--end` | TEXT | Deadline (YYYY-MM-DD) (required) |
 
 ### list
 

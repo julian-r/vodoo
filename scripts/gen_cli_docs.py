@@ -99,6 +99,8 @@ def generate_command_doc(
             if opt.secondary_opts:
                 opt_str += " / " + " / ".join(f"`{o}`" for o in opt.secondary_opts)
             help_text = opt.help or ""
+            if opt.required and "required" not in help_text.casefold():
+                help_text += " (required)" if help_text else "required"
             default = opt.default
             if default is not None and default not in ((), False):
                 help_text += f" (default: {default})"
