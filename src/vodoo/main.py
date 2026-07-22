@@ -1,5 +1,6 @@
 """Main CLI application for Vodoo."""
 
+import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
@@ -3193,5 +3194,18 @@ def timer_active() -> None:
         console.print(table)
 
 
+def cli() -> None:
+    """Run the CLI, applying no-color mode before Typer parses arguments."""
+    no_color = "--no-color" in sys.argv[1:]
+    if no_color:
+        from typer import rich_utils
+
+        rich_utils.FORCE_TERMINAL = False
+        _apply_output_config(no_color=True)
+        app(color=False)
+    else:
+        app()
+
+
 if __name__ == "__main__":
-    app()
+    cli()
