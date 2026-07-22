@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from unittest.mock import patch
+
+import pytest
+import typer
 
 from vodoo.base import (
     configure_output,
@@ -124,6 +128,37 @@ class TestDisplayRecordDetailJson:
         assert result["name"] == "Fix login bug"
         assert result["stage_id"] == [3, "In Progress"]
         assert result["description"] == "<p>Details</p>"
+
+
+class TestStructuredErrorFallback:
+    """Test errors remain visible when the active formatter is broken."""
+
+    def test_broken_toon_formatter_falls_back_to_json_stderr(self, capsys: Any) -> None:
+        from vodoo import main
+
+        configure_output(json_mode=False, toon_mode=True)
+        try:
+            with (
+                patch(
+                    "vodoo.main.structured_print",
+                    side_effect=NotImplementedError("TOON encoder is not yet implemented"),
+                ) as formatter,
+                pytest.raises(typer.Exit) as exc_info,
+                main._handle_errors(),
+            ):
+                main.structured_print({"ok": True})
+        finally:
+            configure_output(json_mode=False, toon_mode=False)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert json.loads(captured.err) == {
+            "error": "TOON encoder is not yet implemented",
+            "type": "unexpected",
+        }
+        assert formatter.call_count == 2
+        assert exc_info.value.exit_code == 1
+        assert isinstance(exc_info.value.__cause__, NotImplementedError)
 
 
 class TestMutualExclusivity:

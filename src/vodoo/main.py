@@ -1,5 +1,7 @@
 """Main CLI application for Vodoo."""
 
+import json
+import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
@@ -50,46 +52,43 @@ from vodoo.security import (
 )
 
 
+def _print_error(error: Exception, error_type: str, label: str) -> None:
+    """Print an error without letting a broken structured formatter mask it."""
+    if not is_structured_output():
+        console.print(f"[red]{label}:[/red] {error}")
+        return
+
+    payload = {"error": str(error), "type": error_type}
+    try:
+        structured_print(payload)
+    except Exception:
+        # The exception may have originated in the active formatter. Avoid using
+        # that formatter again and emit a dependency-free fallback to stderr.
+        print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
+
+
 @contextmanager
-def _handle_errors() -> Any:  # noqa: PLR0912
+def _handle_errors() -> Any:
     """Catch Vodoo/Odoo exceptions and exit with a formatted error message."""
     try:
         yield
     except RecordNotFoundError as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "not_found"})
-        else:
-            console.print(f"[red]Not found:[/red] {e}")
+        _print_error(e, "not_found", "Not found")
         raise typer.Exit(1) from e
     except (OdooAccessError, OdooAccessDeniedError) as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "access_denied"})
-        else:
-            console.print(f"[red]Access denied:[/red] {e}")
+        _print_error(e, "access_denied", "Access denied")
         raise typer.Exit(1) from e
     except AuthenticationError as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "authentication"})
-        else:
-            console.print(f"[red]Authentication failed:[/red] {e}")
+        _print_error(e, "authentication", "Authentication failed")
         raise typer.Exit(1) from e
     except TransportError as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "server_error"})
-        else:
-            console.print(f"[red]Server error:[/red] {e}")
+        _print_error(e, "server_error", "Server error")
         raise typer.Exit(1) from e
     except VodooError as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "vodoo_error"})
-        else:
-            console.print(f"[red]Error:[/red] {e}")
+        _print_error(e, "vodoo_error", "Error")
         raise typer.Exit(1) from e
     except Exception as e:
-        if is_structured_output():
-            structured_print({"error": str(e), "type": "unexpected"})
-        else:
-            console.print(f"[red]Unexpected error:[/red] {e}")
+        _print_error(e, "unexpected", "Unexpected error")
         raise typer.Exit(1) from e
 
 
