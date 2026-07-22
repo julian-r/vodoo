@@ -116,6 +116,7 @@ nav:
       - project: cli/project.md
       - crm: cli/crm.md
       - account-move: cli/account-move.md
+      - activity: cli/activity.md
       - knowledge: cli/knowledge.md
       - timer: cli/timer.md
       - model: cli/model.md
@@ -134,6 +135,7 @@ nav:
       - Project Tasks: api/project_tasks.md
       - Projects: api/projects.md
       - CRM: api/crm.md
+      - Activities: api/activities.md
       - Knowledge: api/knowledge.md
       - Timers: api/timer.md
       - Generic CRUD: api/generic.md
