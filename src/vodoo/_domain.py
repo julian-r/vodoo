@@ -141,17 +141,17 @@ class DomainNamespace(_NamespaceBase):
         user_id: int | None = None,
         markdown: bool = True,
     ) -> bool:
-        """Post a customer-visible comment on a record.
+        """Post a customer-visible comment on a record."""
+        return bool(self.comment_with_id(record_id, message, user_id=user_id, markdown=markdown))
 
-        Args:
-            record_id: Record ID.
-            message: Comment text (plain or markdown).
-            user_id: Post as this user (``None`` → configured default).
-            markdown: Convert markdown to HTML before posting.
-
-        Returns:
-            ``True`` on success.
-        """
+    def comment_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post a customer-visible comment and return its message ID."""
         body = _convert_to_html(message, markdown)
         return message_post_sudo(
             self._client,
@@ -169,17 +169,17 @@ class DomainNamespace(_NamespaceBase):
         user_id: int | None = None,
         markdown: bool = True,
     ) -> bool:
-        """Post an internal note (not visible to customers).
+        """Post an internal note (not visible to customers)."""
+        return bool(self.note_with_id(record_id, message, user_id=user_id, markdown=markdown))
 
-        Args:
-            record_id: Record ID.
-            message: Note text (plain or markdown).
-            user_id: Post as this user (``None`` → configured default).
-            markdown: Convert markdown to HTML before posting.
-
-        Returns:
-            ``True`` on success.
-        """
+    def note_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post an internal note and return its message ID."""
         body = _convert_to_html(message, markdown)
         return message_post_sudo(
             self._client,

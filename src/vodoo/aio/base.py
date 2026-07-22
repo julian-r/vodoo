@@ -152,7 +152,7 @@ async def add_comment(
 ) -> bool:
     """Add a comment to a record (visible to customers)."""
     body = _convert_to_html(message, markdown)
-    return await message_post_sudo(
+    message_id = await message_post_sudo(
         client,
         model,
         record_id,
@@ -160,6 +160,7 @@ async def add_comment(
         user_id=user_id,
         is_note=False,
     )
+    return bool(message_id)
 
 
 async def add_note(
@@ -172,7 +173,7 @@ async def add_note(
 ) -> bool:
     """Add an internal note to a record (not visible to customers)."""
     body = _convert_to_html(message, markdown)
-    return await message_post_sudo(
+    message_id = await message_post_sudo(
         client,
         model,
         record_id,
@@ -180,6 +181,7 @@ async def add_note(
         user_id=user_id,
         is_note=True,
     )
+    return bool(message_id)
 
 
 async def list_tags(client: AsyncOdooClient, model: str) -> list[dict[str, Any]]:

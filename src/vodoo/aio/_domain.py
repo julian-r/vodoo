@@ -78,6 +78,19 @@ class AsyncDomainNamespace(_NamespaceBase):
         markdown: bool = True,
     ) -> bool:
         """Post a customer-visible comment on a record."""
+        message_id = await self.comment_with_id(
+            record_id, message, user_id=user_id, markdown=markdown
+        )
+        return bool(message_id)
+
+    async def comment_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post a customer-visible comment and return its message ID."""
         body = _convert_to_html(message, markdown)
         return await message_post_sudo(
             self._client,
@@ -96,6 +109,17 @@ class AsyncDomainNamespace(_NamespaceBase):
         markdown: bool = True,
     ) -> bool:
         """Post an internal note (not visible to customers)."""
+        message_id = await self.note_with_id(record_id, message, user_id=user_id, markdown=markdown)
+        return bool(message_id)
+
+    async def note_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post an internal note and return its message ID."""
         body = _convert_to_html(message, markdown)
         return await message_post_sudo(
             self._client,

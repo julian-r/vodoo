@@ -70,7 +70,7 @@ def message_post_sudo(
     message_type: str = "comment",
     is_note: bool = False,
     **kwargs: Any,
-) -> bool:
+) -> int:
     """Post a message or note as a specific user using sudo.
 
     Args:
@@ -84,7 +84,7 @@ def message_post_sudo(
         **kwargs: Additional arguments for message_post
 
     Returns:
-        True if successful
+        ID of the created ``mail.message`` record
 
     Raises:
         ConfigurationError: If no default user configured
@@ -125,5 +125,4 @@ def message_post_sudo(
     }
 
     # Create the message
-    message_id = client.create("mail.message", message_vals)
-    return bool(message_id)
+    return client.create("mail.message", message_vals)

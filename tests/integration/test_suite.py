@@ -312,16 +312,22 @@ class TestProjectTask:
         assert str(self.task_id) in url
 
     def test_task_comment(self, client: OdooClient) -> None:
-        success = client.tasks.comment(self.task_id, "Task comment from vodoo", user_id=client.uid)
-        assert success is True
+        message_id = client.tasks.comment_with_id(
+            self.task_id, "Task comment from vodoo", user_id=client.uid
+        )
+        assert message_id > 0
 
         messages = client.tasks.messages(self.task_id)
-        bodies = [m.get("body", "") for m in messages]
-        assert any("Task comment from vodoo" in b for b in bodies)
+        assert any(
+            message["id"] == message_id and "Task comment from vodoo" in message.get("body", "")
+            for message in messages
+        )
 
     def test_task_note(self, client: OdooClient) -> None:
-        success = client.tasks.note(self.task_id, "Task internal note", user_id=client.uid)
-        assert success is True
+        message_id = client.tasks.note_with_id(
+            self.task_id, "Task internal note", user_id=client.uid
+        )
+        assert message_id > 0
 
     def test_task_attachment(self, client: OdooClient) -> None:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:

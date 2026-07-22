@@ -1048,12 +1048,19 @@ def project_comment(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.comment(
+        message_id = client.tasks.comment_with_id(
             task_id, message, user_id=author_id, markdown=not no_markdown
         )
-        if success:
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "comment"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "comment",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added comment to task {task_id}[/green]")
         else:
@@ -1077,10 +1084,19 @@ def project_note(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
-        if success:
+        message_id = client.tasks.note_with_id(
+            task_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "note"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "note",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added note to task {task_id}[/green]")
         else:
