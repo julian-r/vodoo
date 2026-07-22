@@ -10,6 +10,7 @@ Vodoo provides a Typer-based CLI with the following subcommands:
 | [`project-task`](project-task.md) | Project task operations |
 | [`project`](project.md) | Project operations |
 | [`knowledge`](knowledge.md) | Knowledge article operations |
+| [`document`](document.md) | Odoo Documents operations |
 | [`model`](model.md) | Generic model operations (create, read, update, delete) |
 | [`crm`](crm.md) | CRM lead/opportunity operations |
 | [`account-move`](account-move.md) | Accounting move operations |

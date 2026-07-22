@@ -154,6 +154,13 @@ knowledge_app = typer.Typer(
 )
 app.add_typer(knowledge_app, name="knowledge")
 
+document_app = typer.Typer(
+    name="document",
+    help="Odoo Documents operations",
+    no_args_is_help=True,
+)
+app.add_typer(document_app, name="document")
+
 model_app = typer.Typer(
     name="model",
     help="Generic model operations (create, read, update, delete)",
@@ -239,6 +246,7 @@ for _sub_app in (
     project_project_app,
     project_milestone_app,
     knowledge_app,
+    document_app,
     model_app,
     crm_app,
     account_move_app,
@@ -2139,6 +2147,89 @@ def knowledge_url(
             structured_print({"url": url, "id": article_id})
         else:
             console.print(url)
+
+
+# Document commands
+
+
+@document_app.command("upload")
+def document_upload(
+    file_path: Annotated[Path, typer.Argument(help="Path to the file to upload")],
+    folder: Annotated[
+        str,
+        typer.Option("--folder", "-f", help="Destination folder ID or exact name"),
+    ],
+    name: Annotated[
+        str | None,
+        typer.Option("--name", "-n", help="Custom document name (defaults to filename)"),
+    ] = None,
+) -> None:
+    """Upload a file to Odoo Documents."""
+    client = get_client()
+
+    with _handle_errors():
+        document_id = client.documents.upload(file_path, folder=folder, name=name)
+        document_name = name or file_path.name
+        if is_structured_output():
+            structured_print({"ok": True, "id": document_id, "name": document_name})
+        else:
+            console.print(
+                f"[green]Successfully uploaded '{document_name}' with ID {document_id}[/green]"
+            )
+
+
+@document_app.command("list")
+def document_list(
+    folder: Annotated[
+        str | None,
+        typer.Option("--folder", "-f", help="Filter by folder ID or exact name"),
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of documents")] = 50,
+) -> None:
+    """List files in Odoo Documents."""
+    client = get_client()
+
+    with _handle_errors():
+        domain: list[Any] = [("type", "=", "binary")]
+        if folder is not None:
+            domain.append(("folder_id", "=", client.documents.resolve_folder(folder)))
+        documents = client.documents.list(domain=domain, limit=limit)
+        display_records(documents, title="Documents")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(documents)} documents[/dim]")
+
+
+@document_app.command("download")
+def document_download(
+    document_id: Annotated[int, typer.Argument(help="Document ID")],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Output path (defaults to document name)"),
+    ] = None,
+) -> None:
+    """Download a file from Odoo Documents."""
+    client = get_client()
+
+    with _handle_errors():
+        output_path = client.documents.download_file(document_id, output)
+        if is_structured_output():
+            structured_print({"ok": True, "id": document_id, "path": str(output_path)})
+        else:
+            console.print(f"[green]Downloaded document to {output_path}[/green]")
+
+
+@document_app.command("folders")
+def document_folders(
+    limit: Annotated[int, typer.Option(help="Maximum number of folders")] = 50,
+) -> None:
+    """List available Odoo Documents folders."""
+    client = get_client()
+
+    with _handle_errors():
+        folders = client.documents.folders(limit=limit)
+        display_records(folders, title="Document Folders")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(folders)} folders[/dim]")
 
 
 # Security commands
