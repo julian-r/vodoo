@@ -44,7 +44,7 @@ from vodoo.exceptions import (
     TransportError,
     VodooError,
 )
-from vodoo.fields import _match_field_assignment, _parse_raw_value, parse_field_assignment
+from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
 from vodoo.knowledge import display_article_detail
 from vodoo.projects import display_stages
 from vodoo.security import (
@@ -1276,8 +1276,7 @@ def project_set(
     with _handle_errors():
         fields_info = list_fields(client, "project.task")
         for field_assignment in fields:
-            source_field, operator, source_value = _match_field_assignment(field_assignment)
-            field, value = parse_field_assignment(
+            parsed = _parse_field_assignment_details(
                 client,
                 "project.task",
                 task_id,
@@ -1285,31 +1284,34 @@ def project_set(
                 no_markdown=no_markdown,
                 fields_info=fields_info,
             )
-            values[field] = value
-            raw_value = _parse_raw_value(source_field, source_value)
+            values[parsed.field] = parsed.value
             if (
                 not no_markdown
-                and operator == "="
-                and isinstance(raw_value, str)
-                and fields_info.get(field, {}).get("type") == "html"
+                and parsed.operator == "="
+                and isinstance(parsed.source_value, str)
+                and fields_info.get(parsed.field, {}).get("type") == "html"
             ):
-                markdown_values[field] = raw_value
+                markdown_values[parsed.field] = parsed.source_value
         success = client.tasks.set(task_id, values)
         if success:
             display_values = values.copy()
             if not show_html:
-                display_values = {
-                    field: markdown_values.get(field, _html_to_markdown(value))
-                    if isinstance(value, str) and fields_info.get(field, {}).get("type") == "html"
-                    else value
-                    for field, value in values.items()
-                }
+                for field, value in values.items():
+                    if not (
+                        isinstance(value, str) and fields_info.get(field, {}).get("type") == "html"
+                    ):
+                        continue
+                    display_values[field] = (
+                        markdown_values[field]
+                        if field in markdown_values
+                        else _html_to_markdown(value)
+                    )
             if is_structured_output():
                 structured_print({"ok": True, "id": task_id, "updated": display_values})
             else:
                 console.print(f"[green]Successfully updated task {task_id}[/green]")
                 for field, value in display_values.items():
-                    console.print(f"  {field} = {value}", markup=False)
+                    console.print(f"  {field} = {value}", markup=False, soft_wrap=True)
         else:
             console.print(f"[red]Failed to set fields on task {task_id}[/red]")
             raise typer.Exit(1)

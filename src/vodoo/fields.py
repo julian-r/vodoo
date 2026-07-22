@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from vodoo.exceptions import FieldParsingError
@@ -102,13 +103,50 @@ def _apply_operator(field: str, operator: str, parsed_value: Any, current_value:
     return result
 
 
-def parse_field_assignment(
+@dataclass(frozen=True, slots=True)
+class _ParsedFieldAssignment:
+    """Detailed result used by CLI commands that also display the source value."""
+
+    field: str
+    operator: str
+    source_value: Any
+    value: Any
+
+
+def _parse_field_assignment_details(
     client: OdooClient,
     model: str,
     record_id: int,
     field_assignment: str,
     no_markdown: bool = False,
     fields_info: dict[str, Any] | None = None,
+) -> _ParsedFieldAssignment:
+    """Parse an assignment once and retain both source and computed values."""
+    from vodoo.base import _convert_to_html, get_record, list_fields
+
+    field, operator, value = _match_field_assignment(field_assignment)
+    source_value = _parse_raw_value(field, value)
+    parsed_value = source_value
+    # Auto-convert markdown to HTML for HTML fields
+    if isinstance(parsed_value, str) and not no_markdown:
+        if fields_info is None:
+            fields_info = list_fields(client, model)
+        if field in fields_info and fields_info[field].get("type") == "html":
+            parsed_value = _convert_to_html(parsed_value, use_markdown=True)
+    if operator in ("+=", "-=", "*=", "/="):
+        record = get_record(client, model, record_id, fields=[field])
+        current_value = record.get(field)
+        parsed_value = _apply_operator(field, operator, parsed_value, current_value)
+
+    return _ParsedFieldAssignment(field, operator, source_value, parsed_value)
+
+
+def parse_field_assignment(
+    client: OdooClient,
+    model: str,
+    record_id: int,
+    field_assignment: str,
+    no_markdown: bool = False,
 ) -> tuple[str, Any]:
     """Parse a field assignment and return field name and computed value.
 
@@ -120,7 +158,6 @@ def parse_field_assignment(
         record_id: Record ID
         field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
         no_markdown: If True, disable automatic markdown conversion for HTML fields
-        fields_info: Optional field definitions to reuse instead of fetching them
 
     Returns:
         Tuple of (field_name, value)
@@ -135,19 +172,11 @@ def parse_field_assignment(
         ('priority', 3)  # if current priority is 2
 
     """
-    from vodoo.base import _convert_to_html, get_record, list_fields
-
-    field, operator, value = _match_field_assignment(field_assignment)
-    parsed_value = _parse_raw_value(field, value)
-    # Auto-convert markdown to HTML for HTML fields
-    if isinstance(parsed_value, str) and not no_markdown:
-        if fields_info is None:
-            fields_info = list_fields(client, model)
-        if field in fields_info and fields_info[field].get("type") == "html":
-            parsed_value = _convert_to_html(parsed_value, use_markdown=True)
-    if operator in ("+=", "-=", "*=", "/="):
-        record = get_record(client, model, record_id, fields=[field])
-        current_value = record.get(field)
-        parsed_value = _apply_operator(field, operator, parsed_value, current_value)
-
-    return field, parsed_value
+    result = _parse_field_assignment_details(
+        client,
+        model,
+        record_id,
+        field_assignment,
+        no_markdown=no_markdown,
+    )
+    return result.field, result.value

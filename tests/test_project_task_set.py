@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from typing import Any
 
 import click
@@ -36,9 +37,14 @@ class _FakeClient:
 
 
 @pytest.fixture(autouse=True)
-def _reset_output() -> None:
+def _reset_output() -> Iterator[None]:
     main_module._console_config.update(simple=False, json=False, toon=False)
     configure_output(simple=False, json_mode=False, toon_mode=False)
+    try:
+        yield
+    finally:
+        main_module._console_config.update(simple=False, json=False, toon=False)
+        configure_output(simple=False, json_mode=False, toon_mode=False)
 
 
 @pytest.fixture
@@ -61,6 +67,28 @@ def test_set_displays_html_field_as_markdown_by_default(fake_client: _FakeClient
     assert fake_client.tasks.updates == [
         (42, {"description": "<h1>Task Details</h1>\n<p><strong>Important</strong></p>"})
     ]
+
+
+@pytest.mark.parametrize(
+    ("value", "extra_args"),
+    [
+        (f"**{'authored-markdown-' * 8}**", []),
+        (f"<p>{'raw-html-' * 16}</p>", ["--no-markdown", "--html"]),
+    ],
+)
+def test_set_does_not_wrap_long_terminal_values(
+    fake_client: _FakeClient,
+    value: str,
+    extra_args: list[str],
+) -> None:
+    result = CliRunner().invoke(
+        app,
+        ["project-task", "set", "42", f"description={value}", *extra_args],
+    )
+
+    assert result.exit_code == 0
+    assert f"description = {value}" in click.unstyle(result.output)
+    assert fake_client.tasks.updates
 
 
 def test_set_preserves_authored_markdown_without_changing_write_payload(
