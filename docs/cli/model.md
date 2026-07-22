@@ -22,7 +22,7 @@ Examples:
 | Argument | Type | Description |
 |----------|------|-------------|
 | `model` | TEXT | Model name (e.g., product.template) |
-| `fields` | TEXT | Field assignments in format 'field=value' |
+| `fields` | TEXT... | Field assignments in format 'field=value' |
 
 ### read
 
@@ -70,7 +70,7 @@ Examples:
 |----------|------|-------------|
 | `model` | TEXT | Model name |
 | `record_id` | INT | Record ID |
-| `fields` | TEXT | Field assignments in format 'field=value' |
+| `fields` | TEXT... | Field assignments in format 'field=value' |
 
 **Options:**
 

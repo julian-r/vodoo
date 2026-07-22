@@ -50,6 +50,7 @@ from vodoo.exceptions import (
 )
 from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
 from vodoo.knowledge import display_article_detail
+from vodoo.project_tasks import _validate_schedule_values
 from vodoo.projects import display_stages
 from vodoo.security import (
     GROUP_DEFINITIONS,
@@ -951,7 +952,10 @@ def project_task_depends_add(
         success = client.tasks.add_dependencies(task_id, blocked_by_ids)
 
     if not success:
-        console.print(f"[red]Failed to add dependencies to task {task_id}[/red]")
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_add"})
+        else:
+            console.print(f"[red]Failed to add dependencies to task {task_id}[/red]")
         raise typer.Exit(1)
     if is_structured_output():
         structured_print(
@@ -965,8 +969,7 @@ def project_task_depends_add(
     else:
         dependencies = ", ".join(str(dependency_id) for dependency_id in blocked_by_ids)
         console.print(
-            "[green]Successfully added dependencies "
-            f"{dependencies} to task {task_id}[/green]"
+            f"[green]Successfully added dependencies {dependencies} to task {task_id}[/green]"
         )
 
 
@@ -981,7 +984,10 @@ def project_task_depends_clear(
         success = client.tasks.clear_dependencies(task_id)
 
     if not success:
-        console.print(f"[red]Failed to clear dependencies from task {task_id}[/red]")
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_clear"})
+        else:
+            console.print(f"[red]Failed to clear dependencies from task {task_id}[/red]")
         raise typer.Exit(1)
     if is_structured_output():
         structured_print({"ok": True, "id": task_id, "action": "depends_clear"})
@@ -997,14 +1003,25 @@ def project_task_schedule(
     ],
     end: Annotated[str, typer.Option("--end", help="Deadline (YYYY-MM-DD)")],
 ) -> None:
-    """Set a task's planned start and deadline for Gantt scheduling."""
+    """Set Gantt scheduling dates (requires Odoo Project Enterprise)."""
+    try:
+        _validate_schedule_values(start, end)
+    except ValueError as exc:
+        if is_structured_output():
+            structured_print({"error": str(exc), "type": "validation"})
+            raise typer.Exit(2) from exc
+        raise typer.BadParameter(str(exc)) from exc
+
     client = get_client()
 
     with _handle_errors():
         success = client.tasks.schedule(task_id, start, end)
 
     if not success:
-        console.print(f"[red]Failed to schedule task {task_id}[/red]")
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "schedule"})
+        else:
+            console.print(f"[red]Failed to schedule task {task_id}[/red]")
         raise typer.Exit(1)
     if is_structured_output():
         structured_print(

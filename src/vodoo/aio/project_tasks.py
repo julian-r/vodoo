@@ -5,7 +5,12 @@ from typing import Any
 from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.cmd import Cmd
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
-from vodoo.project_tasks import _build_task_values, _project_id, _TaskAttrs
+from vodoo.project_tasks import (
+    _build_task_values,
+    _project_id,
+    _TaskAttrs,
+    _validate_schedule_values,
+)
 
 
 class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
@@ -60,7 +65,17 @@ class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
         return await self.set(task_id, {"depend_on_ids": [Cmd.clear()]})
 
     async def schedule(self, task_id: int, start: str, end: str) -> bool:
-        """Set the dates needed to display a task on the Gantt chart."""
+        """Set Gantt scheduling dates (requires Odoo Project Enterprise).
+
+        Args:
+            task_id: Task ID.
+            start: Planned start datetime in ``YYYY-MM-DD HH:MM:SS`` format.
+            end: Deadline in ``YYYY-MM-DD`` format.
+
+        Returns:
+            True if successful.
+        """
+        _validate_schedule_values(start, end)
         return await self.set(
             task_id,
             {"planned_date_begin": start, "date_deadline": end},

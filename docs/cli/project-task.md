@@ -8,7 +8,7 @@ Manage Odoo Project Tasks.
 
 ### schedule
 
-Set a task's planned start and deadline for Gantt scheduling.
+Set Gantt scheduling dates (requires Odoo Project Enterprise).
 
 **Arguments:**
 
@@ -260,7 +260,7 @@ Set field values on a task.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `task_id` | INT | Task ID |
-| `fields` | TEXT | Field assignments in format 'field=value' or 'field+=amount' |
+| `fields` | TEXT... | Field assignments in format 'field=value' or 'field+=amount' |
 
 **Options:**
 
@@ -320,7 +320,7 @@ Add one or more dependencies to a task without replacing existing dependencies.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `task_id` | INT | Blocked task ID |
-| `blocked_by_ids` | INT | IDs of tasks that must be completed first |
+| `blocked_by_ids` | INT... | IDs of tasks that must be completed first |
 
 #### depends clear
 

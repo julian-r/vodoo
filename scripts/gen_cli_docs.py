@@ -51,7 +51,10 @@ def format_type(param: click.Parameter) -> str:
         "boolean": "BOOL",
         "path": "PATH",
     }
-    return type_map.get(type_name, type_name.upper())
+    formatted = type_map.get(type_name, type_name.upper())
+    if isinstance(param, click.Argument) and param.nargs == -1:
+        return f"{formatted}..."
+    return formatted
 
 
 def generate_command_doc(
