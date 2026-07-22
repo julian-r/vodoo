@@ -126,6 +126,13 @@ project_task_milestone_app = typer.Typer(
 )
 project_task_app.add_typer(project_task_milestone_app, name="milestone")
 
+project_task_depends_app = typer.Typer(
+    name="depends",
+    help="Project task dependency operations",
+    no_args_is_help=True,
+)
+project_task_app.add_typer(project_task_depends_app, name="depends")
+
 project_project_app = typer.Typer(
     name="project",
     help="Project operations",
@@ -217,6 +224,7 @@ for _sub_app in (
     helpdesk_app,
     project_task_app,
     project_task_milestone_app,
+    project_task_depends_app,
     project_project_app,
     project_milestone_app,
     knowledge_app,
@@ -927,6 +935,83 @@ def helpdesk_url(
 
 
 # Project task commands
+
+
+@project_task_depends_app.command("add")
+def project_task_depends_add(
+    task_id: Annotated[int, typer.Argument(help="Blocked task ID")],
+    blocked_by_ids: Annotated[
+        list[int], typer.Argument(help="IDs of tasks that must be completed first")
+    ],
+) -> None:
+    """Add one or more dependencies to a task without replacing existing dependencies."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.add_dependencies(task_id, blocked_by_ids)
+
+    if not success:
+        console.print(f"[red]Failed to add dependencies to task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {
+                "ok": True,
+                "id": task_id,
+                "blocked_by_ids": blocked_by_ids,
+                "action": "depends_add",
+            }
+        )
+    else:
+        dependencies = ", ".join(str(dependency_id) for dependency_id in blocked_by_ids)
+        console.print(
+            "[green]Successfully added dependencies "
+            f"{dependencies} to task {task_id}[/green]"
+        )
+
+
+@project_task_depends_app.command("clear")
+def project_task_depends_clear(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+) -> None:
+    """Remove all dependencies from a task."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.clear_dependencies(task_id)
+
+    if not success:
+        console.print(f"[red]Failed to clear dependencies from task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print({"ok": True, "id": task_id, "action": "depends_clear"})
+    else:
+        console.print(f"[green]Successfully cleared dependencies from task {task_id}[/green]")
+
+
+@project_task_app.command("schedule")
+def project_task_schedule(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    start: Annotated[
+        str, typer.Option("--start", help="Planned start datetime (YYYY-MM-DD HH:MM:SS)")
+    ],
+    end: Annotated[str, typer.Option("--end", help="Deadline (YYYY-MM-DD)")],
+) -> None:
+    """Set a task's planned start and deadline for Gantt scheduling."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.schedule(task_id, start, end)
+
+    if not success:
+        console.print(f"[red]Failed to schedule task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {"ok": True, "id": task_id, "start": start, "end": end, "action": "schedule"}
+        )
+    else:
+        console.print(f"[green]Successfully scheduled task {task_id} from {start} to {end}[/green]")
 
 
 @project_task_app.command("list")

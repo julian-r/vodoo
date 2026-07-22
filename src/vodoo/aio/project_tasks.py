@@ -3,6 +3,7 @@
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
+from vodoo.cmd import Cmd
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
 from vodoo.project_tasks import _build_task_values, _project_id, _TaskAttrs
 
@@ -48,6 +49,22 @@ class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
             )
 
         return await self._client.write(self._model, [task_id], {"milestone_id": milestone_id})
+
+    async def add_dependencies(self, task_id: int, dependency_ids: list[int]) -> bool:
+        """Add tasks that must be completed before this task."""
+        commands = [Cmd.link(dependency_id) for dependency_id in dependency_ids]
+        return await self.set(task_id, {"depend_on_ids": commands})
+
+    async def clear_dependencies(self, task_id: int) -> bool:
+        """Remove all dependencies from a task."""
+        return await self.set(task_id, {"depend_on_ids": [Cmd.clear()]})
+
+    async def schedule(self, task_id: int, start: str, end: str) -> bool:
+        """Set the dates needed to display a task on the Gantt chart."""
+        return await self.set(
+            task_id,
+            {"planned_date_begin": start, "date_deadline": end},
+        )
 
     async def create_tag(self, name: str, color: int | None = None) -> int:
         """Create a new project tag."""

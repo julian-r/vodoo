@@ -6,6 +6,23 @@ Manage Odoo Project Tasks.
 
 ## Commands
 
+### schedule
+
+Set a task's planned start and deadline for Gantt scheduling.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--start` | TEXT | Planned start datetime (YYYY-MM-DD HH:MM:SS) |
+| `--end` | TEXT | Deadline (YYYY-MM-DD) |
+
 ### list
 
 List project tasks.
@@ -289,4 +306,29 @@ Assign a project task to a milestone.
 |----------|------|-------------|
 | `task_id` | INT | Task ID |
 | `milestone_id` | INT | Milestone ID |
+
+### depends
+
+Project task dependency operations
+
+#### depends add
+
+Add one or more dependencies to a task without replacing existing dependencies.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Blocked task ID |
+| `blocked_by_ids` | INT | IDs of tasks that must be completed first |
+
+#### depends clear
+
+Remove all dependencies from a task.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
 

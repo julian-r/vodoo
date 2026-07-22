@@ -3,6 +3,7 @@
 from typing import Any, ClassVar
 
 from vodoo._domain import DomainNamespace
+from vodoo.cmd import Cmd
 from vodoo.content import Markdown
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
 
@@ -122,6 +123,48 @@ class TaskNamespace(_TaskAttrs, DomainNamespace):
             )
 
         return self._client.write(self._model, [task_id], {"milestone_id": milestone_id})
+
+    def add_dependencies(self, task_id: int, dependency_ids: list[int]) -> bool:
+        """Add tasks that must be completed before this task.
+
+        Existing dependencies are preserved.
+
+        Args:
+            task_id: ID of the blocked task.
+            dependency_ids: IDs of the tasks blocking it.
+
+        Returns:
+            True if successful.
+        """
+        commands = [Cmd.link(dependency_id) for dependency_id in dependency_ids]
+        return self.set(task_id, {"depend_on_ids": commands})
+
+    def clear_dependencies(self, task_id: int) -> bool:
+        """Remove all dependencies from a task.
+
+        Args:
+            task_id: Task ID.
+
+        Returns:
+            True if successful.
+        """
+        return self.set(task_id, {"depend_on_ids": [Cmd.clear()]})
+
+    def schedule(self, task_id: int, start: str, end: str) -> bool:
+        """Set the dates needed to display a task on the Gantt chart.
+
+        Args:
+            task_id: Task ID.
+            start: Planned start datetime in ``YYYY-MM-DD HH:MM:SS`` format.
+            end: Deadline in ``YYYY-MM-DD`` format.
+
+        Returns:
+            True if successful.
+        """
+        return self.set(
+            task_id,
+            {"planned_date_begin": start, "date_deadline": end},
+        )
 
     def create_tag(self, name: str, color: int | None = None) -> int:
         """Create a new project tag.
