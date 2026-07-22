@@ -11,6 +11,7 @@ from rich.table import Table
 
 from vodoo.account_moves import build_account_move_domain
 from vodoo.base import (
+    _html_to_markdown,
     configure_output,
     detect_binary_fields,
     display_attachments,
@@ -21,6 +22,7 @@ from vodoo.base import (
     download_attachment,
     get_record,
     is_structured_output,
+    list_fields,
     mask_binary_fields,
     save_binary_field,
     structured_print,
@@ -1245,11 +1247,18 @@ def project_set(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    show_html: Annotated[
+        bool,
+        typer.Option(
+            "--html",
+            help="Show raw HTML updated values instead of markdown (markdown is the default)",
+        ),
+    ] = False,
 ) -> None:
     """Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
-    HTML fields (like description) automatically convert markdown to HTML.
+    HTML fields (like description) accept markdown input and display markdown by default.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -1260,23 +1269,38 @@ def project_set(
     """
     client = get_client()
 
-    # Parse field assignments
+    # Parse field assignments, reusing metadata for input conversion and output formatting.
     values: dict[str, Any] = {}
 
     with _handle_errors():
+        fields_info = list_fields(client, "project.task")
         for field_assignment in fields:
             field, value = parse_field_assignment(
-                client, "project.task", task_id, field_assignment, no_markdown=no_markdown
+                client,
+                "project.task",
+                task_id,
+                field_assignment,
+                no_markdown=no_markdown,
+                fields_info=fields_info,
             )
             values[field] = value
         success = client.tasks.set(task_id, values)
         if success:
+            display_values = values.copy()
+            if not show_html:
+                display_values = {
+                    field: _html_to_markdown(value)
+                    if isinstance(value, str)
+                    and fields_info.get(field, {}).get("type") == "html"
+                    else value
+                    for field, value in values.items()
+                }
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "updated": values})
+                structured_print({"ok": True, "id": task_id, "updated": display_values})
             else:
                 console.print(f"[green]Successfully updated task {task_id}[/green]")
-                for field, value in values.items():
-                    console.print(f"  {field} = {value}")
+                for field, value in display_values.items():
+                    console.print(f"  {field} = {value}", markup=False)
         else:
             console.print(f"[red]Failed to set fields on task {task_id}[/red]")
             raise typer.Exit(1)

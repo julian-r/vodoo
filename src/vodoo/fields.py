@@ -108,6 +108,7 @@ def parse_field_assignment(
     record_id: int,
     field_assignment: str,
     no_markdown: bool = False,
+    fields_info: dict[str, Any] | None = None,
 ) -> tuple[str, Any]:
     """Parse a field assignment and return field name and computed value.
 
@@ -119,6 +120,7 @@ def parse_field_assignment(
         record_id: Record ID
         field_assignment: Field assignment string (e.g., 'field=value', 'field+=5')
         no_markdown: If True, disable automatic markdown conversion for HTML fields
+        fields_info: Optional field definitions to reuse instead of fetching them
 
     Returns:
         Tuple of (field_name, value)
@@ -139,7 +141,8 @@ def parse_field_assignment(
     parsed_value = _parse_raw_value(field, value)
     # Auto-convert markdown to HTML for HTML fields
     if isinstance(parsed_value, str) and not no_markdown:
-        fields_info = list_fields(client, model)
+        if fields_info is None:
+            fields_info = list_fields(client, model)
         if field in fields_info and fields_info[field].get("type") == "html":
             parsed_value = _convert_to_html(parsed_value, use_markdown=True)
     if operator in ("+=", "-=", "*=", "/="):

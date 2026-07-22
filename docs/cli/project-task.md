@@ -226,7 +226,7 @@ List available fields or show field values for a specific task.
 Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
-    HTML fields (like description) automatically convert markdown to HTML.
+    HTML fields (like description) accept markdown input and display markdown by default.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -250,6 +250,7 @@ Set field values on a task.
 | Option | Type | Description |
 |--------|------|-------------|
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion for HTML fields |
+| `--html` | BOOL | Show raw HTML updated values instead of markdown (markdown is the default) |
 
 ### attach
 
