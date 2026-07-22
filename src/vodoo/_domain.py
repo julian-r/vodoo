@@ -17,7 +17,7 @@ import builtins
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from vodoo.auth import message_post_sudo
+from vodoo.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.base import (
     _ATTACHMENT_LIST_FIELDS as _ATTACHMENT_LIST_FIELDS,
 )
@@ -141,19 +141,27 @@ class DomainNamespace(_NamespaceBase):
         user_id: int | None = None,
         markdown: bool = True,
     ) -> bool:
-        """Post a customer-visible comment on a record.
-
-        Args:
-            record_id: Record ID.
-            message: Comment text (plain or markdown).
-            user_id: Post as this user (``None`` → configured default).
-            markdown: Convert markdown to HTML before posting.
-
-        Returns:
-            ``True`` on success.
-        """
+        """Post a customer-visible comment on a record."""
         body = _convert_to_html(message, markdown)
         return message_post_sudo(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=False,
+        )
+
+    def comment_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post a customer-visible comment and return its message ID."""
+        body = _convert_to_html(message, markdown)
+        return message_post_sudo_with_id(
             self._client,
             self._model,
             record_id,
@@ -169,19 +177,27 @@ class DomainNamespace(_NamespaceBase):
         user_id: int | None = None,
         markdown: bool = True,
     ) -> bool:
-        """Post an internal note (not visible to customers).
-
-        Args:
-            record_id: Record ID.
-            message: Note text (plain or markdown).
-            user_id: Post as this user (``None`` → configured default).
-            markdown: Convert markdown to HTML before posting.
-
-        Returns:
-            ``True`` on success.
-        """
+        """Post an internal note (not visible to customers)."""
         body = _convert_to_html(message, markdown)
         return message_post_sudo(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=True,
+        )
+
+    def note_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post an internal note and return its message ID."""
+        body = _convert_to_html(message, markdown)
+        return message_post_sudo_with_id(
             self._client,
             self._model,
             record_id,

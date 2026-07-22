@@ -32,11 +32,11 @@ def test_toon_print_encodes_data(capsys: pytest.CaptureFixture[str]) -> None:
 def test_mutating_command_returns_toon(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[int, str]] = []
 
-    def comment(task_id: int, message: str, **kwargs: Any) -> bool:  # noqa: ARG001
+    def comment_with_id(task_id: int, message: str, **kwargs: Any) -> int:  # noqa: ARG001
         calls.append((task_id, message))
-        return True
+        return 9766
 
-    client = SimpleNamespace(tasks=SimpleNamespace(comment=comment))
+    client = SimpleNamespace(tasks=SimpleNamespace(comment_with_id=comment_with_id))
     monkeypatch.setattr(main, "get_client", lambda: client)
 
     result = CliRunner().invoke(
@@ -46,4 +46,9 @@ def test_mutating_command_returns_toon(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.exit_code == 0
     assert calls == [(189, "Deployed to staging")]
-    assert decode(result.stdout) == {"ok": True, "id": 189, "action": "comment"}
+    assert decode(result.stdout) == {
+        "ok": True,
+        "id": 189,
+        "message_id": 9766,
+        "action": "comment",
+    }

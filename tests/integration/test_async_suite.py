@@ -348,17 +348,23 @@ class TestAsyncProjectTask:
 
     async def test_task_comment(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()
-        success = await async_client.tasks.comment(self.task_id, "Async task comment", user_id=uid)
-        assert success is True
+        message_id = await async_client.tasks.comment_with_id(
+            self.task_id, "Async task comment", user_id=uid
+        )
+        assert message_id > 0
 
         messages = await async_client.tasks.messages(self.task_id)
-        bodies = [m.get("body", "") for m in messages]
-        assert any("Async task comment" in b for b in bodies)
+        assert any(
+            message["id"] == message_id and "Async task comment" in message.get("body", "")
+            for message in messages
+        )
 
     async def test_task_note(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()
-        success = await async_client.tasks.note(self.task_id, "Async task note", user_id=uid)
-        assert success is True
+        message_id = await async_client.tasks.note_with_id(
+            self.task_id, "Async task note", user_id=uid
+        )
+        assert message_id > 0
 
     async def test_task_attachment(self, async_client: AsyncOdooClient) -> None:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:

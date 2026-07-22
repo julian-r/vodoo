@@ -1048,17 +1048,29 @@ def project_comment(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.comment(
+        message_id = client.tasks.comment_with_id(
             task_id, message, user_id=author_id, markdown=not no_markdown
         )
-        if success:
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "comment"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "comment",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added comment to task {task_id}[/green]")
-        else:
-            console.print(f"[red]Failed to add comment to task {task_id}[/red]")
-            raise typer.Exit(1)
+            return
+
+    error_message = f"Failed to add comment to task {task_id}"
+    if is_structured_output():
+        structured_print({"error": error_message, "type": "vodoo_error"})
+    else:
+        console.print(f"[red]{error_message}[/red]")
+    raise typer.Exit(1)
 
 
 @project_task_app.command("note")
@@ -1077,15 +1089,29 @@ def project_note(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
-        if success:
+        message_id = client.tasks.note_with_id(
+            task_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "note"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "note",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added note to task {task_id}[/green]")
-        else:
-            console.print(f"[red]Failed to add note to task {task_id}[/red]")
-            raise typer.Exit(1)
+            return
+
+    error_message = f"Failed to add note to task {task_id}"
+    if is_structured_output():
+        structured_print({"error": error_message, "type": "vodoo_error"})
+    else:
+        console.print(f"[red]{error_message}[/red]")
+    raise typer.Exit(1)
 
 
 @project_task_app.command("tags")

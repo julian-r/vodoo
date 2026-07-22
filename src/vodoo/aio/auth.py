@@ -68,6 +68,34 @@ async def message_post_sudo(
 ) -> bool:
     """Post a message or note as a specific user using sudo.
 
+    Returns:
+        True if successful
+    """
+    message_id = await message_post_sudo_with_id(
+        client,
+        model,
+        res_id,
+        body,
+        user_id=user_id,
+        message_type=message_type,
+        is_note=is_note,
+        **kwargs,
+    )
+    return bool(message_id)
+
+
+async def message_post_sudo_with_id(
+    client: AsyncOdooClient,
+    model: str,
+    res_id: int,
+    body: str,
+    user_id: int | None = None,
+    message_type: str = "comment",
+    is_note: bool = False,
+    **kwargs: Any,
+) -> int:
+    """Post a message or note as a specific user and return its message ID.
+
     Args:
         client: Async Odoo client
         model: Model name (e.g., 'helpdesk.ticket')
@@ -79,7 +107,7 @@ async def message_post_sudo(
         **kwargs: Additional arguments for message_post
 
     Returns:
-        True if successful
+        ID of the created ``mail.message`` record
 
     Raises:
         ConfigurationError: If no default user configured
@@ -109,5 +137,4 @@ async def message_post_sudo(
         **kwargs,
     }
 
-    message_id = await client.create("mail.message", message_vals)
-    return bool(message_id)
+    return await client.create("mail.message", message_vals)

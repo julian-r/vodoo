@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from vodoo._domain import _convert_to_html, _NamespaceBase
-from vodoo.aio.auth import message_post_sudo
+from vodoo.aio.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.exceptions import RecordNotFoundError
 
 if TYPE_CHECKING:
@@ -88,6 +88,24 @@ class AsyncDomainNamespace(_NamespaceBase):
             is_note=False,
         )
 
+    async def comment_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post a customer-visible comment and return its message ID."""
+        body = _convert_to_html(message, markdown)
+        return await message_post_sudo_with_id(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=False,
+        )
+
     async def note(
         self,
         record_id: int,
@@ -98,6 +116,24 @@ class AsyncDomainNamespace(_NamespaceBase):
         """Post an internal note (not visible to customers)."""
         body = _convert_to_html(message, markdown)
         return await message_post_sudo(
+            self._client,
+            self._model,
+            record_id,
+            body,
+            user_id=user_id,
+            is_note=True,
+        )
+
+    async def note_with_id(
+        self,
+        record_id: int,
+        message: str,
+        user_id: int | None = None,
+        markdown: bool = True,
+    ) -> int:
+        """Post an internal note and return its message ID."""
+        body = _convert_to_html(message, markdown)
+        return await message_post_sudo_with_id(
             self._client,
             self._model,
             record_id,
