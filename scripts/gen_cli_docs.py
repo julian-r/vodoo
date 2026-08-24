@@ -195,10 +195,12 @@ def generate_index(groups: list[tuple[str, click.Group, str]]) -> str:
     lines.append("")
     lines.append(
         "By default, Vodoo uses Rich tables for colorful terminal output. "
-        "Use `--simple` on list commands for plain TSV output suitable for piping:"
+        "Use `--no-color` to preserve the normal layout without ANSI escape sequences, "
+        "or `--simple` on list commands for plain TSV output suitable for piping:"
     )
     lines.append("")
     lines.append("```bash")
+    lines.append("vodoo --no-color project-task show 189")
     lines.append("vodoo helpdesk list --simple | cut -f1,2")
     lines.append("```")
     lines.append("")

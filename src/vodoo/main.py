@@ -1,6 +1,7 @@
 """Main CLI application for Vodoo."""
 
 import re
+import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import date
@@ -212,11 +213,22 @@ def _make_sub_callback() -> Callable[..., None]:
     """
 
     def _callback(
+        ctx: typer.Context,
         simple: Annotated[bool, typer.Option("--simple", help="Plain TSV output")] = False,
         json_output: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
         toon_output: Annotated[bool, typer.Option("--toon", help="TOON output")] = False,
+        no_color: Annotated[
+            bool, typer.Option("--no-color", help="Disable ANSI colors and styling")
+        ] = False,
     ) -> None:
-        _apply_output_config(simple, json_output, toon_output)
+        if no_color:
+            ctx.color = False
+        _apply_output_config(
+            simple,
+            json_output,
+            toon_output,
+            no_color=True if no_color else None,
+        )
 
     return _callback
 
@@ -240,7 +252,12 @@ for _sub_app in (
     _sub_app.callback(invoke_without_command=True)(_make_sub_callback())
 
 # Global state for CLI runtime configuration
-_console_config: dict[str, bool] = {"simple": False, "json": False, "toon": False}
+_console_config: dict[str, bool] = {
+    "simple": False,
+    "json": False,
+    "toon": False,
+    "no_color": False,
+}
 _instance_config: dict[str, str | None] = {"name": None}
 
 console = Console()
@@ -253,8 +270,8 @@ def get_console() -> Console:
         Console instance
 
     """
-    simple = _console_config["simple"]
-    return Console(force_terminal=not simple, no_color=simple)
+    disable_styling = _console_config["simple"] or _console_config["no_color"]
+    return Console(force_terminal=not disable_styling, no_color=disable_styling)
 
 
 def version_callback(value: bool) -> None:
@@ -272,6 +289,7 @@ def _apply_output_config(
     json_output: bool = False,
     toon_output: bool = False,
     instance: str | None = None,
+    no_color: bool | None = None,
 ) -> None:
     """Apply output configuration from either global or subcommand flags."""
     exclusive = sum([simple, json_output, toon_output])
@@ -286,6 +304,8 @@ def _apply_output_config(
         _console_config["toon"] = toon_output
     if instance is not None:
         _instance_config["name"] = instance
+    if no_color is not None:
+        _console_config["no_color"] = no_color
     global console  # noqa: PLW0603
     console = get_console()
     configure_output(
@@ -298,6 +318,7 @@ def _apply_output_config(
 
 @app.callback()
 def main_callback(
+    ctx: typer.Context,
     simple: Annotated[
         bool,
         typer.Option("--simple", help="Plain TSV output instead of rich tables"),
@@ -309,6 +330,10 @@ def main_callback(
     toon_output: Annotated[
         bool,
         typer.Option("--toon", help="TOON output (compact token-oriented notation)"),
+    ] = False,
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable ANSI colors and styling"),
     ] = False,
     instance: Annotated[
         str | None,
@@ -326,7 +351,15 @@ def main_callback(
     ] = False,
 ) -> None:
     """Global options for vodoo CLI."""
-    _apply_output_config(simple, json_output, toon_output, instance)
+    if no_color:
+        ctx.color = False
+    _apply_output_config(
+        simple,
+        json_output,
+        toon_output,
+        instance,
+        no_color=no_color,
+    )
 
 
 def get_client() -> OdooClient:
@@ -3521,5 +3554,24 @@ def timer_active() -> None:
         console.print(table)
 
 
+def cli() -> None:
+    """Run the CLI, applying no-color mode before Typer parses arguments."""
+    args = sys.argv[1:]
+    option_end = args.index("--") if "--" in args else len(args)
+    no_color = "--no-color" in args[:option_end]
+    if no_color:
+        from typer import rich_utils
+
+        previous_force_terminal = rich_utils.FORCE_TERMINAL
+        try:
+            rich_utils.FORCE_TERMINAL = False
+            _apply_output_config(no_color=True)
+            app(color=False)
+        finally:
+            rich_utils.FORCE_TERMINAL = previous_force_terminal
+    else:
+        app()
+
+
 if __name__ == "__main__":
-    app()
+    cli()

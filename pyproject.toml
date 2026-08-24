@@ -43,7 +43,7 @@ Repository = "https://github.com/julian-r/vodoo"
 Issues = "https://github.com/julian-r/vodoo/issues"
 
 [project.scripts]
-vodoo = "vodoo.main:app"
+vodoo = "vodoo.main:cli"
 
 [project.optional-dependencies]
 dev = [
