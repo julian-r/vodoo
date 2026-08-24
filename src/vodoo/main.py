@@ -2156,9 +2156,21 @@ def knowledge_url(
 def document_upload(
     file_path: Annotated[Path, typer.Argument(help="Path to the file to upload")],
     folder: Annotated[
-        str,
-        typer.Option("--folder", "-f", help="Destination folder ID or exact name"),
-    ],
+        str | None,
+        typer.Option("--folder", "-f", help="Destination folder exact name"),
+    ] = None,
+    folder_id: Annotated[
+        int | None,
+        typer.Option("--folder-id", help="Destination folder ID"),
+    ] = None,
+    tags: Annotated[
+        list[str] | None,
+        typer.Option("--tag", help="Document tag ID or exact name (repeatable)"),
+    ] = None,
+    owner: Annotated[
+        str | None,
+        typer.Option("--owner", help="Owner user ID, login, or exact name"),
+    ] = None,
     name: Annotated[
         str | None,
         typer.Option("--name", "-n", help="Custom document name (defaults to filename)"),
@@ -2168,14 +2180,30 @@ def document_upload(
     client = get_client()
 
     with _handle_errors():
-        document_id = client.documents.upload(file_path, folder=folder, name=name)
+        result = client.documents.upload(
+            file_path,
+            folder=folder,
+            folder_id=folder_id,
+            tags=tags,
+            owner=owner,
+            name=name,
+        )
         document_name = name or file_path.name
         if is_structured_output():
-            structured_print({"ok": True, "id": document_id, "name": document_name})
+            structured_print(
+                {
+                    "ok": True,
+                    "id": result.document_id,
+                    "name": document_name,
+                    "url": result.url,
+                }
+            )
         else:
             console.print(
-                f"[green]Successfully uploaded '{document_name}' with ID {document_id}[/green]"
+                f"[green]Successfully uploaded '{document_name}' "
+                f"with ID {result.document_id}[/green]"
             )
+            console.print(result.url)
 
 
 @document_app.command("list")
@@ -2220,13 +2248,17 @@ def document_download(
 
 @document_app.command("folders")
 def document_folders(
+    tree: Annotated[
+        bool,
+        typer.Option("--tree", help="Show hierarchy order, depth, and full path"),
+    ] = False,
     limit: Annotated[int, typer.Option(help="Maximum number of folders")] = 50,
 ) -> None:
     """List available Odoo Documents folders."""
     client = get_client()
 
     with _handle_errors():
-        folders = client.documents.folders(limit=limit)
+        folders = client.documents.folders(tree=tree, limit=limit)
         display_records(folders, title="Document Folders")
         if not is_structured_output():
             console.print(f"\n[dim]Found {len(folders)} folders[/dim]")

@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
-import base64
 from pathlib import Path
 from typing import Any
 
 from vodoo.aio._domain import AsyncDomainNamespace
 from vodoo.documents import (
+    _LEGACY_FOLDER_FIELDS,
+    _MODERN_FOLDER_FIELDS,
+    DocumentUploadResult,
     _decode_document_data,
     _DocumentAttrs,
     _folder_domain,
+    _normalize_modern_folders,
+    _numeric_id,
+    _order_folder_tree,
+    _prepare_document_values,
+    _require_unique_id,
     _safe_document_filename,
+    _uses_document_folder_records,
 )
 from vodoo.exceptions import RecordNotFoundError, VodooError
 
@@ -19,67 +27,97 @@ from vodoo.exceptions import RecordNotFoundError, VodooError
 class AsyncDocumentNamespace(_DocumentAttrs, AsyncDomainNamespace):
     """Async namespace for the ``documents.document`` model."""
 
-    async def _folder_model(self) -> str:
+    async def _uses_document_folder_records(self) -> bool:
         fields = await self._client.fields_get(
-            self._model,
-            fields=["folder_id"],
-            attributes=["relation"],
+            self._model, fields=["type"], attributes=["selection"]
         )
-        relation = fields.get("folder_id", {}).get("relation")
-        if not isinstance(relation, str) or not relation:
-            raise VodooError("Could not determine the Odoo Documents folder model")
-        return relation
+        return _uses_document_folder_records(fields)
 
-    async def resolve_folder(self, folder: int | str) -> int:
-        """Resolve a folder ID or exact folder name to its record ID."""
-        if isinstance(folder, int) or folder.isdigit():
-            return int(folder)
-
-        folder_model = await self._folder_model()
-        matches = await self._client.search_read(
-            folder_model,
-            domain=_folder_domain(folder_model, folder),
-            fields=["id", "name"],
-            limit=2,
-            order="id",
-        )
-        if not matches:
-            raise VodooError(f"Document folder not found: {folder}")
-        if len(matches) > 1:
-            raise VodooError(f"Multiple document folders named '{folder}' found; use a folder ID")
-        return int(matches[0]["id"])
-
-    async def folders(self, limit: int | None = 50) -> list[dict[str, Any]]:
-        """List available document folders."""
-        folder_model = await self._folder_model()
-        return await self._client.search_read(
-            folder_model,
-            domain=_folder_domain(folder_model),
-            fields=["id", "name"],
+    async def folders(
+        self, *, tree: bool = False, limit: int | None = 50
+    ) -> list[dict[str, Any]]:
+        """List accessible folders, normalizing parent relationships across Odoo versions."""
+        modern = await self._uses_document_folder_records()
+        model = self._model if modern else "documents.folder"
+        fields = list(_MODERN_FOLDER_FIELDS if modern else _LEGACY_FOLDER_FIELDS)
+        records = await self._client.search_read(
+            model,
+            domain=_folder_domain(modern),
+            fields=fields,
             limit=limit,
             order="name, id",
         )
+        folders = _normalize_modern_folders(records) if modern else records
+        return _order_folder_tree(folders) if tree else folders
+
+    async def resolve_folder(self, folder: int | str) -> int:
+        """Resolve a positive folder ID or exact folder name to its record ID."""
+        numeric_id = _numeric_id(folder)
+        if numeric_id is not None:
+            return numeric_id
+        return await self._resolve_folder(str(folder), None)
+
+    async def _resolve_folder(self, folder: str | None, folder_id: int | None) -> int:
+        if (folder is None) == (folder_id is None):
+            raise VodooError("Specify exactly one of folder or folder_id")
+        if folder_id is not None:
+            if folder_id <= 0:
+                raise VodooError("folder_id must be a positive integer")
+            return folder_id
+
+        assert folder is not None
+        modern = await self._uses_document_folder_records()
+        model = self._model if modern else "documents.folder"
+        records = await self._client.search_read(
+            model,
+            domain=_folder_domain(modern, folder),
+            fields=["id", "name"],
+            limit=2,
+        )
+        return _require_unique_id(records, model, folder)
+
+    async def _resolve_named_record(self, model: str, value: str | int) -> int:
+        numeric_id = _numeric_id(value)
+        if numeric_id is not None:
+            return numeric_id
+        text = str(value)
+        fields = ["id", "name"]
+        if model == "res.users":
+            domain: list[Any] = ["|", ("login", "=", text), ("name", "=", text)]
+            fields.append("login")
+        else:
+            domain = [("name", "=", text)]
+        records = await self._client.search_read(model, domain=domain, fields=fields, limit=2)
+        return _require_unique_id(records, model, text)
 
     async def upload(
         self,
         file_path: Path | str,
         *,
-        folder: int | str,
+        folder: str | None = None,
+        folder_id: int | None = None,
+        tags: list[str | int] | None = None,
+        owner: str | int | None = None,
         name: str | None = None,
-    ) -> int:
-        """Upload a local file to an Odoo Documents folder."""
-        path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
-        if not path.is_file():
-            raise ValueError(f"Path is not a file: {path}")
+    ) -> DocumentUploadResult:
+        """Upload a file, specifying exactly one of ``folder`` or ``folder_id``.
 
-        values = {
-            "name": name or path.name,
-            "folder_id": await self.resolve_folder(folder),
-            "datas": base64.b64encode(path.read_bytes()).decode("ascii"),
-        }
-        return await self._client.create(self._model, values)
+        Optional tags and owner may be resolved by positive ID or exact name.
+        """
+        resolved_folder_id = await self._resolve_folder(folder, folder_id)
+        tag_ids = [await self._resolve_named_record("documents.tag", tag) for tag in tags or []]
+        owner_id = (
+            await self._resolve_named_record("res.users", owner) if owner is not None else None
+        )
+        values = _prepare_document_values(
+            file_path,
+            folder_id=resolved_folder_id,
+            name=name,
+            tag_ids=tag_ids,
+            owner_id=owner_id,
+        )
+        document_id = await self._client.create(self._model, values)
+        return DocumentUploadResult(document_id=document_id, url=self.url(document_id))
 
     async def download_file(self, document_id: int, output: Path | str | None = None) -> Path:
         """Download a document and return the resolved output path."""

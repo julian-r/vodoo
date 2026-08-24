@@ -20,7 +20,10 @@ Upload a file to Odoo Documents.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--folder` / `-f` | TEXT | Destination folder ID or exact name |
+| `--folder` / `-f` | TEXT | Destination folder exact name |
+| `--folder-id` | INT | Destination folder ID |
+| `--tag` | TEXT | Document tag ID or exact name (repeatable) |
+| `--owner` | TEXT | Owner user ID, login, or exact name |
 | `--name` / `-n` | TEXT | Custom document name (defaults to filename) |
 
 ### list
@@ -58,4 +61,5 @@ List available Odoo Documents folders.
 
 | Option | Type | Description |
 |--------|------|-------------|
+| `--tree` | BOOL | Show hierarchy order, depth, and full path |
 | `--limit` | INT | Maximum number of folders (default: 50) |
