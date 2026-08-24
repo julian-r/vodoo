@@ -998,16 +998,15 @@ class TestKnowledge:
 
 @pytest.mark.enterprise
 class TestDocuments:
-    """Test a Documents upload/list/download round trip."""
+    """Test folder discovery and a real Documents upload/download with cleanup."""
 
-    def test_document_round_trip(self, client: OdooClient, tmp_path: Path) -> None:
-        folder_field = client.fields_get(
-            "documents.document", fields=["folder_id"], attributes=["relation"]
-        )
-        folder_model = str(folder_field["folder_id"]["relation"])
+    def test_document_round_trip(
+        self, client: OdooClient, odoo_version: int, tmp_path: Path
+    ) -> None:
+        folder_model = "documents.folder" if odoo_version == 17 else "documents.document"
         folder_name = f"Vodoo Test Documents Folder {time.time_ns()}"
         folder_values: dict[str, Any] = {"name": folder_name}
-        if folder_model == "documents.document":
+        if odoo_version >= 18:
             folder_values["type"] = "folder"
 
         folder_id = client.generic.create(folder_model, folder_values)
@@ -1015,11 +1014,20 @@ class TestDocuments:
         source = tmp_path / "vodoo-empty-document.txt"
         source.write_bytes(b"")
         try:
-            document_id = client.documents.upload(source, folder=folder_name)
+            result = client.documents.upload(source, folder=folder_name)
+            document_id = result.document_id
             documents = client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name
             assert any(folder["id"] == folder_id for folder in client.documents.folders())
+
+            uploaded = client.read(
+                "documents.document", [document_id], ["name", "folder_id", "mimetype"]
+            )[0]
+            folder_value = uploaded["folder_id"]
+            uploaded_folder_id = folder_value[0] if isinstance(folder_value, list) else folder_value
+            assert uploaded_folder_id == folder_id
+            assert uploaded["mimetype"] == "text/plain"
 
             output = client.documents.download_file(document_id, tmp_path / "downloaded.txt")
             assert output.read_bytes() == source.read_bytes()
