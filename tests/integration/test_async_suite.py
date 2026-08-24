@@ -10,6 +10,7 @@ Enterprise tests (helpdesk, knowledge, timer) require the enterprise flag.
 import asyncio
 import contextlib
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -973,6 +974,49 @@ class TestAsyncKnowledge:
     async def test_article_attachments(self, async_client: AsyncOdooClient) -> None:
         attachments = await async_client.knowledge.attachments(self.article_id)
         assert isinstance(attachments, list)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Documents (enterprise only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.enterprise
+class TestAsyncDocuments:
+    """Test an async Documents upload/list/download round trip."""
+
+    async def test_document_round_trip(self, async_client: AsyncOdooClient, tmp_path: Path) -> None:
+        folder_field = await async_client.fields_get(
+            "documents.document", fields=["folder_id"], attributes=["relation"]
+        )
+        folder_model = str(folder_field["folder_id"]["relation"])
+        folder_name = f"Vodoo Async Test Documents Folder {time.time_ns()}"
+        folder_values: dict[str, Any] = {"name": folder_name}
+        if folder_model == "documents.document":
+            folder_values["type"] = "folder"
+
+        folder_id = await async_client.generic.create(folder_model, folder_values)
+        document_id: int | None = None
+        source = tmp_path / "vodoo-async-document.txt"
+        source.write_bytes(b"vodoo async documents integration")
+        try:
+            document_id = await async_client.documents.upload(source, folder=folder_name)
+            documents = await async_client.documents.list(domain=[["id", "=", document_id]])
+            assert len(documents) == 1
+            assert documents[0]["name"] == source.name
+            folders = await async_client.documents.folders()
+            assert any(folder["id"] == folder_id for folder in folders)
+
+            output = await async_client.documents.download_file(
+                document_id, tmp_path / "downloaded.txt"
+            )
+            assert output.read_bytes() == source.read_bytes()
+        finally:
+            if document_id is not None:
+                with contextlib.suppress(Exception):
+                    await async_client.generic.delete("documents.document", document_id)
+            with contextlib.suppress(Exception):
+                await async_client.generic.delete(folder_model, folder_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

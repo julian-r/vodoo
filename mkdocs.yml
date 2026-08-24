@@ -118,6 +118,7 @@ nav:
       - account-move: cli/account-move.md
       - activity: cli/activity.md
       - knowledge: cli/knowledge.md
+      - document: cli/document.md
       - timer: cli/timer.md
       - model: cli/model.md
       - security: cli/security.md
@@ -137,6 +138,7 @@ nav:
       - CRM: api/crm.md
       - Activities: api/activities.md
       - Knowledge: api/knowledge.md
+      - Documents: api/documents.md
       - Timers: api/timer.md
       - Generic CRUD: api/generic.md
       - Security: api/security.md
@@ -149,6 +151,7 @@ nav:
           - Projects: api/aio/projects.md
           - CRM: api/aio/crm.md
           - Knowledge: api/aio/knowledge.md
+          - Documents: api/aio/documents.md
           - Timers: api/aio/timer.md
           - Generic CRUD: api/aio/generic.md
           - Security: api/aio/security.md
