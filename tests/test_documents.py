@@ -150,9 +150,7 @@ def test_folders_supports_old_and_new_schemas(
 ) -> None:
     client = _StubClient()
     client.fields_result = {
-        "type": {
-            "selection": [["binary", "File"], ["folder", "Folder"]] if modern else []
-        }
+        "type": {"selection": [["binary", "File"], ["folder", "Folder"]] if modern else []}
     }
     client.search_results = [{"id": 2, "name": "Invoices", "folder_id": [1, "Finance"]}]
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
@@ -397,9 +395,7 @@ def test_document_folders_tree_cli_json(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=_Documents()))
 
-    result = CliRunner().invoke(
-        app, ["--json", "document", "folders", "--tree", "--limit", "7"]
-    )
+    result = CliRunner().invoke(app, ["--json", "document", "folders", "--tree", "--limit", "7"])
 
     assert result.exit_code == 0
     assert json.loads(result.output) == [

@@ -204,9 +204,7 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
         fields = self._client.fields_get(self._model, fields=["type"], attributes=["selection"])
         return _uses_document_folder_records(fields)
 
-    def folders(
-        self, *, tree: bool = False, limit: int | None = 50
-    ) -> list[dict[str, Any]]:
+    def folders(self, *, tree: bool = False, limit: int | None = 50) -> list[dict[str, Any]]:
         """List accessible folders, normalizing parent relationships across Odoo versions."""
         modern = self._uses_document_folder_records()
         model = self._model if modern else "documents.folder"

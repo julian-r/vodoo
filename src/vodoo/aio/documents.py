@@ -33,9 +33,7 @@ class AsyncDocumentNamespace(_DocumentAttrs, AsyncDomainNamespace):
         )
         return _uses_document_folder_records(fields)
 
-    async def folders(
-        self, *, tree: bool = False, limit: int | None = 50
-    ) -> list[dict[str, Any]]:
+    async def folders(self, *, tree: bool = False, limit: int | None = 50) -> list[dict[str, Any]]:
         """List accessible folders, normalizing parent relationships across Odoo versions."""
         modern = await self._uses_document_folder_records()
         model = self._model if modern else "documents.folder"
