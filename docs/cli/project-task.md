@@ -6,6 +6,23 @@ Manage Odoo Project Tasks.
 
 ## Commands
 
+### schedule
+
+Set Gantt scheduling dates (requires Odoo Project Enterprise).
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--start` | TEXT | Planned start datetime (YYYY-MM-DD HH:MM:SS) (required) |
+| `--end` | TEXT | Deadline (YYYY-MM-DD) (required) |
+
 ### list
 
 List project tasks.
@@ -226,7 +243,7 @@ List available fields or show field values for a specific task.
 Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
-    HTML fields (like description) automatically convert markdown to HTML.
+    HTML fields (like description) accept markdown input and display markdown by default.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -243,13 +260,14 @@ Set field values on a task.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `task_id` | INT | Task ID |
-| `fields` | TEXT | Field assignments in format 'field=value' or 'field+=amount' |
+| `fields` | TEXT... | Field assignments in format 'field=value' or 'field+=amount' |
 
 **Options:**
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion for HTML fields |
+| `--html` | BOOL | Show raw HTML updated values instead of markdown (markdown is the default) |
 
 ### attach
 
@@ -271,6 +289,42 @@ Attach a file to a task.
 ### url
 
 Get the web URL for a task.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+
+### milestone set
+
+Assign a project task to a milestone.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+| `milestone_id` | INT | Milestone ID |
+
+### depends
+
+Project task dependency operations
+
+#### depends add
+
+Add one or more dependencies to a task without replacing existing dependencies.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Blocked task ID |
+| `blocked_by_ids` | INT... | IDs of tasks that must be completed first |
+
+#### depends clear
+
+Remove all dependencies from a task.
 
 **Arguments:**
 

@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import click
@@ -26,6 +27,7 @@ GROUP_META: dict[str, str] = {
     "project": "Manage Odoo Projects (`project.project`).",
     "crm": "Manage Odoo CRM leads and opportunities.",
     "account-move": "Manage Odoo accounting moves (`account.move`) and attachments.",
+    "activity": "Manage Odoo activities (`mail.activity`).",
     "knowledge": "Manage Odoo Knowledge articles (requires Odoo Enterprise).",
     "timer": "Manage timers and timesheets.",
     "model": (
@@ -49,13 +51,20 @@ def format_type(param: click.Parameter) -> str:
         "boolean": "BOOL",
         "path": "PATH",
     }
-    return type_map.get(type_name, type_name.upper())
+    formatted = type_map.get(type_name, type_name.upper())
+    if isinstance(param, click.Argument) and param.nargs == -1:
+        return f"{formatted}..."
+    return formatted
 
 
-def generate_command_doc(cmd: click.Command, cmd_name: str) -> str:
-    """Generate Markdown documentation for a single command."""
+def generate_command_doc(
+    cmd: click.Command,
+    cmd_name: str,
+    heading_level: int = 3,
+) -> str:
+    """Generate Markdown documentation for a command and its nested commands."""
     lines: list[str] = []
-    lines.append(f"### {cmd_name}")
+    lines.append(f"{'#' * heading_level} {cmd_name}")
     lines.append("")
 
     # Help text
@@ -90,13 +99,42 @@ def generate_command_doc(cmd: click.Command, cmd_name: str) -> str:
             if opt.secondary_opts:
                 opt_str += " / " + " / ".join(f"`{o}`" for o in opt.secondary_opts)
             help_text = opt.help or ""
+            if opt.required and "required" not in help_text.casefold():
+                help_text += " (required)" if help_text else "required"
             default = opt.default
             if default is not None and default not in ((), False):
                 help_text += f" (default: {default})"
             lines.append(f"| {opt_str} | {format_type(opt)} | {help_text} |")
         lines.append("")
 
+    if isinstance(cmd, click.Group):
+        sub_ctx = click.Context(cmd)
+        for child_name in cmd.list_commands(sub_ctx):
+            child = cmd.get_command(sub_ctx, child_name)
+            if child is not None:
+                lines.append(
+                    generate_command_doc(child, f"{cmd_name} {child_name}", heading_level + 1)
+                )
+
     return "\n".join(lines)
+
+
+def iter_leaf_commands(
+    group: click.Group,
+    ctx: click.Context,
+    prefix: str = "",
+) -> Iterator[tuple[str, click.Command]]:
+    """Yield leaf commands from a group, including nested command paths."""
+    group_ctx = click.Context(group, parent=ctx)
+    for command_name in group.list_commands(group_ctx):
+        command = group.get_command(group_ctx, command_name)
+        if command is None:
+            continue
+        full_name = f"{prefix} {command_name}".strip()
+        if isinstance(command, click.Group):
+            yield from iter_leaf_commands(command, group_ctx, full_name)
+        else:
+            yield full_name, command
 
 
 def generate_group_doc(group_name: str, group: click.Group, ctx: click.Context) -> str:
@@ -120,11 +158,8 @@ def generate_group_doc(group_name: str, group: click.Group, ctx: click.Context) 
     lines.append("## Commands")
     lines.append("")
 
-    sub_ctx = click.Context(group, parent=ctx)
-    for cmd_name in group.list_commands(sub_ctx):
-        cmd = group.get_command(sub_ctx, cmd_name)
-        if cmd is not None:
-            lines.append(generate_command_doc(cmd, cmd_name))
+    for command_name, command in iter_leaf_commands(group, ctx):
+        lines.append(generate_command_doc(command, command_name))
 
     return "\n".join(lines)
 
@@ -160,10 +195,12 @@ def generate_index(groups: list[tuple[str, click.Group, str]]) -> str:
     lines.append("")
     lines.append(
         "By default, Vodoo uses Rich tables for colorful terminal output. "
-        "Use `--simple` on list commands for plain TSV output suitable for piping:"
+        "Use `--no-color` to preserve the normal layout without ANSI escape sequences, "
+        "or `--simple` on list commands for plain TSV output suitable for piping:"
     )
     lines.append("")
     lines.append("```bash")
+    lines.append("vodoo --no-color project-task show 189")
     lines.append("vodoo helpdesk list --simple | cut -f1,2")
     lines.append("```")
     lines.append("")

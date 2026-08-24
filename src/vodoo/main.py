@@ -1,9 +1,11 @@
 """Main CLI application for Vodoo."""
 
 import json
+import re
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -12,7 +14,9 @@ from rich.console import Console
 from rich.table import Table
 
 from vodoo.account_moves import build_account_move_domain
+from vodoo.activities import build_activity_domain
 from vodoo.base import (
+    _html_to_markdown,
     configure_output,
     detect_binary_fields,
     display_attachments,
@@ -23,6 +27,7 @@ from vodoo.base import (
     download_attachment,
     get_record,
     is_structured_output,
+    list_fields,
     mask_binary_fields,
     save_binary_field,
     structured_print,
@@ -41,11 +46,13 @@ from vodoo.exceptions import (
     OdooAccessDeniedError,
     OdooAccessError,
     RecordNotFoundError,
+    RecordOperationError,
     TransportError,
     VodooError,
 )
-from vodoo.fields import parse_field_assignment
+from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
 from vodoo.knowledge import display_article_detail
+from vodoo.project_tasks import _validate_schedule_values
 from vodoo.projects import display_stages
 from vodoo.security import (
     GROUP_DEFINITIONS,
@@ -112,12 +119,33 @@ project_task_app = typer.Typer(
 )
 app.add_typer(project_task_app, name="project-task")
 
+project_task_milestone_app = typer.Typer(
+    name="milestone",
+    help="Project task milestone operations",
+    no_args_is_help=True,
+)
+project_task_app.add_typer(project_task_milestone_app, name="milestone")
+
+project_task_depends_app = typer.Typer(
+    name="depends",
+    help="Project task dependency operations",
+    no_args_is_help=True,
+)
+project_task_app.add_typer(project_task_depends_app, name="depends")
+
 project_project_app = typer.Typer(
     name="project",
     help="Project operations",
     no_args_is_help=True,
 )
 app.add_typer(project_project_app, name="project")
+
+project_milestone_app = typer.Typer(
+    name="milestone",
+    help="Project milestone operations",
+    no_args_is_help=True,
+)
+project_project_app.add_typer(project_milestone_app, name="milestone")
 
 knowledge_app = typer.Typer(
     name="knowledge",
@@ -146,6 +174,13 @@ account_move_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(account_move_app, name="account-move")
+
+activity_app = typer.Typer(
+    name="activity",
+    help="Activity operations",
+    no_args_is_help=True,
+)
+app.add_typer(activity_app, name="activity")
 
 security_app = typer.Typer(
     name="security",
@@ -176,11 +211,22 @@ def _make_sub_callback() -> Callable[..., None]:
     """
 
     def _callback(
+        ctx: typer.Context,
         simple: Annotated[bool, typer.Option("--simple", help="Plain TSV output")] = False,
         json_output: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
         toon_output: Annotated[bool, typer.Option("--toon", help="TOON output")] = False,
+        no_color: Annotated[
+            bool, typer.Option("--no-color", help="Disable ANSI colors and styling")
+        ] = False,
     ) -> None:
-        _apply_output_config(simple, json_output, toon_output)
+        if no_color:
+            ctx.color = False
+        _apply_output_config(
+            simple,
+            json_output,
+            toon_output,
+            no_color=True if no_color else None,
+        )
 
     return _callback
 
@@ -188,11 +234,15 @@ def _make_sub_callback() -> Callable[..., None]:
 for _sub_app in (
     helpdesk_app,
     project_task_app,
+    project_task_milestone_app,
+    project_task_depends_app,
     project_project_app,
+    project_milestone_app,
     knowledge_app,
     model_app,
     crm_app,
     account_move_app,
+    activity_app,
     security_app,
     timer_app,
     config_app,
@@ -200,7 +250,12 @@ for _sub_app in (
     _sub_app.callback(invoke_without_command=True)(_make_sub_callback())
 
 # Global state for CLI runtime configuration
-_console_config: dict[str, bool] = {"simple": False, "json": False, "toon": False}
+_console_config: dict[str, bool] = {
+    "simple": False,
+    "json": False,
+    "toon": False,
+    "no_color": False,
+}
 _instance_config: dict[str, str | None] = {"name": None}
 
 console = Console()
@@ -213,8 +268,8 @@ def get_console() -> Console:
         Console instance
 
     """
-    simple = _console_config["simple"]
-    return Console(force_terminal=not simple, no_color=simple)
+    disable_styling = _console_config["simple"] or _console_config["no_color"]
+    return Console(force_terminal=not disable_styling, no_color=disable_styling)
 
 
 def version_callback(value: bool) -> None:
@@ -232,6 +287,7 @@ def _apply_output_config(
     json_output: bool = False,
     toon_output: bool = False,
     instance: str | None = None,
+    no_color: bool | None = None,
 ) -> None:
     """Apply output configuration from either global or subcommand flags."""
     exclusive = sum([simple, json_output, toon_output])
@@ -246,6 +302,8 @@ def _apply_output_config(
         _console_config["toon"] = toon_output
     if instance is not None:
         _instance_config["name"] = instance
+    if no_color is not None:
+        _console_config["no_color"] = no_color
     global console  # noqa: PLW0603
     console = get_console()
     configure_output(
@@ -258,6 +316,7 @@ def _apply_output_config(
 
 @app.callback()
 def main_callback(
+    ctx: typer.Context,
     simple: Annotated[
         bool,
         typer.Option("--simple", help="Plain TSV output instead of rich tables"),
@@ -269,6 +328,10 @@ def main_callback(
     toon_output: Annotated[
         bool,
         typer.Option("--toon", help="TOON output (compact token-oriented notation)"),
+    ] = False,
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable ANSI colors and styling"),
     ] = False,
     instance: Annotated[
         str | None,
@@ -286,7 +349,15 @@ def main_callback(
     ] = False,
 ) -> None:
     """Global options for vodoo CLI."""
-    _apply_output_config(simple, json_output, toon_output, instance)
+    if no_color:
+        ctx.color = False
+    _apply_output_config(
+        simple,
+        json_output,
+        toon_output,
+        instance,
+        no_color=no_color,
+    )
 
 
 def get_client() -> OdooClient:
@@ -898,6 +969,99 @@ def helpdesk_url(
 # Project task commands
 
 
+@project_task_depends_app.command("add")
+def project_task_depends_add(
+    task_id: Annotated[int, typer.Argument(help="Blocked task ID")],
+    blocked_by_ids: Annotated[
+        list[int], typer.Argument(help="IDs of tasks that must be completed first")
+    ],
+) -> None:
+    """Add one or more dependencies to a task without replacing existing dependencies."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.add_dependencies(task_id, blocked_by_ids)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_add"})
+        else:
+            console.print(f"[red]Failed to add dependencies to task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {
+                "ok": True,
+                "id": task_id,
+                "blocked_by_ids": blocked_by_ids,
+                "action": "depends_add",
+            }
+        )
+    else:
+        dependencies = ", ".join(str(dependency_id) for dependency_id in blocked_by_ids)
+        console.print(
+            f"[green]Successfully added dependencies {dependencies} to task {task_id}[/green]"
+        )
+
+
+@project_task_depends_app.command("clear")
+def project_task_depends_clear(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+) -> None:
+    """Remove all dependencies from a task."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.clear_dependencies(task_id)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "depends_clear"})
+        else:
+            console.print(f"[red]Failed to clear dependencies from task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print({"ok": True, "id": task_id, "action": "depends_clear"})
+    else:
+        console.print(f"[green]Successfully cleared dependencies from task {task_id}[/green]")
+
+
+@project_task_app.command("schedule")
+def project_task_schedule(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    start: Annotated[
+        str, typer.Option("--start", help="Planned start datetime (YYYY-MM-DD HH:MM:SS)")
+    ],
+    end: Annotated[str, typer.Option("--end", help="Deadline (YYYY-MM-DD)")],
+) -> None:
+    """Set Gantt scheduling dates (requires Odoo Project Enterprise)."""
+    try:
+        _validate_schedule_values(start, end)
+    except ValueError as exc:
+        if is_structured_output():
+            structured_print({"error": str(exc), "type": "validation"})
+            raise typer.Exit(2) from exc
+        raise typer.BadParameter(str(exc)) from exc
+
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.schedule(task_id, start, end)
+
+    if not success:
+        if is_structured_output():
+            structured_print({"ok": False, "id": task_id, "action": "schedule"})
+        else:
+            console.print(f"[red]Failed to schedule task {task_id}[/red]")
+        raise typer.Exit(1)
+    if is_structured_output():
+        structured_print(
+            {"ok": True, "id": task_id, "start": start, "end": end, "action": "schedule"}
+        )
+    else:
+        console.print(f"[green]Successfully scheduled task {task_id} from {start} to {end}[/green]")
+
+
 @project_task_app.command("list")
 def project_list(
     project: Annotated[str | None, typer.Option(help="Filter by project name")] = None,
@@ -1017,17 +1181,29 @@ def project_comment(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.comment(
+        message_id = client.tasks.comment_with_id(
             task_id, message, user_id=author_id, markdown=not no_markdown
         )
-        if success:
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "comment"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "comment",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added comment to task {task_id}[/green]")
-        else:
-            console.print(f"[red]Failed to add comment to task {task_id}[/red]")
-            raise typer.Exit(1)
+            return
+
+    error_message = f"Failed to add comment to task {task_id}"
+    if is_structured_output():
+        structured_print({"error": error_message, "type": "vodoo_error"})
+    else:
+        console.print(f"[red]{error_message}[/red]")
+    raise typer.Exit(1)
 
 
 @project_task_app.command("note")
@@ -1046,15 +1222,29 @@ def project_note(
     client = get_client()
 
     with _handle_errors():
-        success = client.tasks.note(task_id, message, user_id=author_id, markdown=not no_markdown)
-        if success:
+        message_id = client.tasks.note_with_id(
+            task_id, message, user_id=author_id, markdown=not no_markdown
+        )
+        if message_id:
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "action": "note"})
+                structured_print(
+                    {
+                        "ok": True,
+                        "id": task_id,
+                        "message_id": message_id,
+                        "action": "note",
+                    }
+                )
             else:
                 console.print(f"[green]Successfully added note to task {task_id}[/green]")
-        else:
-            console.print(f"[red]Failed to add note to task {task_id}[/red]")
-            raise typer.Exit(1)
+            return
+
+    error_message = f"Failed to add note to task {task_id}"
+    if is_structured_output():
+        structured_print({"error": error_message, "type": "vodoo_error"})
+    else:
+        console.print(f"[red]{error_message}[/red]")
+    raise typer.Exit(1)
 
 
 @project_task_app.command("tags")
@@ -1244,11 +1434,18 @@ def project_set(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    show_html: Annotated[
+        bool,
+        typer.Option(
+            "--html",
+            help="Show raw HTML updated values instead of markdown (markdown is the default)",
+        ),
+    ] = False,
 ) -> None:
     """Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
-    HTML fields (like description) automatically convert markdown to HTML.
+    HTML fields (like description) accept markdown input and display markdown by default.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -1259,23 +1456,49 @@ def project_set(
     """
     client = get_client()
 
-    # Parse field assignments
+    # Parse field assignments, reusing metadata for input conversion and output formatting.
     values: dict[str, Any] = {}
+    markdown_values: dict[str, str] = {}
 
     with _handle_errors():
+        fields_info = list_fields(client, "project.task")
         for field_assignment in fields:
-            field, value = parse_field_assignment(
-                client, "project.task", task_id, field_assignment, no_markdown=no_markdown
+            parsed = _parse_field_assignment_details(
+                client,
+                "project.task",
+                task_id,
+                field_assignment,
+                no_markdown=no_markdown,
+                fields_info=fields_info,
             )
-            values[field] = value
+            values[parsed.field] = parsed.value
+            if (
+                not no_markdown
+                and parsed.operator == "="
+                and isinstance(parsed.source_value, str)
+                and fields_info.get(parsed.field, {}).get("type") == "html"
+            ):
+                markdown_values[parsed.field] = parsed.source_value
         success = client.tasks.set(task_id, values)
         if success:
+            display_values = values.copy()
+            if not show_html:
+                for field, value in values.items():
+                    if not (
+                        isinstance(value, str) and fields_info.get(field, {}).get("type") == "html"
+                    ):
+                        continue
+                    display_values[field] = (
+                        markdown_values[field]
+                        if field in markdown_values
+                        else _html_to_markdown(value)
+                    )
             if is_structured_output():
-                structured_print({"ok": True, "id": task_id, "updated": values})
+                structured_print({"ok": True, "id": task_id, "updated": display_values})
             else:
                 console.print(f"[green]Successfully updated task {task_id}[/green]")
-                for field, value in values.items():
-                    console.print(f"  {field} = {value}")
+                for field, value in display_values.items():
+                    console.print(f"  {field} = {value}", markup=False, soft_wrap=True)
         else:
             console.print(f"[red]Failed to set fields on task {task_id}[/red]")
             raise typer.Exit(1)
@@ -1321,6 +1544,30 @@ def project_url(
             structured_print({"url": url, "id": task_id})
         else:
             console.print(url)
+
+
+@project_task_milestone_app.command("set")
+def project_task_milestone_set(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """Assign a project task to a milestone."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.tasks.set_milestone(task_id, milestone_id)
+        if not success:
+            raise RecordOperationError(
+                f"Failed to assign milestone {milestone_id} to task {task_id}"
+            )
+        if is_structured_output():
+            structured_print(
+                {"ok": True, "id": task_id, "milestone_id": milestone_id, "action": "set"}
+            )
+        else:
+            console.print(
+                f"[green]Successfully assigned milestone {milestone_id} to task {task_id}[/green]"
+            )
 
 
 # Project (project.project) commands
@@ -1620,6 +1867,82 @@ def project_project_stages(
             console.print(f"[yellow]No stages found for project {project_id}[/yellow]")
         else:
             console.print("[yellow]No stages found[/yellow]")
+
+
+@project_milestone_app.command("list")
+def project_milestone_list(
+    project: Annotated[
+        str,
+        typer.Option("--project", "-p", help="Project ID or exact name"),
+    ],
+) -> None:
+    """List milestones for a project."""
+    client = get_client()
+
+    with _handle_errors():
+        milestones = client.projects.milestones(project)
+        display_records(milestones, title="Project Milestones")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(milestones)} milestones[/dim]")
+
+
+@project_milestone_app.command("create")
+def project_milestone_create(
+    project: Annotated[
+        str,
+        typer.Option("--project", "-p", help="Project ID or exact name"),
+    ],
+    name: Annotated[str, typer.Option("--name", "-n", help="Milestone name")],
+    deadline: Annotated[str, typer.Option("--deadline", "-d", help="Deadline (YYYY-MM-DD)")],
+) -> None:
+    """Create a milestone for a project."""
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", deadline) is None:
+            raise ValueError
+        date.fromisoformat(deadline)
+    except ValueError as exc:
+        raise typer.BadParameter("must use YYYY-MM-DD", param_hint="--deadline") from exc
+
+    client = get_client()
+    with _handle_errors():
+        milestone_id = client.projects.create_milestone(project, name, deadline)
+        if is_structured_output():
+            structured_print({"ok": True, "id": milestone_id, "name": name})
+        else:
+            console.print(
+                f"[green]Successfully created milestone '{name}' with ID {milestone_id}[/green]"
+            )
+
+
+@project_milestone_app.command("reach")
+def project_milestone_reach(
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """Mark a milestone as reached."""
+    client = get_client()
+
+    with _handle_errors():
+        success = client.projects.reach_milestone(milestone_id)
+        if not success:
+            raise RecordOperationError(f"Failed to mark milestone {milestone_id} as reached")
+        if is_structured_output():
+            structured_print({"ok": True, "id": milestone_id, "action": "reach"})
+        else:
+            console.print(f"[green]Successfully marked milestone {milestone_id} as reached[/green]")
+
+
+@project_milestone_app.command("tasks")
+def project_milestone_tasks(
+    milestone_id: Annotated[int, typer.Argument(help="Milestone ID")],
+) -> None:
+    """List tasks assigned to a milestone."""
+    client = get_client()
+
+    with _handle_errors():
+        tasks = client.projects.milestone_tasks(milestone_id)
+        display_records(tasks, title=f"Tasks for Milestone {milestone_id}")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
 
 
 # Knowledge commands
@@ -2813,6 +3136,75 @@ def crm_pipeline(
         display_pipeline(summary, show_deals=deals, show_health=health, health_flags=flags)
 
 
+@activity_app.command("list")
+def activity_list(
+    model: Annotated[
+        str | None,
+        typer.Option(help="Filter by related model (e.g. account.move)"),
+    ] = None,
+    user: Annotated[str | None, typer.Option(help="Filter by assigned user name")] = None,
+    activity_type: Annotated[
+        str | None,
+        typer.Option("--type", help="Filter by activity type name"),
+    ] = None,
+    limit: Annotated[int, typer.Option(help="Maximum number of activities")] = 50,
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """List activities."""
+    client = get_client()
+    domain = build_activity_domain(model=model, user=user, activity_type=activity_type)
+
+    with _handle_errors():
+        activities = client.activities.list(
+            domain=domain,
+            limit=limit,
+            fields=fields,
+            order="date_deadline asc, id asc",
+        )
+        display_records(activities, title="Activities")
+        if not is_structured_output():
+            console.print(f"\n[dim]Found {len(activities)} activities[/dim]")
+
+
+@activity_app.command("show")
+def activity_show(
+    activity_id: Annotated[int, typer.Argument(help="Activity ID")],
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Specific fields to fetch (can be used multiple times)"),
+    ] = None,
+) -> None:
+    """Show detailed activity information."""
+    client = get_client()
+
+    with _handle_errors():
+        activity = client.activities.get(activity_id, fields=fields)
+        if is_structured_output():
+            structured_print(activity)
+        else:
+            console.print(f"\n[bold cyan]Activity #{activity_id}[/bold cyan]\n")
+            for key, value in sorted(activity.items()):
+                console.print(f"[bold]{key}:[/bold] {value}")
+
+
+@activity_app.command("done")
+def activity_done(
+    activity_id: Annotated[int, typer.Argument(help="Activity ID")],
+) -> None:
+    """Mark an activity as done."""
+    client = get_client()
+
+    with _handle_errors():
+        client.activities.done(activity_id)
+        if is_structured_output():
+            structured_print({"ok": True, "id": activity_id})
+        else:
+            console.print(f"[green]Marked activity {activity_id} as done[/green]")
+
+
 @account_move_app.command("list")
 def account_move_list(
     search: Annotated[
@@ -3160,5 +3552,24 @@ def timer_active() -> None:
         console.print(table)
 
 
+def cli() -> None:
+    """Run the CLI, applying no-color mode before Typer parses arguments."""
+    args = sys.argv[1:]
+    option_end = args.index("--") if "--" in args else len(args)
+    no_color = "--no-color" in args[:option_end]
+    if no_color:
+        from typer import rich_utils
+
+        previous_force_terminal = rich_utils.FORCE_TERMINAL
+        try:
+            rich_utils.FORCE_TERMINAL = False
+            _apply_output_config(no_color=True)
+            app(color=False)
+        finally:
+            rich_utils.FORCE_TERMINAL = previous_force_terminal
+    else:
+        app()
+
+
 if __name__ == "__main__":
-    app()
+    cli()
