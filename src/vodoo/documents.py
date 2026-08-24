@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import mimetypes
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -15,14 +14,6 @@ from vodoo.exceptions import RecordNotFoundError, VodooError
 
 _LEGACY_FOLDER_FIELDS = ["id", "name", "parent_folder_id"]
 _MODERN_FOLDER_FIELDS = ["id", "name", "folder_id"]
-
-
-@dataclass(frozen=True)
-class DocumentUploadResult:
-    """The record created by a Documents upload."""
-
-    document_id: int
-    url: str
 
 
 class _DocumentAttrs:
@@ -204,7 +195,7 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
         fields = self._client.fields_get(self._model, fields=["type"], attributes=["selection"])
         return _uses_document_folder_records(fields)
 
-    def folders(self, *, tree: bool = False, limit: int | None = 50) -> list[dict[str, Any]]:
+    def folders(self, limit: int | None = 50, *, tree: bool = False) -> list[dict[str, Any]]:
         """List accessible folders, normalizing parent relationships across Odoo versions."""
         modern = self._uses_document_folder_records()
         model = self._model if modern else "documents.folder"
@@ -226,7 +217,7 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
             return numeric_id
         return self._resolve_folder(str(folder), None)
 
-    def _resolve_folder(self, folder: str | None, folder_id: int | None) -> int:
+    def _resolve_folder(self, folder: int | str | None, folder_id: int | None) -> int:
         if (folder is None) == (folder_id is None):
             raise VodooError("Specify exactly one of folder or folder_id")
         if folder_id is not None:
@@ -235,15 +226,20 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
             return folder_id
 
         assert folder is not None
+        numeric_id = _numeric_id(folder)
+        if numeric_id is not None:
+            return numeric_id
+
+        folder_name = str(folder)
         modern = self._uses_document_folder_records()
         model = self._model if modern else "documents.folder"
         records = self._client.search_read(
             model,
-            domain=_folder_domain(modern, folder),
+            domain=_folder_domain(modern, folder_name),
             fields=["id", "name"],
             limit=2,
         )
-        return _require_unique_id(records, model, folder)
+        return _require_unique_id(records, model, folder_name)
 
     def _resolve_named_record(self, model: str, value: str | int) -> int:
         numeric_id = _numeric_id(value)
@@ -263,12 +259,12 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
         self,
         file_path: Path | str,
         *,
-        folder: str | None = None,
+        folder: int | str | None = None,
         folder_id: int | None = None,
         tags: list[str | int] | None = None,
         owner: str | int | None = None,
         name: str | None = None,
-    ) -> DocumentUploadResult:
+    ) -> int:
         """Upload a file, specifying exactly one of ``folder`` or ``folder_id``.
 
         Optional tags and owner may be resolved by positive ID or exact name.
@@ -283,8 +279,7 @@ class DocumentNamespace(_DocumentAttrs, DomainNamespace):
             tag_ids=tag_ids,
             owner_id=owner_id,
         )
-        document_id = self._client.create(self._model, values)
-        return DocumentUploadResult(document_id=document_id, url=self.url(document_id))
+        return self._client.create(self._model, values)
 
     def download_file(self, document_id: int, output: Path | str | None = None) -> Path:
         """Download a document and return the resolved output path."""

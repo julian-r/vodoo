@@ -13,12 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from vodoo.aio.documents import AsyncDocumentNamespace
-from vodoo.documents import (
-    DocumentNamespace,
-    DocumentUploadResult,
-    _order_folder_tree,
-    _prepare_document_values,
-)
+from vodoo.documents import DocumentNamespace, _order_folder_tree, _prepare_document_values
 from vodoo.exceptions import RecordNotFoundError, VodooError
 from vodoo.main import app
 
@@ -97,10 +92,7 @@ def test_upload_resolves_folder_name_and_encodes_file(tmp_path: Path) -> None:
 
     result = documents.upload(path, folder="Finanzen Semadox")
 
-    assert result == DocumentUploadResult(
-        42,
-        "https://odoo.example.com/web#id=42&model=documents.document&view_type=form",
-    )
+    assert result == 42
     _, (model, values, context) = client.calls[-1]
     assert model == "documents.document"
     assert context is None
@@ -112,14 +104,20 @@ def test_upload_resolves_folder_name_and_encodes_file(tmp_path: Path) -> None:
     }
 
 
-def test_upload_accepts_numeric_folder_and_custom_name(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("selector", "value"), [("folder", 1536), ("folder", "1536"), ("folder_id", 1536)]
+)
+def test_upload_accepts_numeric_folder_and_custom_name(
+    tmp_path: Path, selector: str, value: int | str
+) -> None:
     path = tmp_path / "invoice.pdf"
     path.write_bytes(b"data")
     client = _StubClient()
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
 
-    documents.upload(path, folder_id=1536, name="vendor-invoice.pdf")
+    result = documents.upload(path, **{selector: value}, name="vendor-invoice.pdf")
 
+    assert result == 42
     assert all(call[0] not in {"search_read", "fields_get"} for call in client.calls)
     _, (_, values, _) = client.calls[-1]
     assert values["folder_id"] == 1536
@@ -155,7 +153,7 @@ def test_folders_supports_old_and_new_schemas(
     client.search_results = [{"id": 2, "name": "Invoices", "folder_id": [1, "Finance"]}]
     documents = DocumentNamespace(client)  # type: ignore[arg-type]
 
-    folders = documents.folders(limit=10)
+    folders = documents.folders(10)
 
     assert client.calls[0] == (
         "fields_get",
@@ -212,8 +210,7 @@ def test_upload_by_ids_sets_mimetype_tags_owner_and_url(tmp_path: Path) -> None:
         name="Protocol.pdf",
     )
 
-    assert result.document_id == 42
-    assert result.url.endswith("id=42&model=documents.document&view_type=form")
+    assert result == 42
     assert all(call[0] not in {"fields_get", "search_read"} for call in client.calls)
     _, (_, values, _) = client.calls[-1]
     assert values == {
@@ -338,10 +335,9 @@ def test_async_upload_and_download(tmp_path: Path) -> None:
     client.read_results = [
         {"name": "../download.txt", "datas": base64.b64encode(b"downloaded").decode()}
     ]
-    output = asyncio.run(documents.download_file(result.document_id, tmp_path))
+    output = asyncio.run(documents.download_file(result, tmp_path))
 
-    assert result.document_id == 42
-    assert result.url.endswith("id=42&model=documents.document&view_type=form")
+    assert result == 42
     assert output == (tmp_path / "download.txt").resolve()
     assert output.read_bytes() == b"downloaded"
 
@@ -351,11 +347,26 @@ def test_async_folders_supports_legacy_schema() -> None:
     client.fields_result = {"type": {"selection": []}}
     documents = AsyncDocumentNamespace(client)  # type: ignore[arg-type]
 
-    asyncio.run(documents.folders())
+    asyncio.run(documents.folders(17))
 
     _, (model, kwargs) = client.calls[-1]
     assert model == "documents.folder"
     assert kwargs["domain"] == []
+    assert kwargs["limit"] == 17
+
+
+def test_async_upload_accepts_numeric_string_folder(tmp_path: Path) -> None:
+    source = tmp_path / "source.txt"
+    source.write_bytes(b"async data")
+    client = _StubAsyncClient()
+    documents = AsyncDocumentNamespace(client)  # type: ignore[arg-type]
+
+    result = asyncio.run(documents.upload(source, folder="1536"))
+
+    assert result == 42
+    assert all(call[0] not in {"search_read", "fields_get"} for call in client.calls)
+    _, (_, values, _) = client.calls[-1]
+    assert values["folder_id"] == 1536
 
 
 @pytest.mark.parametrize("normalized_data", [None, False])
@@ -408,7 +419,7 @@ def test_document_upload_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     source.write_bytes(b"data")
 
     class _Documents:
-        def upload(self, file_path: Path, **options: Any) -> DocumentUploadResult:
+        def upload(self, file_path: Path, **options: Any) -> int:
             assert file_path == source
             assert options == {
                 "folder": "Finanzen Semadox",
@@ -417,7 +428,11 @@ def test_document_upload_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
                 "owner": None,
                 "name": None,
             }
-            return DocumentUploadResult(88, "https://odoo.example.com/document/88")
+            return 88
+
+        def url(self, document_id: int) -> str:
+            assert document_id == 88
+            return "https://odoo.example.com/document/88"
 
     monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=_Documents()))
     result = CliRunner().invoke(
@@ -434,7 +449,7 @@ def test_document_upload_cli_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     source.write_bytes(b"data")
 
     class _Documents:
-        def upload(self, file_path: Path, **options: Any) -> DocumentUploadResult:
+        def upload(self, file_path: Path, **options: Any) -> int:
             assert file_path == source
             assert options == {
                 "folder": None,
@@ -443,7 +458,11 @@ def test_document_upload_cli_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
                 "owner": "audit@example.com",
                 "name": "custom.pdf",
             }
-            return DocumentUploadResult(89, "https://odoo.example.com/document/89")
+            return 89
+
+        def url(self, document_id: int) -> str:
+            assert document_id == 89
+            return "https://odoo.example.com/document/89"
 
     monkeypatch.setattr("vodoo.main.get_client", lambda: SimpleNamespace(documents=_Documents()))
     result = CliRunner().invoke(

@@ -2180,7 +2180,7 @@ def document_upload(
     client = get_client()
 
     with _handle_errors():
-        result = client.documents.upload(
+        document_id = client.documents.upload(
             file_path,
             folder=folder,
             folder_id=folder_id,
@@ -2189,21 +2189,21 @@ def document_upload(
             name=name,
         )
         document_name = name or file_path.name
+        url = client.documents.url(document_id)
         if is_structured_output():
             structured_print(
                 {
                     "ok": True,
-                    "id": result.document_id,
+                    "id": document_id,
                     "name": document_name,
-                    "url": result.url,
+                    "url": url,
                 }
             )
         else:
             console.print(
-                f"[green]Successfully uploaded '{document_name}' "
-                f"with ID {result.document_id}[/green]"
+                f"[green]Successfully uploaded '{document_name}' with ID {document_id}[/green]"
             )
-            console.print(result.url)
+            console.print(url)
 
 
 @document_app.command("list")
