@@ -9,6 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# TypeScript-generated files and dependencies
+node_modules/
+packages/typescript/dist/
+.pnpm-store/
+
 # IDE
 .vscode/
 .idea/
