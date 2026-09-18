@@ -26,6 +26,7 @@ packages/typescript/dist/
 tests/integration/.env.test.*
 *.local.env
 /.odoo-license
+/.odoo-enterprise/
 
 # mypy
 .mypy_cache/
