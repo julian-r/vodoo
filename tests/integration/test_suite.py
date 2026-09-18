@@ -173,7 +173,7 @@ class TestGenericCRUD:
         assert client.generic.search("res.partner", domain=[["id", "=", rid]]) == []
 
     def test_call_method(self, client: OdooClient) -> None:
-        result = client.generic.call("res.partner", "name_search", args=["Administrator"])
+        result = client.generic.call("res.partner", "name_search", kwargs={"name": "Administrator"})
         assert isinstance(result, list)
 
     def test_search_with_limit_and_order(self, client: OdooClient) -> None:

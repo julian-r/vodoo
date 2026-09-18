@@ -271,10 +271,7 @@ describe("TimerNamespace", () => {
     const active = await new TimerNamespace(client).active();
     expect(active).toHaveLength(1);
     expect(client.calls[2]?.args[1]).toMatchObject({
-      domain: [
-        ["user_id", "=", 7],
-        ["timer_start", "!=", false],
-      ],
+      domain: [["user_id", "=", 7]],
     });
   });
 
@@ -326,7 +323,6 @@ describe("TimerNamespace", () => {
 
   it("raises when a task handle has no running timer", async () => {
     const client = new RecordingClient("https://odoo.example.com", [
-      7,
       7,
       new Error("Unknown field helpdesk_ticket_id"),
       [],

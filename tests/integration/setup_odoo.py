@@ -138,6 +138,30 @@ def install_modules(url: str, db_name: str, uid: int, modules: list[str]) -> Non
     print(f"  Installed {len(not_installed)} module(s).")
 
 
+def disable_nondeterministic_crons(url: str, db_name: str, uid: int) -> None:
+    """Disable background jobs that race with short-lived integration fixtures."""
+    cron_ids = execute_kw(
+        url,
+        db_name,
+        uid,
+        ADMIN_PASSWORD,
+        "ir.cron",
+        "search",
+        [[["code", "ilike", "_iap_enrich_leads_cron"]]],
+    )
+    if cron_ids:
+        execute_kw(
+            url,
+            db_name,
+            uid,
+            ADMIN_PASSWORD,
+            "ir.cron",
+            "write",
+            [cron_ids, {"active": False}],
+        )
+        print("Disabled CRM lead enrichment cron for deterministic tests.")
+
+
 def enable_features(url: str, db_name: str, uid: int) -> None:
     """Enable project/CRM features via res.config.settings.
 
@@ -311,6 +335,9 @@ def main() -> None:
 
     # Community modules (always)
     install_modules(base_url, db_name, uid, ["project", "crm", "account"])
+
+    # Prevent IAP enrichment from racing fixture deletion on Odoo 17.
+    disable_nondeterministic_crons(base_url, db_name, uid)
 
     # Enable project/CRM features (stages, etc.)
     enable_features(base_url, db_name, uid)

@@ -65,7 +65,9 @@ pnpm --dir packages/typescript test
 pnpm --dir packages/typescript build
 ```
 
-The live suite runs transport, project, task, CRM, activity, security, shared-binary, and account-move checks against the Community Odoo 17–19 Docker matrix used by the Python client. Helpdesk, knowledge, documents, and timer checks are enabled only when `ODOO_ENTERPRISE=1`. GitHub CI cannot run those proprietary addons, so Enterprise compatibility remains an explicitly separate integration gate.
+The native Vitest live suite reports 75 independently named Community scenarios per Odoo version and 107 Enterprise scenarios. It covers transport, projects, tasks, CRM, activities, security, binary data, account moves, errors, helpdesk, knowledge, documents, and timers. Public pull-request CI runs the Community Odoo 17–19 matrix; Enterprise compatibility runs only in the protected, main-branch `enterprise-ci` environment.
+
+Python and TypeScript also consume the same normative fixture at `conformance/fixtures/v1.json`. Their hermetic tests independently verify JSON-RPC/JSON-2 request semantics, normalization, and errors. Date and binary rows are neutral cross-runtime vectors; TypeScript runs them through its production codecs, while Python uses a test-local stdlib adapter because it has no standalone codec API.
 
 ```bash
 # After provisioning an integration instance:

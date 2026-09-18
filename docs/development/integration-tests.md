@@ -42,6 +42,24 @@ KEEP=1 ./tests/integration/run.sh 19
 - Verifies Odoo 17/18 use `LegacyTransport` (JSON-RPC)
 - Verifies Odoo 19 uses `JSON2Transport` (JSON-2 bearer auth)
 
+### Native TypeScript coverage
+
+Vitest reports each behavior independently rather than bundling a namespace into one smoke test:
+
+- **Community:** 75 live scenarios per Odoo version
+- **Enterprise:** 107 live scenarios per Odoo version
+
+The TypeScript suite uses the same provisioned instances as Python while retaining Worker-safe `Uint8Array` binary APIs and native `Date` assertions.
+
+### Cross-language conformance
+
+Python and TypeScript independently consume `conformance/fixtures/v1.json`. The hermetic conformance suites verify canonical JSON-RPC and JSON-2 requests, response normalization, and typed error mapping without treating either implementation as the oracle. Date and binary rows are neutral cross-runtime vectors: TypeScript exercises its production codecs, while Python uses an explicitly test-local stdlib adapter because it has no standalone public codec API.
+
+```bash
+uv run pytest tests/conformance -q
+pnpm --dir packages/typescript test
+```
+
 ## Architecture
 
 ```
@@ -49,12 +67,19 @@ tests/integration/
 ├── run.sh                  # End-to-end orchestrator
 ├── setup_odoo.py           # DB provisioning + API key creation
 ├── conftest.py             # pytest fixtures and markers
-├── test_suite.py           # 60 test cases across 9 classes
+├── test_suite.py           # Synchronous Python live scenarios
+├── test_async_suite.py     # Async Python live scenarios
 ├── docker-compose.yml      # Parameterized compose file
 ├── Dockerfile.enterprise   # Builds a local image from validated Enterprise source
 ├── fetch_enterprise.py     # Secure official-download client and archive validator
 ├── odoo.conf               # Community Odoo config
 └── odoo-enterprise.conf    # Enterprise Odoo config (with addons_path)
+
+packages/typescript/test/integration/
+└── odoo.integration.ts     # Native Vitest live scenarios
+
+conformance/fixtures/
+└── v1.json                 # Shared normative cross-language contract
 ```
 
 ## Port Mapping

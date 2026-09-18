@@ -203,7 +203,7 @@ class TestAsyncGenericCRUD:
 
     async def test_call_method(self, async_client: AsyncOdooClient) -> None:
         result = await async_client.generic.call(
-            "res.partner", "name_search", args=["Administrator"]
+            "res.partner", "name_search", kwargs={"name": "Administrator"}
         )
         assert isinstance(result, list)
 

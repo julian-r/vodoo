@@ -457,26 +457,14 @@ export class TimerNamespace {
   }
 
   async active(): Promise<Timesheet[]> {
-    const uid = await this.client.getUid();
-    if (!this.client.isJson2) {
-      return (await this.list()).filter(
-        (timesheet) => timesheet.timerStart !== null,
-      );
-    }
-    const records = await this.client.searchRead(TIMESHEET_MODEL, {
-      domain: [
-        ["user_id", "=", uid],
-        ["timer_start", "!=", false],
-      ],
-      fields: await this.fields(),
-      order: "date desc",
-    });
-    return records
-      .map(parseTimesheet)
-      .filter(
-        (timesheet): timesheet is Timesheet =>
-          timesheet !== null && timesheet.timerStart !== null,
-      );
+    // Odoo 19's JSON-2 domain optimizer rejects a direct search on the
+    // computed timer_start field. Read all of the current user's entries on
+    // JSON-2 and filter client-side so timers started before midnight remain
+    // visible, matching the Python implementation.
+    const days = this.client.isJson2 ? -1 : 0;
+    return (await this.list({ days })).filter(
+      (timesheet) => timesheet.timerStart !== null,
+    );
   }
 
   async startTask(taskId: number): Promise<TimerHandle> {
