@@ -358,13 +358,19 @@ src/vodoo/
 
 ## Integration Tests
 
-75+ tests per Odoo version against real instances in Docker:
+The combined native suites run 186 Community and 272 Enterprise live scenarios per Odoo version against real instances in Docker:
 
 ```bash
-./tests/integration/run.sh           # All community editions (17, 18, 19)
-./tests/integration/run.sh 19        # Just Odoo 19
-ENTERPRISE=1 ./tests/integration/run.sh 19   # Include enterprise
+./tests/integration/run.sh  # All Community editions (17, 18, 19)
+./tests/integration/run.sh 19
+
+# Enterprise requires a valid Odoo download code in the ignored .odoo-license file.
+uv run python tests/integration/fetch_enterprise.py fetch 19
+ENTERPRISE_BUILD_ONLY=1 ./tests/integration/run.sh 19
+ENTERPRISE=1 ./tests/integration/run.sh 19
 ```
+
+Enterprise archives and images remain local and contain licensed proprietary source; Docker's local build cache may retain their layers. See [Integration Tests](docs/development/integration-tests.md#enterprise-addons) for credential storage, secure downloads, provenance validation, CI behavior, and cleanup.
 
 ## Development
 
@@ -373,7 +379,14 @@ uv sync --all-extras
 uv run ruff check .
 uv run ruff format .
 uv run mypy src/vodoo
+pnpm --dir packages/typescript typecheck
+pnpm --dir packages/typescript test
+
+# Shared Python/TypeScript transport and codec contract
+uv run pytest tests/conformance -q
 ```
+
+Both SDKs independently validate the transport/error contract in `conformance/fixtures/v1.json`; neither language implementation is used as the conformance oracle. The fixture's date and binary rows are neutral cross-runtime vectors.
 
 ## Publishing
 

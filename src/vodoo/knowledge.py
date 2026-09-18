@@ -1,8 +1,7 @@
 """Knowledge article operations for Vodoo."""
 
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
 from vodoo.base import (
     _get_console,
     _html_to_markdown,
@@ -11,28 +10,7 @@ from vodoo.base import (
     structured_print,
 )
 from vodoo.content import Markdown
-
-
-class _KnowledgeAttrs:
-    _model = "knowledge.article"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "parent_id",
-        "category",
-        "icon",
-        "write_date",
-    ]
-    _default_detail_fields: ClassVar[list[str] | None] = [
-        "id",
-        "name",
-        "parent_id",
-        "category",
-        "icon",
-        "body",
-        "write_date",
-    ]
-    _record_type = "Article"
+from vodoo.generated.knowledge import GeneratedKnowledgeNamespace
 
 
 def _build_article_values(
@@ -57,7 +35,7 @@ def _build_article_values(
     return values
 
 
-class KnowledgeNamespace(_KnowledgeAttrs, DomainNamespace):
+class KnowledgeNamespace(GeneratedKnowledgeNamespace):
     """Namespace for knowledge.article model."""
 
     def create(

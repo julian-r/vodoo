@@ -52,6 +52,7 @@ dev = [
     "types-Markdown>=3.5.0",
     "pytest>=8.0.0",
     "pytest-playwright>=0.6.0",
+    "pyyaml>=6.0.0",
 ]
 docs = [
     "mkdocs-material>=9.5.0",
@@ -68,6 +69,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "DTZ", "T10", "ICN", "PIE", "PT", "RET", "SIM", "ARG", "PTH", "PD", "PLE", "PLR", "PLW", "RUF"]
 ignore = ["PLR0913", "PLR2004"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
 
 [tool.mypy]
 python_version = "3.12"

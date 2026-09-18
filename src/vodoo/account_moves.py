@@ -2,54 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
-
-
-class _AccountMoveAttrs:
-    """Shared account.move domain attributes."""
-
-    _model: ClassVar[str] = "account.move"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "ref",
-        "move_type",
-        "state",
-        "date",
-        "invoice_date",
-        "partner_id",
-        "company_id",
-        "currency_id",
-        "amount_total",
-    ]
-    _default_detail_fields: ClassVar[list[str] | None] = [
-        "id",
-        "name",
-        "ref",
-        "move_type",
-        "state",
-        "date",
-        "invoice_date",
-        "invoice_date_due",
-        "payment_state",
-        "partner_id",
-        "company_id",
-        "currency_id",
-        "amount_total",
-        "amount_untaxed",
-        "amount_tax",
-        "invoice_origin",
-        "invoice_user_id",
-        "narration",
-        "create_date",
-        "write_date",
-    ]
-    _record_type: ClassVar[str] = "Account Move"
+from vodoo.generated.account_moves import GeneratedAccountMoveNamespace
 
 
-class AccountMoveNamespace(_AccountMoveAttrs, DomainNamespace):
+class AccountMoveNamespace(GeneratedAccountMoveNamespace):
     """Namespace for ``account.move`` operations."""
 
 

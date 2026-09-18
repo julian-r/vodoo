@@ -45,7 +45,8 @@ class AsyncOdooTransport(ABC):
         self.url = url.rstrip("/")
         self.database = database.strip()
         self.username = username.strip()
-        self.password = password.strip()
+        # Passwords and API keys are opaque credentials; whitespace may be significant.
+        self.password = password
         self.timeout = timeout
         self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None

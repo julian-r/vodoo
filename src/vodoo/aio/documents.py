@@ -5,12 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from vodoo.aio._domain import AsyncDomainNamespace
+from vodoo.aio.generated.documents import GeneratedAsyncDocumentNamespace
 from vodoo.documents import (
     _LEGACY_FOLDER_FIELDS,
     _MODERN_FOLDER_FIELDS,
     _decode_document_data,
-    _DocumentAttrs,
     _folder_domain,
     _normalize_modern_folders,
     _numeric_id,
@@ -23,7 +22,7 @@ from vodoo.documents import (
 from vodoo.exceptions import RecordNotFoundError, VodooError
 
 
-class AsyncDocumentNamespace(_DocumentAttrs, AsyncDomainNamespace):
+class AsyncDocumentNamespace(GeneratedAsyncDocumentNamespace):
     """Async namespace for the ``documents.document`` model."""
 
     async def _uses_document_folder_records(self) -> bool:

@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "json2Bodies": [
+    {
+      "id": "search-read-full",
+      "method": "search_read",
+      "args": [[["active", "=", true]]],
+      "kwargs": {"fields": ["id", "name"], "limit": 5, "offset": 2, "order": "name"},
+      "expect": {"domain": [["active", "=", true]], "fields": ["id", "name"], "limit": 5, "offset": 2, "order": "name"}
+    },
+    {
+      "id": "read-fields",
+      "method": "read",
+      "args": [[4, 7], ["id", "name"]],
+      "expect": {"ids": [4, 7], "fields": ["id", "name"]}
+    },
+    {
+      "id": "create-single",
+      "method": "create",
+      "args": [{"name": "Fixture"}],
+      "expect": {"vals_list": [{"name": "Fixture"}]}
+    },
+    {
+      "id": "write",
+      "method": "write",
+      "args": [[4], {"active": false}],
+      "expect": {"ids": [4], "vals": {"active": false}}
+    },
+    {
+      "id": "unlink",
+      "method": "unlink",
+      "args": [[4, 7]],
+      "expect": {"ids": [4, 7]}
+    },
+    {
+      "id": "fields-get",
+      "method": "fields_get",
+      "args": [["name", "active"]],
+      "kwargs": {"attributes": ["type", "string"]},
+      "expect": {"allfields": ["name", "active"], "attributes": ["type", "string"]}
+    },
+    {
+      "id": "name-search-domain",
+      "method": "name_search",
+      "args": [],
+      "kwargs": {"name": "Ada", "args": [["active", "=", true]], "limit": 7},
+      "expect": {"name": "Ada", "domain": [["active", "=", true]], "limit": 7}
+    },
+    {
+      "id": "record-method-ids",
+      "method": "action_timer_start",
+      "args": [[42]],
+      "expect": {"ids": [42]}
+    },
+    {
+      "id": "unsupported-positional",
+      "method": "name_search",
+      "args": ["Ada"],
+      "expectError": "TypeError"
+    },
+    {
+      "id": "record-method-extra-positional",
+      "method": "custom_method",
+      "args": [[42], "extra"],
+      "expectError": "TypeError"
+    },
+    {
+      "id": "record-method-boolean-is-not-id",
+      "method": "custom_method",
+      "args": [[true]],
+      "expectError": "TypeError"
+    }
+  ],
+  "json2Responses": [
+    {"id": "empty", "wire": "", "expect": null},
+    {"id": "null", "wire": "null", "expect": null},
+    {"id": "false", "wire": "false", "expect": null},
+    {"id": "true", "wire": "true", "expect": true},
+    {"id": "integer", "wire": "42", "expect": 42},
+    {"id": "float", "wire": "4.25", "expect": 4.25},
+    {"id": "object", "wire": "{\"id\":7,\"name\":\"Ada\"}", "expect": {"id": 7, "name": "Ada"}},
+    {"id": "bare-string", "wire": "ready", "expect": "ready"}
+  ],
+  "nameSearch": {
+    "input": [[7, "Ada"], [true, "Boolean"], ["bad", "Wrong ID"], [8], null, [9, "Grace", "ignored"]],
+    "expect": [[7, "Ada"], [9, "Grace"]]
+  },
+  "errors": [
+    {"id": "access", "message": "denied", "code": -1, "data": {"name": "odoo.exceptions.AccessError", "message": "denied"}, "class": "OdooAccessError", "rendered": "[-1] denied"},
+    {"id": "validation", "message": "invalid", "code": 422, "data": {"name": "odoo.exceptions.ValidationError", "message": "invalid"}, "class": "OdooValidationError", "rendered": "[422] invalid"},
+    {"id": "unknown", "message": "boom", "code": 500, "data": {"name": "builtins.ValueError", "message": "boom"}, "class": "TransportError", "rendered": "[500] boom"}
+  ],
+  "dates": [
+    {"id": "leap-date", "kind": "date", "wire": "2024-02-29", "iso": "2024-02-29T00:00:00.000Z"},
+    {"id": "utc-datetime", "kind": "datetime", "wire": "2024-02-29 23:04:05", "iso": "2024-02-29T23:04:05.000Z"},
+    {"id": "invalid-calendar-date", "kind": "date", "wire": "2023-02-29", "expectError": "TypeError"},
+    {"id": "year-zero", "kind": "datetime", "wire": "0000-01-01 00:00:00", "expectError": "TypeError"}
+  ],
+  "binary": [
+    {"id": "empty", "bytes": [], "base64": ""},
+    {"id": "mixed", "bytes": [0, 255, 97], "base64": "AP9h"},
+    {"id": "text", "bytes": [86, 111, 100, 111, 111], "base64": "Vm9kb28="}
+  ],
+  "transports": [
+    {
+      "id": "json2-search-read",
+      "dialect": "json2",
+      "config": {"url": "https://odoo.example.test/", "database": "fixture-db", "username": "fixture-user", "password": "fixture-key"},
+      "invoke": {"operation": "searchRead", "model": "res.partner", "domain": [["active", "=", true]], "fields": ["id", "name"], "limit": 5, "offset": 2, "order": "name"},
+      "responses": [{"status": 200, "body": [{"id": 7, "name": "Ada"}]}],
+      "expect": {
+        "requests": [{"method": "POST", "path": "/json/2/res.partner/search_read", "headers": {"authorization": "bearer fixture-key", "content-type": "application/json; charset=utf-8", "x-odoo-database": "fixture-db"}, "json": {"domain": [["active", "=", true]], "fields": ["id", "name"], "limit": 5, "offset": 2, "order": "name"}}],
+        "value": [{"id": 7, "name": "Ada"}]
+      }
+    },
+    {
+      "id": "legacy-authenticated-search",
+      "dialect": "jsonrpc",
+      "config": {"url": "https://odoo.example.test/", "database": "fixture-db", "username": "fixture-user", "password": "fixture-secret"},
+      "invoke": {"operation": "search", "model": "res.partner", "domain": [["active", "=", true]], "limit": 3, "offset": 1, "order": "id"},
+      "responses": [{"status": 200, "body": {"jsonrpc": "2.0", "id": null, "result": 9}}, {"status": 200, "body": {"jsonrpc": "2.0", "id": null, "result": [7, 8]}}],
+      "expect": {
+        "requests": [
+          {"method": "POST", "path": "/jsonrpc", "headers": {"content-type": "application/json"}, "json": {"jsonrpc": "2.0", "method": "call", "params": {"service": "common", "method": "authenticate", "args": ["fixture-db", "fixture-user", "fixture-secret", {}]}, "id": null}},
+          {"method": "POST", "path": "/jsonrpc", "headers": {"content-type": "application/json"}, "json": {"jsonrpc": "2.0", "method": "call", "params": {"service": "object", "method": "execute_kw", "args": ["fixture-db", 9, "fixture-secret", "res.partner", "search", [[["active", "=", true]]], {"limit": 3, "offset": 1, "order": "id"}]}, "id": null}}
+        ],
+        "value": [7, 8]
+      }
+    }
+  ]
+}

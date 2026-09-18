@@ -74,7 +74,8 @@ class OdooTransport(ABC):
         self.url = url.rstrip("/")
         self.database = database.strip()
         self.username = username.strip()
-        self.password = password.strip()
+        # Passwords and API keys are opaque credentials; whitespace may be significant.
+        self.password = password
         self.timeout = timeout
         self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
@@ -468,11 +469,21 @@ def _build_json2_body(  # noqa: PLR0912
     elif method == "unlink":
         if args:
             body["ids"] = args[0]
-    elif args and isinstance(args[0], list) and all(isinstance(i, int) for i in args[0]):
-        # Generic method call — pass as ids when first arg is a list of ints
-        # (e.g., action_timer_start([42])). Other list-typed first args are
-        # left for the caller to structure via kwargs.
+    elif method == "fields_get":
+        if args:
+            body["allfields"] = args[0]
+    elif (
+        len(args) == 1
+        and isinstance(args[0], list)
+        and all(isinstance(i, int) and not isinstance(i, bool) for i in args[0])
+    ):
+        # Generic record method call — JSON-2 names the record set ``ids``.
         body["ids"] = args[0]
+    elif args:
+        raise TypeError(
+            f"JSON-2 method {method} requires named keyword arguments; "
+            "unsupported positional arguments were provided"
+        )
 
     if kwargs:
         body.update(kwargs)
@@ -486,7 +497,7 @@ def _build_json2_body(  # noqa: PLR0912
 def _parse_json2_response(resp_data: bytes) -> Any:
     """Parse a JSON-2 response body."""
     raw = resp_data.decode("utf-8").strip()
-    if raw in ("null", "false"):
+    if raw in ("", "null", "false"):
         return None
     if raw == "true":
         return True
@@ -516,6 +527,6 @@ def _parse_name_search(result: Any) -> list[tuple[int, str]]:
         if isinstance(pair, list) and len(pair) >= 2:
             rec_id = pair[0]
             name = pair[1]
-            if isinstance(rec_id, int) and isinstance(name, str):
+            if isinstance(rec_id, int) and not isinstance(rec_id, bool) and isinstance(name, str):
                 pairs.append((rec_id, name))
     return pairs

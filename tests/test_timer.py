@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock
 
+from vodoo.aio.timer import AsyncTimerNamespace
 from vodoo.timer import (
     TIMESHEET_MODEL,
+    TimerNamespace,
     TimerSource,
     Timesheet,
     _parse_stop_wizard,
@@ -49,6 +54,29 @@ class TestResolveTimerTarget:
         model, rec_id = _resolve_timer_target(ts)
         assert model == TIMESHEET_MODEL
         assert rec_id == 99
+
+
+class TestActiveTimers:
+    def test_json2_active_uses_unbounded_date_range(self) -> None:
+        namespace = TimerNamespace(cast(Any, SimpleNamespace(is_json2=True)))
+        namespace.list = MagicMock(return_value=[])
+
+        assert namespace.active() == []
+        namespace.list.assert_called_once_with(days=-1)
+
+    def test_legacy_active_keeps_today_query(self) -> None:
+        namespace = TimerNamespace(cast(Any, SimpleNamespace(is_json2=False)))
+        namespace.list = MagicMock(return_value=[])
+
+        assert namespace.active() == []
+        namespace.list.assert_called_once_with(days=0)
+
+    def test_async_json2_active_uses_unbounded_date_range(self) -> None:
+        namespace = AsyncTimerNamespace(cast(Any, SimpleNamespace(is_json2=True)))
+        namespace.list = AsyncMock(return_value=[])
+
+        assert asyncio.run(namespace.active()) == []
+        namespace.list.assert_awaited_once_with(days=-1)
 
 
 class TestParseStopWizard:

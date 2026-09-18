@@ -1,0 +1,21 @@
+specVersion: 1
+namespace: project_tasks
+className: Task
+model: project.task
+recordType: Task
+tagModel: project.tags
+defaultFields:
+  - id
+  - name
+  - partner_id
+  - project_id
+  - stage_id
+  - user_ids
+  - priority
+  - tag_ids
+  - create_date
+defaultDetailFields: null
+dateFields:
+  create_date: datetime
+fieldSets: {}
+operations: []

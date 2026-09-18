@@ -474,8 +474,9 @@ class TimerNamespace:
         return backend.enrich_with_running_state(timesheets, self._client, uid)
 
     def active(self) -> builtins.list[Timesheet]:
-        """Fetch currently running timesheets."""
-        return [ts for ts in self.list() if ts.timer_start is not None]
+        """Fetch currently running timesheets, including timers started before today."""
+        days = -1 if self._client.is_json2 else 0
+        return [ts for ts in self.list(days=days) if ts.timer_start is not None]
 
     def start_task(self, task_id: int) -> TimerHandle:
         """Start a timer on a project task."""

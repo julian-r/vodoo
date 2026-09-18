@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
 from vodoo.base import (
     _get_console,
     _is_simple_output,
     is_structured_output,
     structured_print,
 )
-
-STAGE_FIELDS = ["id", "name", "sequence", "is_won", "fold"]
+from vodoo.generated.crm import STAGE_FIELDS, GeneratedCRMNamespace
 
 _PIPELINE_FIELDS = [
     "id",
@@ -36,29 +34,7 @@ DEFAULT_STALE_THRESHOLDS: dict[str, int] = {
 }
 
 
-class _CRMAttrs:
-    """Shared CRM domain attributes."""
-
-    _model: ClassVar[str] = "crm.lead"
-    _tag_model: ClassVar[str | None] = "crm.tag"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "partner_id",
-        "stage_id",
-        "user_id",
-        "team_id",
-        "expected_revenue",
-        "probability",
-        "type",
-        "priority",
-        "tag_ids",
-        "create_date",
-    ]
-    _record_type: ClassVar[str] = "Lead"
-
-
-class CRMNamespace(_CRMAttrs, DomainNamespace):
+class CRMNamespace(GeneratedCRMNamespace):
     """CRM leads/opportunities namespace."""
 
     def create(

@@ -9,6 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# TypeScript-generated files and dependencies
+node_modules/
+packages/typescript/dist/
+.pnpm-store/
+
 # IDE
 .vscode/
 .idea/
@@ -20,6 +25,8 @@ wheels/
 .vodoo.env
 tests/integration/.env.test.*
 *.local.env
+/.odoo-license
+/.odoo-enterprise/
 
 # mypy
 .mypy_cache/

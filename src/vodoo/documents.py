@@ -6,28 +6,14 @@ import base64
 import mimetypes
 import re
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
 from vodoo.cmd import Cmd
 from vodoo.exceptions import RecordNotFoundError, VodooError
+from vodoo.generated.documents import GeneratedDocumentNamespace
 
 _LEGACY_FOLDER_FIELDS = ["id", "name", "parent_folder_id"]
 _MODERN_FOLDER_FIELDS = ["id", "name", "folder_id"]
-
-
-class _DocumentAttrs:
-    _model = "documents.document"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "folder_id",
-        "mimetype",
-        "file_size",
-        "create_date",
-    ]
-    _default_detail_fields: ClassVar[list[str] | None] = _default_fields
-    _record_type = "Document"
 
 
 def _uses_document_folder_records(fields: dict[str, Any]) -> bool:
@@ -188,7 +174,7 @@ def _decode_document_data(document: dict[str, Any], document_id: int) -> bytes:
     raise RecordNotFoundError("documents.document", document_id)
 
 
-class DocumentNamespace(_DocumentAttrs, DomainNamespace):
+class DocumentNamespace(GeneratedDocumentNamespace):
     """Namespace for the ``documents.document`` model."""
 
     def _uses_document_folder_records(self) -> bool:

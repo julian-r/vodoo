@@ -118,8 +118,11 @@ class GenericNamespace:
             Method result
 
         Examples:
-            >>> ns.call('res.partner', 'name_search', args=['Acme'])
+            >>> ns.call('res.partner', 'name_search', kwargs={'name': 'Acme'})
             [(1, 'Acme Corp'), (2, 'Acme Ltd')]
+
+        JSON-2 requires method parameters other than record IDs to be passed as
+        named keyword arguments.
 
         """
         args = args or []

@@ -1,0 +1,42 @@
+specVersion: 1
+namespace: crm
+className: CRM
+model: crm.lead
+recordType: Lead
+tagModel: crm.tag
+defaultFields:
+  - id
+  - name
+  - partner_id
+  - stage_id
+  - user_id
+  - team_id
+  - expected_revenue
+  - probability
+  - type
+  - priority
+  - tag_ids
+  - create_date
+defaultDetailFields: null
+dateFields:
+  create_date: datetime
+fieldSets:
+  stages:
+    - id
+    - name
+    - sequence
+    - is_won
+    - fold
+operations:
+  - name: stages
+    kind: searchRead
+    description: List CRM pipeline stages, optionally filtered by sales team.
+    model: crm.stage
+    fields: stages
+    order: sequence
+    pythonKeywordOnly: true
+    domain:
+      kind: optional
+      parameter: teamId
+      field: team_id
+      operator: "="

@@ -173,7 +173,7 @@ class TestGenericCRUD:
         assert client.generic.search("res.partner", domain=[["id", "=", rid]]) == []
 
     def test_call_method(self, client: OdooClient) -> None:
-        result = client.generic.call("res.partner", "name_search", args=["Administrator"])
+        result = client.generic.call("res.partner", "name_search", kwargs={"name": "Administrator"})
         assert isinstance(result, list)
 
     def test_search_with_limit_and_order(self, client: OdooClient) -> None:
@@ -1014,8 +1014,7 @@ class TestDocuments:
         source = tmp_path / "vodoo-empty-document.txt"
         source.write_bytes(b"")
         try:
-            result = client.documents.upload(source, folder=folder_name)
-            document_id = result.document_id
+            document_id = client.documents.upload(source, folder=folder_name)
             documents = client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name

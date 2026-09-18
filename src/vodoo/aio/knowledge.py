@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.knowledge import _build_article_values, _KnowledgeAttrs
+from vodoo.aio.generated.knowledge import GeneratedAsyncKnowledgeNamespace
+from vodoo.knowledge import _build_article_values
 
 
-class AsyncKnowledgeNamespace(_KnowledgeAttrs, AsyncDomainNamespace):
+class AsyncKnowledgeNamespace(GeneratedAsyncKnowledgeNamespace):
     """Async namespace for knowledge.article model."""
 
     async def create(

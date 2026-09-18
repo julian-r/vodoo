@@ -2,12 +2,11 @@
 
 from typing import Any
 
-from vodoo.activities import _ActivityAttrs
-from vodoo.aio._domain import AsyncDomainNamespace
+from vodoo.aio.generated.activities import GeneratedAsyncActivityNamespace
 from vodoo.exceptions import RecordOperationError
 
 
-class AsyncActivityNamespace(_ActivityAttrs, AsyncDomainNamespace):
+class AsyncActivityNamespace(GeneratedAsyncActivityNamespace):
     """Async namespace for ``mail.activity`` operations."""
 
     async def done(self, activity_id: int) -> Any:
