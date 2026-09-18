@@ -4,6 +4,7 @@ import { VodooError } from "../errors.js";
 import {
   GeneratedProjectNamespace,
   PROJECT_MILESTONES,
+  PROJECT_MILESTONES_DATE_FIELDS,
 } from "../generated/projects.js";
 import type { OdooRecord } from "../types.js";
 import type { ListOptions } from "./domain.js";
@@ -38,11 +39,6 @@ export interface MilestoneTask extends OdooRecord {
   id: number;
   name: string;
 }
-
-const MILESTONE_DATE_FIELDS = {
-  deadline: "date",
-  reached_date: "date",
-} as const;
 
 /** Python-compatible case-insensitive comparison without locale-sensitive matching. */
 function caseFold(value: string): string {
@@ -107,7 +103,10 @@ export class ProjectNamespace extends GeneratedProjectNamespace {
     });
     return records.map(
       (record) =>
-        decodeRecordDates(record, MILESTONE_DATE_FIELDS) as ProjectMilestone,
+        decodeRecordDates(
+          record,
+          PROJECT_MILESTONES_DATE_FIELDS,
+        ) as ProjectMilestone,
     );
   }
 

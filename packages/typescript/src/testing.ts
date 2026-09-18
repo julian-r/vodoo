@@ -13,17 +13,28 @@ export interface RecordedCall {
 /** Minimal queue-backed client for generated namespace conformance tests. */
 export class RecordingClient implements OdooClientApi {
   readonly calls: RecordedCall[] = [];
+  readonly defaultUserId: number | undefined;
 
   constructor(
     readonly url = "https://odoo.example.com",
     private readonly responses: unknown[] = [],
-  ) {}
+    defaultUserId?: number,
+    readonly isJson2 = false,
+  ) {
+    this.defaultUserId = defaultUserId;
+  }
 
   private next(method: string, args: readonly unknown[]): unknown {
     this.calls.push({ method, args });
     if (this.responses.length === 0)
       throw new Error(`No response queued for ${method}`);
-    return this.responses.shift();
+    const response = this.responses.shift();
+    if (response instanceof Error) throw response;
+    return response;
+  }
+
+  async getUid(): Promise<number> {
+    return this.next("getUid", []) as number;
   }
 
   async execute(

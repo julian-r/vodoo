@@ -2,18 +2,17 @@
 
 from typing import Any
 
-from vodoo.aio._domain import AsyncDomainNamespace
+from vodoo.aio.generated.project_tasks import GeneratedAsyncTaskNamespace
 from vodoo.cmd import Cmd
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
 from vodoo.project_tasks import (
     _build_task_values,
     _project_id,
-    _TaskAttrs,
     _validate_schedule_values,
 )
 
 
-class AsyncTaskNamespace(_TaskAttrs, AsyncDomainNamespace):
+class AsyncTaskNamespace(GeneratedAsyncTaskNamespace):
     """Async project task namespace."""
 
     async def create(

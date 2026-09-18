@@ -1,0 +1,23 @@
+specVersion: 1
+namespace: documents
+className: Document
+model: documents.document
+recordType: Document
+defaultFields:
+  - id
+  - name
+  - folder_id
+  - mimetype
+  - file_size
+  - create_date
+defaultDetailFields:
+  - id
+  - name
+  - folder_id
+  - mimetype
+  - file_size
+  - create_date
+dateFields:
+  create_date: datetime
+fieldSets: {}
+operations: []

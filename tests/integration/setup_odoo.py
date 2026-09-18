@@ -310,7 +310,7 @@ def main() -> None:
     uid = authenticate(base_url, db_name)
 
     # Community modules (always)
-    install_modules(base_url, db_name, uid, ["project", "crm"])
+    install_modules(base_url, db_name, uid, ["project", "crm", "account"])
 
     # Enable project/CRM features (stages, etc.)
     enable_features(base_url, db_name, uid)

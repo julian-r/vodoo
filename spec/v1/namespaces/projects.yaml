@@ -53,6 +53,10 @@ fieldSets:
     - stage_id
     - user_ids
     - priority
+fieldSetDateFields:
+  milestones:
+    deadline: date
+    reached_date: date
 operations:
   - name: stages
     kind: searchRead

@@ -3,8 +3,19 @@ import type {
   SearchOptions,
   SearchReadOptions,
 } from "./client-api.js";
+import { processContentValues } from "./content.js";
 import { VodooError } from "./errors.js";
+import { AccountMoveNamespace } from "./namespaces/account-moves.js";
+import { ActivityNamespace } from "./namespaces/activities.js";
+import { CRMNamespace } from "./namespaces/crm.js";
+import { DocumentNamespace } from "./namespaces/documents.js";
+import { GenericNamespace } from "./namespaces/generic.js";
+import { HelpdeskNamespace } from "./namespaces/helpdesk.js";
+import { KnowledgeNamespace } from "./namespaces/knowledge.js";
 import { ProjectNamespace } from "./namespaces/projects.js";
+import { SecurityNamespace } from "./namespaces/security.js";
+import { TaskNamespace } from "./namespaces/tasks.js";
+import { TimerNamespace } from "./namespaces/timer.js";
 import {
   JSON2Transport,
   LegacyTransport,
@@ -40,7 +51,18 @@ export class OdooClient implements OdooClientApi {
   readonly url: string;
   readonly database: string;
   readonly username: string;
+  readonly defaultUserId: number | undefined;
+  readonly helpdesk: HelpdeskNamespace;
+  readonly crm: CRMNamespace;
+  readonly tasks: TaskNamespace;
   readonly projects: ProjectNamespace;
+  readonly accountMoves: AccountMoveNamespace;
+  readonly activities: ActivityNamespace;
+  readonly documents: DocumentNamespace;
+  readonly knowledge: KnowledgeNamespace;
+  readonly timer: TimerNamespace;
+  readonly security: SecurityNamespace;
+  readonly generic: GenericNamespace;
 
   private readonly config: OdooConfig;
   private readonly autoDetect: boolean;
@@ -54,11 +76,22 @@ export class OdooClient implements OdooClientApi {
     this.url = config.url.replace(/\/+$/u, "");
     this.database = config.database;
     this.username = config.username;
+    this.defaultUserId = config.defaultUserId;
     this.autoDetect = options.autoDetect ?? true;
     this.fetchImplementation = options.fetch;
     this.sleepImplementation = options.sleep;
     this.transportValue = options.transport ?? null;
+    this.helpdesk = new HelpdeskNamespace(this);
+    this.crm = new CRMNamespace(this);
+    this.tasks = new TaskNamespace(this);
     this.projects = new ProjectNamespace(this);
+    this.accountMoves = new AccountMoveNamespace(this);
+    this.activities = new ActivityNamespace(this);
+    this.documents = new DocumentNamespace(this);
+    this.knowledge = new KnowledgeNamespace(this);
+    this.timer = new TimerNamespace(this);
+    this.security = new SecurityNamespace(this);
+    this.generic = new GenericNamespace(this);
   }
 
   get transport(): OdooTransportApi {
@@ -137,7 +170,7 @@ export class OdooClient implements OdooClientApi {
   ): Promise<number> {
     return (await this.ensureTransport()).create(
       model,
-      values,
+      processContentValues(values),
       context ?? null,
     );
   }
@@ -147,7 +180,11 @@ export class OdooClient implements OdooClientApi {
     ids: readonly number[],
     values: Readonly<Record<string, unknown>>,
   ): Promise<boolean> {
-    return (await this.ensureTransport()).write(model, ids, values);
+    return (await this.ensureTransport()).write(
+      model,
+      ids,
+      processContentValues(values),
+    );
   }
 
   async unlink(model: string, ids: readonly number[]): Promise<boolean> {

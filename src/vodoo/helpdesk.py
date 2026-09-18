@@ -1,29 +1,11 @@
 """Helpdesk domain namespace for Vodoo."""
 
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
-
-
-class _HelpdeskAttrs:
-    """Shared domain attributes for helpdesk namespaces."""
-
-    _model = "helpdesk.ticket"
-    _tag_model: str | None = "helpdesk.tag"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "partner_id",
-        "stage_id",
-        "user_id",
-        "priority",
-        "tag_ids",
-        "create_date",
-    ]
-    _record_type = "Ticket"
+from vodoo.generated.helpdesk import GeneratedHelpdeskNamespace
 
 
-class HelpdeskNamespace(_HelpdeskAttrs, DomainNamespace):
+class HelpdeskNamespace(GeneratedHelpdeskNamespace):
     """Namespace for ``helpdesk.ticket`` operations."""
 
     def create(

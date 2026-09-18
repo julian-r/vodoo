@@ -1,12 +1,12 @@
 """Project task operations for Vodoo."""
 
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any
 
-from vodoo._domain import DomainNamespace
 from vodoo.cmd import Cmd
 from vodoo.content import Markdown
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
+from vodoo.generated.project_tasks import GeneratedTaskNamespace
 
 _START_FORMAT = "%Y-%m-%d %H:%M:%S"
 _END_FORMAT = "%Y-%m-%d"
@@ -77,26 +77,7 @@ def _project_id(record: dict[str, Any]) -> int | None:
     return None
 
 
-class _TaskAttrs:
-    """Shared domain attributes for task namespaces."""
-
-    _model = "project.task"
-    _tag_model: str | None = "project.tags"
-    _default_fields: ClassVar[list[str]] = [
-        "id",
-        "name",
-        "partner_id",
-        "project_id",
-        "stage_id",
-        "user_ids",
-        "priority",
-        "tag_ids",
-        "create_date",
-    ]
-    _record_type = "Task"
-
-
-class TaskNamespace(_TaskAttrs, DomainNamespace):
+class TaskNamespace(GeneratedTaskNamespace):
     """Project task namespace."""
 
     def create(

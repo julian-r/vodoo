@@ -1,10 +1,9 @@
 """Async account.move operations for Vodoo."""
 
-from vodoo.account_moves import _AccountMoveAttrs
-from vodoo.aio._domain import AsyncDomainNamespace
+from vodoo.aio.generated.account_moves import GeneratedAsyncAccountMoveNamespace
 
 
-class AsyncAccountMoveNamespace(_AccountMoveAttrs, AsyncDomainNamespace):
+class AsyncAccountMoveNamespace(GeneratedAsyncAccountMoveNamespace):
     """Async namespace for ``account.move`` operations."""
 
 

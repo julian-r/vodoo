@@ -21,7 +21,16 @@ function parseParts(
   const hour = hasTime ? Number(match[4]) : 0;
   const minute = hasTime ? Number(match[5]) : 0;
   const second = hasTime ? Number(match[6]) : 0;
-  const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (year === 0) {
+    throw new TypeError(
+      `Invalid Odoo ${hasTime ? "datetime" : "date"}: ${value}`,
+    );
+  }
+  // Date.UTC treats years 0–99 as 1900–1999. Set the full year explicitly so
+  // Odoo's complete 0001–9999 date range round-trips without that coercion.
+  const parsed = new Date(0);
+  parsed.setUTCHours(hour, minute, second, 0);
+  parsed.setUTCFullYear(year, month - 1, day);
   if (
     parsed.getUTCFullYear() !== year ||
     parsed.getUTCMonth() !== month - 1 ||
@@ -59,7 +68,11 @@ function pad(value: number): string {
 
 export function formatOdooDate(value: Date): string {
   const date = requireValidDate(value, "Date");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  const year = date.getUTCFullYear();
+  if (year < 1 || year > 9999) {
+    throw new TypeError("Date is outside Odoo's supported year range");
+  }
+  return `${String(year).padStart(4, "0")}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
 export function formatOdooDateTime(value: Date): string {

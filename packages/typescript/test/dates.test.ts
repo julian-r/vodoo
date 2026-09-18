@@ -21,7 +21,13 @@ describe("Odoo date codecs", () => {
     expect(formatOdooDateTime(value)).toBe("2026-04-30 12:34:56");
   });
 
-  it.each(["2026-02-30", "30-04-2026", "2026-4-3"])(
+  it("round-trips years below 100 without JavaScript's 1900 coercion", () => {
+    const value = parseOdooDateTime("0001-01-02 03:04:05");
+    expect(value.toISOString()).toBe("0001-01-02T03:04:05.000Z");
+    expect(formatOdooDateTime(value)).toBe("0001-01-02 03:04:05");
+  });
+
+  it.each(["0000-01-01", "2026-02-30", "30-04-2026", "2026-4-3"])(
     "rejects invalid dates: %s",
     (value) => {
       expect(() => parseOdooDate(value)).toThrow(TypeError);
@@ -37,7 +43,12 @@ describe("Odoo date codecs", () => {
     ).toEqual({ deadline: null, reached_date: null });
   });
 
-  it("rejects invalid Date objects", () => {
+  it("rejects invalid or out-of-range Date objects", () => {
     expect(() => formatOdooDate(new Date(Number.NaN))).toThrow(TypeError);
+    const yearZero = new Date(0);
+    yearZero.setUTCFullYear(0, 0, 1);
+    expect(() => formatOdooDate(yearZero)).toThrow(
+      "Date is outside Odoo's supported year range",
+    );
   });
 });

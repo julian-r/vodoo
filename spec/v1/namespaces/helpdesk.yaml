@@ -1,0 +1,20 @@
+specVersion: 1
+namespace: helpdesk
+className: Helpdesk
+model: helpdesk.ticket
+recordType: Ticket
+tagModel: helpdesk.tag
+defaultFields:
+  - id
+  - name
+  - partner_id
+  - stage_id
+  - user_id
+  - priority
+  - tag_ids
+  - create_date
+defaultDetailFields: null
+dateFields:
+  create_date: datetime
+fieldSets: {}
+operations: []

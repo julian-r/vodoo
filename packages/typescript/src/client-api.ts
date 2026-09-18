@@ -13,6 +13,9 @@ export interface SearchReadOptions extends SearchOptions {
 
 export interface OdooClientApi {
   readonly url: string;
+  readonly defaultUserId: number | undefined;
+  readonly isJson2: boolean;
+  getUid(): Promise<number>;
   execute(
     model: string,
     method: string,

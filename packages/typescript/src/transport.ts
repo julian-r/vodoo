@@ -128,7 +128,8 @@ export abstract class OdooTransport implements OdooTransportApi {
     this.url = normalizeUrl(options.url);
     this.database = options.database.trim();
     this.username = options.username.trim();
-    this.password = options.password.trim();
+    // Passwords and API keys are opaque credentials; whitespace may be significant.
+    this.password = options.password;
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.retry = Object.freeze({ ...DEFAULT_RETRY, ...options.retry });
     this.extraHeaders = options.headers ?? {};
@@ -485,13 +486,20 @@ export function buildJSON2Body(
     if (args.length > 1) body.vals = args[1];
   } else if (method === "unlink") {
     if (args.length > 0) body.ids = args[0];
+  } else if (method === "fields_get") {
+    if (args.length > 0) body.allfields = args[0];
   } else if (
+    args.length === 1 &&
     Array.isArray(args[0]) &&
     args[0].every(
       (item: unknown) => typeof item === "number" && Number.isInteger(item),
     )
   ) {
     body.ids = args[0];
+  } else if (args.length > 0) {
+    throw new TypeError(
+      `JSON-2 method ${method} requires named keyword arguments; unsupported positional arguments were provided`,
+    );
   }
   if (kwargs !== null) {
     Object.assign(body, kwargs);

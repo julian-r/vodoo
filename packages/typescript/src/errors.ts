@@ -12,6 +12,10 @@ export class AuthenticationError extends VodooError {
   override readonly name = "AuthenticationError";
 }
 
+export class RecordOperationError extends VodooError {
+  override readonly name = "RecordOperationError";
+}
+
 export class RecordNotFoundError extends VodooError {
   override readonly name = "RecordNotFoundError";
 

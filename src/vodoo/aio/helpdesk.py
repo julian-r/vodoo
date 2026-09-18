@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.helpdesk import _build_ticket_values, _HelpdeskAttrs
+from vodoo.aio.generated.helpdesk import GeneratedAsyncHelpdeskNamespace
+from vodoo.helpdesk import _build_ticket_values
 
 
-class AsyncHelpdeskNamespace(_HelpdeskAttrs, AsyncDomainNamespace):
+class AsyncHelpdeskNamespace(GeneratedAsyncHelpdeskNamespace):
     """Async namespace for ``helpdesk.ticket`` operations."""
 
     async def create(

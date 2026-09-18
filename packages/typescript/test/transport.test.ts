@@ -25,6 +25,15 @@ const config = {
 };
 
 describe("LegacyTransport", () => {
+  it("preserves opaque credential whitespace", () => {
+    const transport = new LegacyTransport({
+      ...config,
+      password: " secret with spaces ",
+      fetch: makeFetch([]).fetch,
+    });
+    expect(transport.password).toBe(" secret with spaces ");
+  });
+
   it("authenticates once and sends Python-compatible execute_kw envelopes", async () => {
     const mock = makeFetch([
       jsonResponse({ result: 7 }),
@@ -104,6 +113,13 @@ describe("JSON2 helpers", () => {
     ["create", [{ name: "x" }], null, { vals_list: [{ name: "x" }] }],
     ["write", [[1], { name: "x" }], null, { ids: [1], vals: { name: "x" } }],
     ["unlink", [[1, 2]], null, { ids: [1, 2] }],
+    ["fields_get", [[]], null, { allfields: [] }],
+    [
+      "fields_get",
+      [["type"]],
+      { attributes: ["selection"] },
+      { allfields: ["type"], attributes: ["selection"] },
+    ],
     ["action_timer_start", [[42]], null, { ids: [42] }],
     [
       "name_search",
@@ -113,6 +129,15 @@ describe("JSON2 helpers", () => {
     ],
   ] as const)("maps %s arguments", (method, args, kwargs, expected) => {
     expect(buildJSON2Body(method, args, kwargs)).toEqual(expected);
+  });
+
+  it("rejects positional arguments that JSON-2 cannot represent", () => {
+    expect(() => buildJSON2Body("custom", ["lost"])).toThrow(
+      /requires named keyword arguments/u,
+    );
+    expect(() => buildJSON2Body("custom", [[1], "lost"])).toThrow(
+      /requires named keyword arguments/u,
+    );
   });
 
   it.each([

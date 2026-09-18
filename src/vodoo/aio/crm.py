@@ -2,11 +2,12 @@
 
 from typing import Any
 
-from vodoo.aio._domain import AsyncDomainNamespace
-from vodoo.crm import _PIPELINE_FIELDS, STAGE_FIELDS, _CRMAttrs, build_pipeline_summary
+from vodoo.aio.generated.crm import GeneratedAsyncCRMNamespace
+from vodoo.crm import _PIPELINE_FIELDS, build_pipeline_summary
+from vodoo.generated.crm import STAGE_FIELDS
 
 
-class AsyncCRMNamespace(_CRMAttrs, AsyncDomainNamespace):
+class AsyncCRMNamespace(GeneratedAsyncCRMNamespace):
     """Async CRM leads/opportunities namespace."""
 
     async def create(

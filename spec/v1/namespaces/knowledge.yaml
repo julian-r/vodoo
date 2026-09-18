@@ -1,0 +1,24 @@
+specVersion: 1
+namespace: knowledge
+className: Knowledge
+model: knowledge.article
+recordType: Article
+defaultFields:
+  - id
+  - name
+  - parent_id
+  - category
+  - icon
+  - write_date
+defaultDetailFields:
+  - id
+  - name
+  - parent_id
+  - category
+  - icon
+  - body
+  - write_date
+dateFields:
+  write_date: datetime
+fieldSets: {}
+operations: []
