@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from tools.codegen.generator import OUTPUT_PATH, check_generated, generate
+from tools.codegen.generator import check_generated, generate, stale_outputs
 
 
 def main() -> int:
@@ -13,13 +13,14 @@ def main() -> int:
     args = parser.parse_args()
     root: Path = args.root.resolve()
     if args.command == "generate":
-        path = generate(root)
-        print(path.relative_to(root))
+        for path in generate(root):
+            print(path.relative_to(root))
         return 0
     if check_generated(root):
-        print(f"generated source is current: {OUTPUT_PATH}")
+        print("generated sources are current")
         return 0
-    print(f"generated source is stale: {OUTPUT_PATH}")
+    for path in stale_outputs(root):
+        print(f"generated source is stale: {path}")
     return 1
 
 

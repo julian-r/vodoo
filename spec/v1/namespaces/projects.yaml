@@ -56,6 +56,7 @@ fieldSets:
 operations:
   - name: stages
     kind: searchRead
+    description: List task stages, optionally filtered by project.
     model: project.task.type
     fields: stages
     order: sequence
@@ -66,12 +67,14 @@ operations:
       operator: in
   - name: reachMilestone
     kind: write
+    description: Mark a milestone as reached.
     model: project.milestone
     idParameter: milestoneId
     values:
       is_reached: true
   - name: milestoneTasks
     kind: searchRead
+    description: List tasks assigned to a milestone.
     model: project.task
     fields: milestoneTasks
     order: id

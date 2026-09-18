@@ -31,6 +31,7 @@ DomainSpec = Annotated[RequiredDomain | OptionalListDomain, Field(discriminator=
 class SearchReadOperation(StrictModel):
     name: str
     kind: Literal["searchRead"]
+    description: str
     model: str
     fields: str
     order: str
@@ -40,6 +41,7 @@ class SearchReadOperation(StrictModel):
 class WriteOperation(StrictModel):
     name: str
     kind: Literal["write"]
+    description: str
     model: str
     id_parameter: str = Field(alias="idParameter")
     values: dict[str, bool | int | float | str | None]

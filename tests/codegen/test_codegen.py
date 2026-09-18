@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from tools.codegen.generator import OUTPUT_PATH, check_generated, generate
+from tools.codegen.generator import OUTPUT_PATHS, check_generated, generate
 
 
-def test_checked_in_project_namespace_is_current() -> None:
+def test_checked_in_project_namespaces_are_current() -> None:
     assert check_generated(Path.cwd())
 
 
@@ -16,10 +16,13 @@ def test_generation_is_deterministic(tmp_path: Path) -> None:
     source = root / "spec/v1/namespaces/projects.yaml"
     (spec / "projects.yaml").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
-    first = generate(tmp_path).read_text(encoding="utf-8")
-    second = generate(tmp_path).read_text(encoding="utf-8")
+    first_paths = generate(tmp_path)
+    first = {path.relative_to(tmp_path): path.read_text(encoding="utf-8") for path in first_paths}
+    second_paths = generate(tmp_path)
+    second = {path.relative_to(tmp_path): path.read_text(encoding="utf-8") for path in second_paths}
 
     assert first == second
-    assert "DO NOT EDIT" in first
-    assert "GeneratedProjectNamespace" in first
-    assert (tmp_path / OUTPUT_PATH).exists()
+    assert set(first) == set(OUTPUT_PATHS)
+    assert all("DO NOT EDIT" in content for content in first.values())
+    assert "GeneratedProjectNamespace" in first[OUTPUT_PATHS[0]]
+    assert "GeneratedAsyncProjectNamespace" in first[OUTPUT_PATHS[2]]

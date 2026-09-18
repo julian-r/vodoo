@@ -23,10 +23,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "typecheck:integration": "tsc -p tsconfig.integration.json --noEmit",
     "lint": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "keywords": [
     "cloudflare-workers",
@@ -44,6 +46,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@types/node": "^24.13.5",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

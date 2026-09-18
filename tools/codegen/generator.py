@@ -1,9 +1,10 @@
-"""Deterministically generate the first TypeScript namespace slice."""
+"""Deterministically generate SDK namespace slices from the finite Vodoo IR."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,15 @@ from tools.codegen.models import (
 )
 
 SPEC_PATH = Path("spec/v1/namespaces/projects.yaml")
-OUTPUT_PATH = Path("packages/typescript/src/generated/projects.ts")
+TYPESCRIPT_OUTPUT_PATH = Path("packages/typescript/src/generated/projects.ts")
+PYTHON_OUTPUT_PATH = Path("src/vodoo/generated/projects.py")
+ASYNC_PYTHON_OUTPUT_PATH = Path("src/vodoo/aio/generated/projects.py")
+OUTPUT_PATH = TYPESCRIPT_OUTPUT_PATH  # Backward-compatible alias for tooling imports.
+OUTPUT_PATHS = (
+    TYPESCRIPT_OUTPUT_PATH,
+    PYTHON_OUTPUT_PATH,
+    ASYNC_PYTHON_OUTPUT_PATH,
+)
 
 
 def _load_spec(root: Path) -> NamespaceSpec:
@@ -26,21 +35,62 @@ def _load_spec(root: Path) -> NamespaceSpec:
     return NamespaceSpec.model_validate(raw)
 
 
-def _constant_name(value: str) -> str:
-    chars: list[str] = []
-    for char in value:
-        if char.isupper() and chars:
-            chars.append("_")
-        chars.append(char.upper())
-    return "PROJECT_" + "".join(chars)
+def _snake_case(value: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
-def _ts(value: object) -> str:
+def _typescript_constant_name(value: str) -> str:
+    return f"PROJECT_{_snake_case(value).upper()}"
+
+
+def _python_constant_name(value: str) -> str:
+    snake = _snake_case(value)
+    if snake.endswith("ies"):
+        snake = f"{snake[:-3]}y"
+    elif snake.endswith("s"):
+        snake = snake[:-1]
+    return f"{snake.upper()}_FIELDS"
+
+
+def _typescript_literal(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
-def _render_search_read(operation: SearchReadOperation) -> str:
-    fields = _constant_name(operation.fields)
+def _python_literal(value: object) -> str:  # noqa: PLR0911
+    if value is None:
+        return "None"
+    if value is True:
+        return "True"
+    if value is False:
+        return "False"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, int | float):
+        return repr(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_python_literal(item) for item in value) + "]"
+    if isinstance(value, dict):
+        pairs = (f"{_python_literal(key)}: {_python_literal(item)}" for key, item in value.items())
+        return "{" + ", ".join(pairs) + "}"
+    raise TypeError(f"Unsupported generated literal: {type(value).__name__}")
+
+
+def _python_string_list(values: list[str], *, indent: int = 0) -> str:
+    prefix = " " * indent
+    item_prefix = " " * (indent + 4)
+    lines = ["["]
+    lines.extend(f"{item_prefix}{_python_literal(value)}," for value in values)
+    lines.append(f"{prefix}]")
+    return "\n".join(lines)
+
+
+def _spec_digest(spec: NamespaceSpec) -> str:
+    canonical = json.dumps(spec.model_dump(mode="json", by_alias=True), sort_keys=True).encode()
+    return hashlib.sha256(canonical).hexdigest()[:16]
+
+
+def _render_typescript_search_read(operation: SearchReadOperation) -> str:
+    fields = _typescript_constant_name(operation.fields)
     domain = operation.domain
     if domain is None:
         signature = "()"
@@ -49,39 +99,41 @@ def _render_search_read(operation: SearchReadOperation) -> str:
         signature = f"({domain.parameter}: number | null = null)"
         domain_line = (
             f"const domain: Domain = {domain.parameter} === null ? [] : "
-            f"[[{_ts(domain.field)},{_ts(domain.operator)},[{domain.parameter}]]];"
+            f"[[{_typescript_literal(domain.field)},{_typescript_literal(domain.operator)},"
+            f"[{domain.parameter}]]];"
         )
     elif isinstance(domain, RequiredDomain):
         signature = f"({domain.parameter}: number)"
         domain_line = (
-            f"const domain: Domain = [[{_ts(domain.field)},{_ts(domain.operator)},"
-            f"{domain.parameter}]];"
+            f"const domain: Domain = [[{_typescript_literal(domain.field)},"
+            f"{_typescript_literal(domain.operator)},{domain.parameter}]];"
         )
     else:  # pragma: no cover - discriminated validation makes this unreachable
         raise AssertionError("unknown domain")
-    return f"""  async {operation.name}{signature}: Promise<OdooRecord[]> {{
+    return f"""  /** {operation.description} */
+  async {operation.name}{signature}: Promise<OdooRecord[]> {{
     {domain_line}
-    return this.client.searchRead({_ts(operation.model)}, {{
+    return this.client.searchRead({_typescript_literal(operation.model)}, {{
       domain,
       fields: {fields},
-      order: {_ts(operation.order)},
+      order: {_typescript_literal(operation.order)},
     }});
   }}"""
 
 
-def _render_write(operation: WriteOperation) -> str:
-    return f"""  {operation.name}({operation.id_parameter}: number): Promise<boolean> {{
+def _render_typescript_write(operation: WriteOperation) -> str:
+    return f"""  /** {operation.description} */
+  {operation.name}({operation.id_parameter}: number): Promise<boolean> {{
     return this.client.write(
-      {_ts(operation.model)},
+      {_typescript_literal(operation.model)},
       [{operation.id_parameter}],
-      {_ts(operation.values)},
+      {_typescript_literal(operation.values)},
     );
   }}"""
 
 
-def render(spec: NamespaceSpec) -> str:
-    canonical = json.dumps(spec.model_dump(mode="json", by_alias=True), sort_keys=True).encode()
-    digest = hashlib.sha256(canonical).hexdigest()[:16]
+def render_typescript(spec: NamespaceSpec) -> str:
+    digest = _spec_digest(spec)
     lines = [
         "// DO NOT EDIT — generated by python -m tools.codegen.",
         f"// Source: {SPEC_PATH.as_posix()}",
@@ -92,16 +144,22 @@ def render(spec: NamespaceSpec) -> str:
         'import { DomainNamespace } from "../namespaces/domain.js";',
         'import type { Domain, OdooRecord } from "../types.js";',
         "",
-        f"export const PROJECT_MODEL = {_ts(spec.model)};",
-        f"export const PROJECT_DEFAULT_FIELDS = {_ts(spec.default_fields)} as const;",
+        f"export const PROJECT_MODEL = {_typescript_literal(spec.model)};",
+        (
+            "export const PROJECT_DEFAULT_FIELDS = "
+            f"{_typescript_literal(spec.default_fields)} as const;"
+        ),
         (
             "export const PROJECT_DEFAULT_DETAIL_FIELDS = "
-            f"{_ts(spec.default_detail_fields)} as const;"
+            f"{_typescript_literal(spec.default_detail_fields)} as const;"
         ),
-        f"export const PROJECT_DATE_FIELDS = {_ts(spec.date_fields)} as const;",
+        f"export const PROJECT_DATE_FIELDS = {_typescript_literal(spec.date_fields)} as const;",
     ]
     for name, fields in spec.field_sets.items():
-        lines.append(f"export const {_constant_name(name)} = {_ts(fields)} as const;")
+        lines.append(
+            f"export const {_typescript_constant_name(name)} = "
+            f"{_typescript_literal(fields)} as const;"
+        )
     lines.extend(
         [
             "",
@@ -120,27 +178,215 @@ def render(spec: NamespaceSpec) -> str:
             "",
         ]
     )
-    rendered_operations: list[str] = []
+    operations: list[str] = []
     for operation in spec.operations:
         if isinstance(operation, SearchReadOperation):
-            rendered_operations.append(_render_search_read(operation))
+            operations.append(_render_typescript_search_read(operation))
         elif isinstance(operation, WriteOperation):
-            rendered_operations.append(_render_write(operation))
-    lines.append("\n\n".join(rendered_operations))
+            operations.append(_render_typescript_write(operation))
+    lines.append("\n\n".join(operations))
     lines.extend(["}", ""])
     return "\n".join(lines)
 
 
-def generate(root: Path | None = None) -> Path:
+def _python_domain(operation: SearchReadOperation) -> tuple[str, list[str]]:
+    domain = operation.domain
+    if domain is None:
+        return "self", ["domain: list[Any] = []"]
+
+    parameter = _snake_case(domain.parameter)
+    if isinstance(domain, OptionalListDomain):
+        return (
+            f"self, {parameter}: int | None = None",
+            [
+                "domain: list[Any] = []",
+                f"if {parameter} is not None:",
+                (
+                    f"    domain.append(({_python_literal(domain.field)}, "
+                    f"{_python_literal(domain.operator)}, [{parameter}]))"
+                ),
+            ],
+        )
+    if isinstance(domain, RequiredDomain):
+        return (
+            f"self, {parameter}: int",
+            [
+                (
+                    f"domain: list[Any] = [({_python_literal(domain.field)}, "
+                    f"{_python_literal(domain.operator)}, {parameter})]"
+                )
+            ],
+        )
+    raise AssertionError("unknown domain")  # pragma: no cover
+
+
+def _render_python_search_read(operation: SearchReadOperation, *, async_mode: bool) -> str:
+    signature, domain_lines = _python_domain(operation)
+    method_name = _snake_case(operation.name)
+    await_prefix = "await " if async_mode else ""
+    async_prefix = "async " if async_mode else ""
+    fields = _python_constant_name(operation.fields)
+    body = [
+        f"    {async_prefix}def {method_name}({signature}) -> list[dict[str, Any]]:",
+        f'        """{operation.description}"""',
+    ]
+    body.extend(f"        {line}" for line in domain_lines)
+    body.extend(
+        [
+            f"        return {await_prefix}self._client.search_read(",
+            f"            {_python_literal(operation.model)},",
+            "            domain=domain,",
+            f"            fields={fields},",
+            f"            order={_python_literal(operation.order)},",
+            "        )",
+        ]
+    )
+    return "\n".join(body)
+
+
+def _render_python_write(operation: WriteOperation, *, async_mode: bool) -> str:
+    method_name = _snake_case(operation.name)
+    parameter = _snake_case(operation.id_parameter)
+    await_prefix = "await " if async_mode else ""
+    async_prefix = "async " if async_mode else ""
+    return "\n".join(
+        [
+            f"    {async_prefix}def {method_name}(self, {parameter}: int) -> bool:",
+            f'        """{operation.description}"""',
+            f"        return {await_prefix}self._client.write(",
+            f"            {_python_literal(operation.model)},",
+            f"            [{parameter}],",
+            f"            {_python_literal(operation.values)},",
+            "        )",
+        ]
+    )
+
+
+def _python_operations(spec: NamespaceSpec, *, async_mode: bool) -> str:
+    rendered: list[str] = []
+    for operation in spec.operations:
+        if isinstance(operation, SearchReadOperation):
+            rendered.append(_render_python_search_read(operation, async_mode=async_mode))
+        elif isinstance(operation, WriteOperation):
+            rendered.append(_render_python_write(operation, async_mode=async_mode))
+    return "\n\n".join(rendered)
+
+
+def render_python(spec: NamespaceSpec) -> str:
+    digest = _spec_digest(spec)
+    lines = [
+        '"""Generated project namespace metadata and simple synchronous operations."""',
+        "",
+        "# DO NOT EDIT — generated by python -m tools.codegen.",
+        f"# Source: {SPEC_PATH.as_posix()}",
+        f"# Spec digest: sha256:{digest}",
+        "",
+        "from __future__ import annotations",
+        "",
+        "from typing import Any, ClassVar",
+        "",
+        "from vodoo._domain import DomainNamespace",
+        "",
+    ]
+    for name, fields in spec.field_sets.items():
+        lines.extend(
+            [
+                f"{_python_constant_name(name)}: list[str] = {_python_string_list(fields)}",
+                "",
+            ]
+        )
+    lines.append("")
+    lines.extend(
+        [
+            "class _GeneratedProjectAttrs:",
+            '    """Shared generated attributes for project namespaces."""',
+            "",
+            f"    _model = {_python_literal(spec.model)}",
+            "    _default_fields: ClassVar[list[str]] = "
+            + _python_string_list(spec.default_fields, indent=4),
+            "    _default_detail_fields: ClassVar[list[str] | None] = "
+            + _python_string_list(spec.default_detail_fields, indent=4),
+            f"    _record_type = {_python_literal(spec.record_type)}",
+            "",
+            "",
+            "class GeneratedProjectNamespace(_GeneratedProjectAttrs, DomainNamespace):",
+            '    """Generated synchronous project namespace operations."""',
+            "",
+            _python_operations(spec, async_mode=False),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def render_async_python(spec: NamespaceSpec) -> str:
+    digest = _spec_digest(spec)
+    constants = sorted(
+        {
+            _python_constant_name(operation.fields)
+            for operation in spec.operations
+            if isinstance(operation, SearchReadOperation)
+        }
+    )
+    imported_names = [*constants, "_GeneratedProjectAttrs"]
+    import_block = "\n".join(f"    {name}," for name in imported_names)
+    return "\n".join(
+        [
+            '"""Generated project namespace metadata and simple asynchronous operations."""',
+            "",
+            "# DO NOT EDIT — generated by python -m tools.codegen.",
+            f"# Source: {SPEC_PATH.as_posix()}",
+            f"# Spec digest: sha256:{digest}",
+            "",
+            "from __future__ import annotations",
+            "",
+            "from typing import Any",
+            "",
+            "from vodoo.aio._domain import AsyncDomainNamespace",
+            "from vodoo.generated.projects import (",
+            import_block,
+            ")",
+            "",
+            "",
+            ("class GeneratedAsyncProjectNamespace(_GeneratedProjectAttrs, AsyncDomainNamespace):"),
+            '    """Generated asynchronous project namespace operations."""',
+            "",
+            _python_operations(spec, async_mode=True),
+            "",
+        ]
+    )
+
+
+def _rendered_outputs(spec: NamespaceSpec) -> dict[Path, str]:
+    return {
+        TYPESCRIPT_OUTPUT_PATH: render_typescript(spec),
+        PYTHON_OUTPUT_PATH: render_python(spec),
+        ASYNC_PYTHON_OUTPUT_PATH: render_async_python(spec),
+    }
+
+
+def generate(root: Path | None = None) -> tuple[Path, ...]:
     root = root or Path.cwd()
-    output = root / OUTPUT_PATH
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render(_load_spec(root)), encoding="utf-8")
-    return output
+    outputs = _rendered_outputs(_load_spec(root))
+    generated: list[Path] = []
+    for relative_path, content in outputs.items():
+        output = root / relative_path
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content, encoding="utf-8")
+        generated.append(output)
+    return tuple(generated)
+
+
+def stale_outputs(root: Path | None = None) -> tuple[Path, ...]:
+    root = root or Path.cwd()
+    outputs = _rendered_outputs(_load_spec(root))
+    return tuple(
+        relative_path
+        for relative_path, expected in outputs.items()
+        if not (root / relative_path).exists()
+        or (root / relative_path).read_text(encoding="utf-8") != expected
+    )
 
 
 def check_generated(root: Path | None = None) -> bool:
-    root = root or Path.cwd()
-    output = root / OUTPUT_PATH
-    expected = render(_load_spec(root))
-    return output.exists() and output.read_text(encoding="utf-8") == expected
+    return not stale_outputs(root)

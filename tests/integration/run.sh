@@ -96,9 +96,18 @@ run_tests() {
         tests/integration/test_async_suite.py \
         -v --tb=short -x \
         --odoo-version "$ver"); then
-    echo "✅ Odoo ${ver} ${edition}: all tests passed"
+    echo "✅ Odoo ${ver} ${edition}: Python tests passed"
   else
-    echo "❌ Odoo ${ver} ${edition}: some tests FAILED"
+    echo "❌ Odoo ${ver} ${edition}: Python tests FAILED"
+    FAILED=1
+  fi
+
+  if (cd "$PROJECT_ROOT" && \
+      set -a && source "$env_file" && set +a && \
+      pnpm --dir packages/typescript test:integration); then
+    echo "✅ Odoo ${ver} ${edition}: TypeScript tests passed"
+  else
+    echo "❌ Odoo ${ver} ${edition}: TypeScript tests FAILED"
     FAILED=1
   fi
 }

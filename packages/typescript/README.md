@@ -56,3 +56,14 @@ pnpm --dir packages/typescript typecheck
 pnpm --dir packages/typescript test
 pnpm --dir packages/typescript build
 ```
+
+The live transport/project suite runs against the Community Odoo 17–19 Docker matrix used by the Python client. The `project` module, including `project.milestone`, is provided by the Community source tree; enterprise-only namespaces remain separate conditional slices.
+
+```bash
+# After provisioning an integration instance:
+set -a
+source tests/integration/.env.test.19
+set +a
+pnpm --dir packages/typescript typecheck:integration
+pnpm --dir packages/typescript test:integration
+```
