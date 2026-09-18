@@ -1014,8 +1014,7 @@ class TestDocuments:
         source = tmp_path / "vodoo-empty-document.txt"
         source.write_bytes(b"")
         try:
-            result = client.documents.upload(source, folder=folder_name)
-            document_id = result.document_id
+            document_id = client.documents.upload(source, folder=folder_name)
             documents = client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name

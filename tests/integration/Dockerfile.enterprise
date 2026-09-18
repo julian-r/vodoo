@@ -1,20 +1,45 @@
 # Build a LOCAL Enterprise Odoo image for integration testing.
 #
-# Do not invoke this Dockerfile directly with a private checkout as its context:
-# run.sh validates the official odoo/enterprise remote and version, exports only
-# files tracked by the selected commit, and records that commit in image labels.
+# The context is prepared by run.sh from either:
+#   * a validated official odoo/enterprise Git checkout (addons), or
+#   * a validated source distribution from odoo.com (complete package).
+#
 # Keep the resulting image private; it contains proprietary Enterprise source.
 ARG ODOO_VERSION=19.0
 FROM odoo:${ODOO_VERSION}
 
 ARG ODOO_VERSION
-ARG ODOO_ENTERPRISE_COMMIT
+ARG ODOO_ENTERPRISE_SOURCE_KIND
+ARG ODOO_ENTERPRISE_REVISION
+ARG ODOO_ENTERPRISE_COMMIT=""
 LABEL com.vodoo.odoo.version="${ODOO_VERSION}" \
       com.vodoo.odoo.edition="enterprise" \
-      com.vodoo.enterprise.repository="https://github.com/odoo/enterprise" \
+      com.vodoo.enterprise.source-kind="${ODOO_ENTERPRISE_SOURCE_KIND}" \
+      com.vodoo.enterprise.revision="${ODOO_ENTERPRISE_REVISION}" \
       com.vodoo.enterprise.commit="${ODOO_ENTERPRISE_COMMIT}"
 
 USER root
-COPY . /mnt/enterprise/
-RUN chown -R odoo:odoo /mnt/enterprise
+COPY . /tmp/vodoo-enterprise-source/
+RUN set -eux; \
+    if [ "$ODOO_ENTERPRISE_SOURCE_KIND" = "odoo-download" ]; then \
+        test -f /tmp/vodoo-enterprise-source/odoo-enterprise-source.tar.gz; \
+        PIP_BREAK_SYSTEM_PACKAGES=1 python3 -m pip install \
+            --no-cache-dir \
+            --no-deps \
+            /tmp/vodoo-enterprise-source/odoo-enterprise-source.tar.gz; \
+        enterprise_addons="$(python3 -c \
+            'from pathlib import Path; import odoo; print(Path(next(iter(odoo.__path__))) / "addons")' \
+        )"; \
+        test -d "$enterprise_addons/helpdesk"; \
+        ln -s "$enterprise_addons" /mnt/enterprise; \
+    elif [ "$ODOO_ENTERPRISE_SOURCE_KIND" = "odoo-enterprise-git" ]; then \
+        mkdir -p /mnt/enterprise; \
+        cp -a /tmp/vodoo-enterprise-source/. /mnt/enterprise/; \
+        test -f /mnt/enterprise/helpdesk/__manifest__.py; \
+        chown -R odoo:odoo /mnt/enterprise; \
+    else \
+        echo "Unsupported Enterprise source kind: $ODOO_ENTERPRISE_SOURCE_KIND" >&2; \
+        exit 1; \
+    fi; \
+    rm -rf /tmp/vodoo-enterprise-source
 USER odoo

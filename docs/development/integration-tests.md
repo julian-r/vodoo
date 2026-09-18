@@ -11,16 +11,13 @@ Automated integration tests that run vodoo against real Odoo instances via Docke
 # Run a specific version
 ./tests/integration/run.sh 19
 
-# Run with Enterprise (after creating the authorized checkout below)
-ENTERPRISE=1 ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-  ./tests/integration/run.sh 19
+# Download the authorized Enterprise sources, then test one version
+uv run python tests/integration/fetch_enterprise.py fetch 19
+ENTERPRISE=1 ./tests/integration/run.sh 19
 
-# Run all versions, both editions (set all three ENTERPRISE_ADDONS_<version> paths)
-ENTERPRISE=1 \
-ENTERPRISE_ADDONS_17=~/src/odoo-enterprise-17 \
-ENTERPRISE_ADDONS_18=~/src/odoo-enterprise-18 \
-ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-  ./tests/integration/run.sh 17 18 19
+# Download and test the complete Community + Enterprise matrix
+uv run python tests/integration/fetch_enterprise.py fetch 17 18 19
+ENTERPRISE=1 ./tests/integration/run.sh 17 18 19
 
 # Keep containers after tests (for debugging)
 KEEP=1 ./tests/integration/run.sh 19
@@ -38,6 +35,7 @@ KEEP=1 ./tests/integration/run.sh 19
 ### Enterprise (requires enterprise addons)
 - **Helpdesk** (`helpdesk.ticket`) — tickets, tags, comments, attachments
 - **Knowledge** (`knowledge.article`) — articles, comments, notes
+- **Documents** (`documents.document`) — folders, upload, download, and cleanup
 - **Timer/Timesheet** — start/stop timers, today's timesheets
 
 ### Transport Layer
@@ -53,7 +51,8 @@ tests/integration/
 ├── conftest.py             # pytest fixtures and markers
 ├── test_suite.py           # 60 test cases across 9 classes
 ├── docker-compose.yml      # Parameterized compose file
-├── Dockerfile.enterprise   # Builds enterprise image from addons
+├── Dockerfile.enterprise   # Builds a local image from validated Enterprise source
+├── fetch_enterprise.py     # Secure official-download client and archive validator
 ├── odoo.conf               # Community Odoo config
 └── odoo-enterprise.conf    # Enterprise Odoo config (with addons_path)
 ```
@@ -68,86 +67,99 @@ tests/integration/
 
 ## Enterprise Addons
 
-There is no public official Odoo Enterprise Docker image. Enterprise consists of proprietary addons from the private [`odoo/enterprise`](https://github.com/odoo/enterprise) repository and requires an eligible Odoo subscription or partner account.
+There is no public official Odoo Enterprise Docker image. Enterprise is proprietary software and requires an eligible Odoo subscription. Vodoo supports the official source distributions from `odoo.com` and, as a fallback, an authorized checkout of the private [`odoo/enterprise`](https://github.com/odoo/enterprise) repository.
 
-Vodoo deliberately does not clone, vendor, or publish that source. The local runner accepts only a clean Git checkout whose `origin` is the official repository and verifies `HEAD` against the live private `origin/<version>.0` branch. It exports tracked files with `git archive`, so `.git`, credentials, ignored files, and untracked files cannot enter the Docker build context.
+Vodoo never commits, uploads, or publishes the credential or source. The licensed source remains in the resulting local image and may remain in Docker's local build cache. Never push the image to a public registry.
 
-The licensed source remains in the resulting local image and may remain in Docker's local build cache. Temporary exports are removed on success, failure, and interruption. If local policy requires complete removal after testing, remove the image and prune the affected builder cache; note that `docker builder prune` can remove unrelated build cache too.
+### Store the download credential
 
-### Clone an official version
-
-Authenticate GitHub CLI with an account entitled to the private repository, then clone only the version being tested:
+Store the Odoo download code as the only line in `.odoo-license` at the repository root. Both this file and `.odoo-enterprise/` are Git-ignored.
 
 ```bash
-gh auth status
-gh auth setup-git
-gh repo view odoo/enterprise
-
-gh repo clone odoo/enterprise ~/src/odoo-enterprise-19 \
-  -- --branch 19.0 --single-branch --depth 1
+umask 077
+IFS= read -rsp 'Odoo download code: ' ODOO_DOWNLOAD_CODE
+printf '\n'
+printf '%s' "$ODOO_DOWNLOAD_CODE" > .odoo-license
+unset ODOO_DOWNLOAD_CODE
+chmod 600 .odoo-license
 ```
 
-Use a separate checkout for each major version:
+### Fetch official source distributions
 
 ```bash
-gh repo clone odoo/enterprise ~/src/odoo-enterprise-17 \
-  -- --branch 17.0 --single-branch --depth 1
-gh repo clone odoo/enterprise ~/src/odoo-enterprise-18 \
-  -- --branch 18.0 --single-branch --depth 1
+uv run python tests/integration/fetch_enterprise.py fetch 17 18 19
 ```
 
-### Validate and build locally
+The downloader:
 
-Build the image without starting Odoo or running tests:
+- reads `.odoo-license` without printing it;
+- exchanges it only with `https://www.odoo.com/thanks/download`;
+- accepts the signed payload only from `https://download.odoocdn.com`;
+- streams each archive into a private temporary file;
+- rejects unsafe paths, links, special files, wrong major versions, malformed package metadata, and incomplete distributions;
+- calculates and reports a SHA-256 provenance digest; and
+- atomically stores validated archives under `.odoo-enterprise/` with mode `0600`.
+
+Existing archives are validated and reused. Pass `--force` to download a fresh source snapshot.
+
+### Build and test locally
+
+Build without starting Odoo:
 
 ```bash
-ENTERPRISE_BUILD_ONLY=1 \
-ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-./tests/integration/run.sh 19
+ENTERPRISE_BUILD_ONLY=1 ./tests/integration/run.sh 17 18 19
 ```
 
-The result is tagged only in the local Docker daemon as `vodoo-odoo-ee:19.0`. The image records the validated source commit in `com.vodoo.enterprise.commit` and is never pushed by the runner.
+Run the complete regression matrix:
 
-Inspect its provenance:
+```bash
+ENTERPRISE=1 ./tests/integration/run.sh 17 18 19
+```
+
+The resulting images are local tags such as `vodoo-odoo-ee:19.0`. Their labels record `com.vodoo.enterprise.source-kind` and the source archive SHA-256 in `com.vodoo.enterprise.revision`:
 
 ```bash
 docker image inspect vodoo-odoo-ee:19.0 \
   --format '{{ json .Config.Labels }}'
 ```
 
-Run Community and Enterprise tests together:
+The build installs the complete official Enterprise distribution over the matching official Community image. It always executes with `--pull`, although Docker may reuse matching local layers.
+
+### Private Git fallback
+
+An official Git checkout remains supported. Set `ENTERPRISE_ADDONS_<version>` to a clean checkout whose `origin` is `odoo/enterprise`. The runner verifies `HEAD` against the live private `origin/<version>.0` branch and exports only tracked files with `git archive`.
 
 ```bash
-ENTERPRISE=1 \
 ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-./tests/integration/run.sh 19
+ENTERPRISE_BUILD_ONLY=1 ./tests/integration/run.sh 19
 ```
 
-For the complete matrix:
+Source resolution order is:
+
+1. `ENTERPRISE_ADDONS_<version>`, `/tmp/enterprise-<version>`, or `ENTERPRISE_ADDONS`;
+2. `ENTERPRISE_ARCHIVE_<version>`; and
+3. `.odoo-enterprise/odoo-<version>e-source.tar.gz`.
+
+### CI credential
+
+The `ODOO_ENTERPRISE_KEY` secret in the `enterprise-ci` GitHub environment supplies the credential to the Enterprise matrix. That environment has a custom deployment policy permitting only the `main` branch, and the job also runs only on `push`; the secret is unavailable to pull-request refs. The credential is deliberately not stored as a repository-level secret. Each job downloads one version and removes its credential, archive, image, containers, and unused Docker build cache afterward.
+
+Set or rotate the environment secret without displaying it:
 
 ```bash
-ENTERPRISE=1 \
-ENTERPRISE_ADDONS_17=~/src/odoo-enterprise-17 \
-ENTERPRISE_ADDONS_18=~/src/odoo-enterprise-18 \
-ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-./tests/integration/run.sh 17 18 19
+gh secret set ODOO_ENTERPRISE_KEY --env enterprise-ci < .odoo-license
 ```
 
-The runner resolves Enterprise source in this order:
-
-1. `ENTERPRISE_ADDONS_<version>` (recommended)
-2. `/tmp/enterprise-<version>` worktree convention
-3. `ENTERPRISE_ADDONS` fallback
-
-The build recipe always runs with `--pull`; Docker may reuse matching local layers. Never push these images to a public registry: their layers contain licensed Enterprise source.
-
-Remove the local image when it is no longer needed:
+### Cleanup
 
 ```bash
-docker image rm vodoo-odoo-ee:19.0
-# Optional and broader: remove unused Docker build cache as well.
+docker image rm vodoo-odoo-ee:17.0 vodoo-odoo-ee:18.0 vodoo-odoo-ee:19.0
+rm -rf .odoo-enterprise
+# Optional and broader: removes unrelated unused build cache too.
 docker builder prune
 ```
+
+Temporary build contexts are removed on success, failure, and interruption. The supported stable matrix is currently Odoo 17–19. There is no official `odoo:20.0` image yet, so Odoo 20 is not included.
 
 ## API Key Creation
 

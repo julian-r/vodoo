@@ -6,16 +6,17 @@
 #   ./tests/integration/run.sh                    # all community editions
 #   ./tests/integration/run.sh 19                 # community 19 only
 #   ./tests/integration/run.sh 17 18              # community 17 + 18
-#   ENTERPRISE=1 ENTERPRISE_ADDONS_19=/path/to/odoo-enterprise \
-#     ./tests/integration/run.sh 19               # also run enterprise 19
-#   ENTERPRISE_BUILD_ONLY=1 ENTERPRISE_ADDONS_19=/path/to/odoo-enterprise \
-#     ./tests/integration/run.sh 19               # validate and build only
+#   uv run python tests/integration/fetch_enterprise.py fetch 19
+#   ENTERPRISE=1 ./tests/integration/run.sh 19    # also run enterprise 19
+#   ENTERPRISE_BUILD_ONLY=1 ./tests/integration/run.sh 19  # build only
 #   KEEP=1 ./tests/integration/run.sh 19          # don't tear down
 #
 # Environment:
 #   ENTERPRISE             – set to 1 to also test enterprise edition
 #   ENTERPRISE_ADDONS      – fallback path to an official odoo/enterprise checkout
-#   ENTERPRISE_ADDONS_<N>  – version-specific official checkout (recommended)
+#   ENTERPRISE_ADDONS_<N>  – version-specific official Git checkout
+#   ENTERPRISE_ARCHIVE_DIR – official download directory (default: .odoo-enterprise)
+#   ENTERPRISE_ARCHIVE_<N> – version-specific official source archive
 #   ENTERPRISE_BUILD_ONLY  – validate source and build local image(s), then exit
 #   KEEP                   – set to 1 to keep containers running after tests
 # ──────────────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ fi
 
 ENTERPRISE="${ENTERPRISE:-0}"
 ENTERPRISE_ADDONS="${ENTERPRISE_ADDONS:-}"
+ENTERPRISE_ARCHIVE_DIR="${ENTERPRISE_ARCHIVE_DIR:-$PROJECT_ROOT/.odoo-enterprise}"
 ENTERPRISE_BUILD_ONLY="${ENTERPRISE_BUILD_ONLY:-0}"
 
 for v in "${VERSIONS[@]}"; do
@@ -134,7 +136,7 @@ run_tests() {
 
 # ── Build enterprise image if needed ──────────────────────────────────
 resolve_enterprise_addons() {
-  # Returns the official checkout path for a given version.
+  # Returns an explicitly configured official Git checkout, if any.
   local ver="$1"
   local varname="ENTERPRISE_ADDONS_${ver}"
   if [[ -n "${!varname:-}" ]]; then
@@ -147,6 +149,17 @@ resolve_enterprise_addons() {
     return
   fi
   echo "$ENTERPRISE_ADDONS"
+}
+
+resolve_enterprise_archive() {
+  # Returns a version-specific official odoo.com source distribution.
+  local ver="$1"
+  local varname="ENTERPRISE_ARCHIVE_${ver}"
+  if [[ -n "${!varname:-}" ]]; then
+    echo "${!varname}"
+    return
+  fi
+  echo "$ENTERPRISE_ARCHIVE_DIR/odoo-${ver}e-source.tar.gz"
 }
 
 validate_enterprise_addons() {
@@ -219,23 +232,47 @@ validate_enterprise_addons() {
 build_enterprise_image() {
   local ver="$1"
   local tag="vodoo-odoo-ee:${ver}.0"
-  local addons_path source_commit staging
+  local addons_path archive_path source_kind source_revision source_commit="" staging
   addons_path="$(resolve_enterprise_addons "$ver")"
-  source_commit="$(validate_enterprise_addons "$ver" "$addons_path")"
+  archive_path="$(resolve_enterprise_archive "$ver")"
+
+  staging="$(mktemp -d "${TMPDIR:-/tmp}/vodoo-enterprise-${ver}.XXXXXX")"
+  STAGING_DIRS+=("$staging")
+
+  if [[ -n "$addons_path" ]]; then
+    source_kind="odoo-enterprise-git"
+    source_revision="$(validate_enterprise_addons "$ver" "$addons_path")"
+    source_commit="$source_revision"
+    # Export only tracked files from the validated commit. This deliberately
+    # excludes .git, credentials, ignored files, and local/untracked content.
+    git -C "$addons_path" archive --format=tar "$source_revision" | tar -xf - -C "$staging"
+  elif [[ -f "$archive_path" ]]; then
+    source_kind="odoo-download"
+    source_revision="$(
+      cd "$PROJECT_ROOT" && uv run python tests/integration/fetch_enterprise.py \
+        validate "$ver" "$archive_path" --sha-only
+    )"
+    # A hard link avoids duplicating a large licensed archive before the Docker
+    # context is sent. Fall back to a private copy across filesystems.
+    if ! ln "$archive_path" "$staging/odoo-enterprise-source.tar.gz" 2>/dev/null; then
+      cp "$archive_path" "$staging/odoo-enterprise-source.tar.gz"
+    fi
+  else
+    echo "❌ No validated Odoo ${ver} Enterprise source is available." >&2
+    echo "   Fetch it with:" >&2
+    echo "   uv run python tests/integration/fetch_enterprise.py fetch ${ver}" >&2
+    return 1
+  fi
 
   # Always execute the build recipe. Docker can reuse verified layers, while
   # --pull refreshes the mutable official Community base image.
-  # Export only tracked files from the validated commit. This deliberately
-  # excludes .git, credentials, ignored files, and all local/untracked content.
-  staging="$(mktemp -d "${TMPDIR:-/tmp}/vodoo-enterprise-${ver}.XXXXXX")"
-  STAGING_DIRS+=("$staging")
-  git -C "$addons_path" archive --format=tar "$source_commit" | tar -xf - -C "$staging"
-
-  echo "🏗️  Building local Enterprise image $tag from official commit ${source_commit:0:12} …"
+  echo "🏗️  Building local Enterprise image $tag from ${source_kind} ${source_revision:0:12} …"
   if docker build \
     --pull \
     -f "$SCRIPT_DIR/Dockerfile.enterprise" \
     --build-arg "ODOO_VERSION=${ver}.0" \
+    --build-arg "ODOO_ENTERPRISE_SOURCE_KIND=${source_kind}" \
+    --build-arg "ODOO_ENTERPRISE_REVISION=${source_revision}" \
     --build-arg "ODOO_ENTERPRISE_COMMIT=${source_commit}" \
     -t "$tag" \
     "$staging"; then

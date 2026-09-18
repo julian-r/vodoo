@@ -999,8 +999,7 @@ class TestAsyncDocuments:
         source = tmp_path / "vodoo-async-document.txt"
         source.write_bytes(b"vodoo async documents integration")
         try:
-            result = await async_client.documents.upload(source, folder=folder_name)
-            document_id = result.document_id
+            document_id = await async_client.documents.upload(source, folder=folder_name)
             documents = await async_client.documents.list(domain=[["id", "=", document_id]])
             assert len(documents) == 1
             assert documents[0]["name"] == source.name

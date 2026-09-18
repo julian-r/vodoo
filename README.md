@@ -364,17 +364,13 @@ src/vodoo/
 ./tests/integration/run.sh  # All Community editions (17, 18, 19)
 ./tests/integration/run.sh 19
 
-# Enterprise requires your authorized, clean checkout of odoo/enterprise.
-ENTERPRISE_BUILD_ONLY=1 \
-ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-./tests/integration/run.sh 19
-
-ENTERPRISE=1 \
-ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
-./tests/integration/run.sh 19
+# Enterprise requires a valid Odoo download code in the ignored .odoo-license file.
+uv run python tests/integration/fetch_enterprise.py fetch 19
+ENTERPRISE_BUILD_ONLY=1 ./tests/integration/run.sh 19
+ENTERPRISE=1 ./tests/integration/run.sh 19
 ```
 
-The Enterprise image remains local and contains licensed proprietary source; Docker's local build cache may retain its layers. See [Integration Tests](docs/development/integration-tests.md#enterprise-addons) for safe checkout, provenance validation, cleanup, and multi-version setup.
+Enterprise archives and images remain local and contain licensed proprietary source; Docker's local build cache may retain their layers. See [Integration Tests](docs/development/integration-tests.md#enterprise-addons) for credential storage, secure downloads, provenance validation, CI behavior, and cleanup.
 
 ## Development
 
