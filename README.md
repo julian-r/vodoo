@@ -361,10 +361,20 @@ src/vodoo/
 75+ tests per Odoo version against real instances in Docker:
 
 ```bash
-./tests/integration/run.sh           # All community editions (17, 18, 19)
-./tests/integration/run.sh 19        # Just Odoo 19
-ENTERPRISE=1 ./tests/integration/run.sh 19   # Include enterprise
+./tests/integration/run.sh  # All Community editions (17, 18, 19)
+./tests/integration/run.sh 19
+
+# Enterprise requires your authorized, clean checkout of odoo/enterprise.
+ENTERPRISE_BUILD_ONLY=1 \
+ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
+./tests/integration/run.sh 19
+
+ENTERPRISE=1 \
+ENTERPRISE_ADDONS_19=~/src/odoo-enterprise-19 \
+./tests/integration/run.sh 19
 ```
+
+The Enterprise image remains local and contains licensed proprietary source; Docker's local build cache may retain its layers. See [Integration Tests](docs/development/integration-tests.md#enterprise-addons) for safe checkout, provenance validation, cleanup, and multi-version setup.
 
 ## Development
 

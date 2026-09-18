@@ -1,15 +1,18 @@
-# Build an enterprise Odoo image for integration testing.
+# Build a LOCAL Enterprise Odoo image for integration testing.
 #
-# The build context must be the enterprise-addons directory itself.
-#
-# Build:
-#   docker build -f tests/integration/Dockerfile.enterprise \
-#     --build-arg ODOO_VERSION=19.0 \
-#     -t vodoo-odoo-ee:19.0 \
-#     /path/to/enterprise-addons
-#
+# Do not invoke this Dockerfile directly with a private checkout as its context:
+# run.sh validates the official odoo/enterprise remote and version, exports only
+# files tracked by the selected commit, and records that commit in image labels.
+# Keep the resulting image private; it contains proprietary Enterprise source.
 ARG ODOO_VERSION=19.0
 FROM odoo:${ODOO_VERSION}
+
+ARG ODOO_VERSION
+ARG ODOO_ENTERPRISE_COMMIT
+LABEL com.vodoo.odoo.version="${ODOO_VERSION}" \
+      com.vodoo.odoo.edition="enterprise" \
+      com.vodoo.enterprise.repository="https://github.com/odoo/enterprise" \
+      com.vodoo.enterprise.commit="${ODOO_ENTERPRISE_COMMIT}"
 
 USER root
 COPY . /mnt/enterprise/

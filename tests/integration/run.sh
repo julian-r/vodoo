@@ -6,14 +6,18 @@
 #   ./tests/integration/run.sh                    # all community editions
 #   ./tests/integration/run.sh 19                 # community 19 only
 #   ./tests/integration/run.sh 17 18              # community 17 + 18
-#   ENTERPRISE=1 ./tests/integration/run.sh 19    # also run enterprise 19
+#   ENTERPRISE=1 ENTERPRISE_ADDONS_19=/path/to/odoo-enterprise \
+#     ./tests/integration/run.sh 19               # also run enterprise 19
+#   ENTERPRISE_BUILD_ONLY=1 ENTERPRISE_ADDONS_19=/path/to/odoo-enterprise \
+#     ./tests/integration/run.sh 19               # validate and build only
 #   KEEP=1 ./tests/integration/run.sh 19          # don't tear down
 #
 # Environment:
-#   ENTERPRISE           – set to 1 to also test enterprise edition
-#   ENTERPRISE_ADDONS    – path to enterprise addons dir
-#                          (default: ~/src/Julian Rath/odoo/enterprise-addons)
-#   KEEP                 – set to 1 to keep containers running after tests
+#   ENTERPRISE             – set to 1 to also test enterprise edition
+#   ENTERPRISE_ADDONS      – fallback path to an official odoo/enterprise checkout
+#   ENTERPRISE_ADDONS_<N>  – version-specific official checkout (recommended)
+#   ENTERPRISE_BUILD_ONLY  – validate source and build local image(s), then exit
+#   KEEP                   – set to 1 to keep containers running after tests
 # ──────────────────────────────────────────────────────────────────────
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +32,18 @@ else
 fi
 
 ENTERPRISE="${ENTERPRISE:-0}"
-ENTERPRISE_ADDONS="${ENTERPRISE_ADDONS:-$HOME/src/Julian Rath/odoo/enterprise-addons}"
+ENTERPRISE_ADDONS="${ENTERPRISE_ADDONS:-}"
+ENTERPRISE_BUILD_ONLY="${ENTERPRISE_BUILD_ONLY:-0}"
+
+for v in "${VERSIONS[@]}"; do
+  case "$v" in
+    17|18|19) ;;
+    *)
+      echo "❌ Unsupported Odoo version: $v (expected 17, 18, or 19)" >&2
+      exit 2
+      ;;
+  esac
+done
 
 # Port mapping: community and enterprise
 declare -A CE_PORTS=( [17]=17069 [18]=18069 [19]=19069 )
@@ -36,10 +51,15 @@ declare -A EE_PORTS=( [17]=17169 [18]=18169 [19]=19169 )
 
 COMPOSE="docker compose"
 FAILED=0
-# Track all compose projects for cleanup
+# Track compose projects and temporary exports for cleanup.
 PROJECTS=()
+STAGING_DIRS=()
 
 cleanup() {
+  # Licensed source exports are removed even with KEEP=1 and on early failure.
+  for staging in "${STAGING_DIRS[@]}"; do
+    rm -rf "$staging"
+  done
   if [[ "${KEEP:-}" == "1" ]]; then
     echo "ℹ️  KEEP=1 — leaving containers running."
     echo "   To tear down:  for p in ${PROJECTS[*]:-}; do docker compose -p \$p down -v; done"
@@ -114,52 +134,131 @@ run_tests() {
 
 # ── Build enterprise image if needed ──────────────────────────────────
 resolve_enterprise_addons() {
-  # Returns the addons path for a given version.
-  # Checks version-specific overrides first, then the default.
+  # Returns the official checkout path for a given version.
   local ver="$1"
   local varname="ENTERPRISE_ADDONS_${ver}"
-  if [[ -n "${!varname:-}" && -d "${!varname}" ]]; then
+  if [[ -n "${!varname:-}" ]]; then
     echo "${!varname}"
     return
   fi
-  # Convention: /tmp/enterprise-<ver> (git worktree checkouts)
+  # Convention for worktrees created from one official clone.
   if [[ -d "/tmp/enterprise-${ver}" ]]; then
     echo "/tmp/enterprise-${ver}"
     return
   fi
-  # Fall back to default (assumed to match the latest version)
   echo "$ENTERPRISE_ADDONS"
+}
+
+validate_enterprise_addons() {
+  # Print the validated source commit. Diagnostics go to stderr so callers can
+  # safely capture the commit hash.
+  local ver="$1" addons_path="$2"
+  local expected_branch="${ver}.0"
+
+  if [[ -z "$addons_path" || ! -d "$addons_path" ]]; then
+    echo "❌ Enterprise addons for Odoo ${ver} were not found." >&2
+    echo "   Set ENTERPRISE_ADDONS_${ver}=/path/to/an/official/odoo-enterprise-checkout" >&2
+    return 1
+  fi
+  local inside_work_tree
+  if ! inside_work_tree="$(git -C "$addons_path" rev-parse --is-inside-work-tree 2>/dev/null)" \
+    || [[ "$inside_work_tree" != "true" ]]; then
+    echo "❌ $addons_path is not a Git work tree." >&2
+    echo "   Clone the official private repository with: gh repo clone odoo/enterprise ..." >&2
+    return 1
+  fi
+
+  local origin_url
+  origin_url="$(git -C "$addons_path" remote get-url origin 2>/dev/null || true)"
+  case "$origin_url" in
+    https://github.com/odoo/enterprise|https://github.com/odoo/enterprise.git|git@github.com:odoo/enterprise.git|ssh://git@github.com/odoo/enterprise.git) ;;
+    *)
+      echo "❌ Refusing non-official Enterprise source remote: ${origin_url:-<missing>}" >&2
+      echo "   Expected the private https://github.com/odoo/enterprise repository." >&2
+      return 1
+      ;;
+  esac
+
+  local status_output
+  if ! status_output="$(git -C "$addons_path" status --porcelain --untracked-files=all)"; then
+    echo "❌ Could not inspect Enterprise checkout state: $addons_path" >&2
+    return 1
+  fi
+  if [[ -n "$status_output" ]]; then
+    echo "❌ Enterprise checkout has local or untracked changes: $addons_path" >&2
+    echo "   Use a clean official checkout so private or unrelated files cannot enter the image." >&2
+    return 1
+  fi
+
+  # Resolve the branch from GitHub now rather than trusting the forgeable local
+  # remote-tracking ref. This intentionally fails closed when access/auth is absent.
+  local head_commit official_commit remote_line
+  head_commit="$(git -C "$addons_path" rev-parse HEAD)"
+  if ! remote_line="$(
+    git -C "$addons_path" ls-remote --exit-code origin "refs/heads/${expected_branch}" 2>/dev/null
+  )"; then
+    echo "❌ Could not verify the private official origin/${expected_branch} branch." >&2
+    echo "   Check GitHub authentication and your Odoo Enterprise entitlement." >&2
+    return 1
+  fi
+  read -r official_commit _ <<< "$remote_line"
+  if [[ -z "$official_commit" ]]; then
+    echo "❌ Official origin/${expected_branch} returned no commit." >&2
+    return 1
+  fi
+  if [[ "$head_commit" != "$official_commit" ]]; then
+    echo "❌ Checkout HEAD does not match origin/${expected_branch}." >&2
+    echo "   HEAD: $head_commit" >&2
+    echo "   Official branch: $official_commit" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$head_commit"
 }
 
 build_enterprise_image() {
   local ver="$1"
   local tag="vodoo-odoo-ee:${ver}.0"
-
-  if docker image inspect "$tag" &>/dev/null; then
-    echo "ℹ️  Enterprise image $tag already exists, skipping build."
-    return
-  fi
-
-  local addons_path
+  local addons_path source_commit staging
   addons_path="$(resolve_enterprise_addons "$ver")"
+  source_commit="$(validate_enterprise_addons "$ver" "$addons_path")"
 
-  if [[ ! -d "$addons_path" ]]; then
-    echo "❌ Enterprise addons for Odoo ${ver} not found at $addons_path"
-    echo "   Set ENTERPRISE_ADDONS_${ver}=/path/to/enterprise-addons"
-    exit 1
-  fi
+  # Always execute the build recipe. Docker can reuse verified layers, while
+  # --pull refreshes the mutable official Community base image.
+  # Export only tracked files from the validated commit. This deliberately
+  # excludes .git, credentials, ignored files, and all local/untracked content.
+  staging="$(mktemp -d "${TMPDIR:-/tmp}/vodoo-enterprise-${ver}.XXXXXX")"
+  STAGING_DIRS+=("$staging")
+  git -C "$addons_path" archive --format=tar "$source_commit" | tar -xf - -C "$staging"
 
-  echo "🏗️  Building enterprise image $tag from $addons_path …"
-  docker build \
+  echo "🏗️  Building local Enterprise image $tag from official commit ${source_commit:0:12} …"
+  if docker build \
+    --pull \
     -f "$SCRIPT_DIR/Dockerfile.enterprise" \
     --build-arg "ODOO_VERSION=${ver}.0" \
+    --build-arg "ODOO_ENTERPRISE_COMMIT=${source_commit}" \
     -t "$tag" \
-    "$addons_path"
+    "$staging"; then
+    rm -rf "$staging"
+  else
+    local status=$?
+    rm -rf "$staging"
+    return "$status"
+  fi
 }
 
 # ══════════════════════════════════════════════════════════════════════
 # Main
 # ══════════════════════════════════════════════════════════════════════
+
+# Validate and build private local images without starting Odoo when requested.
+if [[ "$ENTERPRISE_BUILD_ONLY" == "1" ]]; then
+  for v in "${VERSIONS[@]}"; do
+    build_enterprise_image "$v"
+  done
+  echo "✅ Local Enterprise image build complete. No image was pushed."
+  exit 0
+fi
 
 # 1. Start community instances
 for v in "${VERSIONS[@]}"; do
