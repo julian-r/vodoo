@@ -25,6 +25,7 @@ packages/typescript/dist/
 .vodoo.env
 tests/integration/.env.test.*
 *.local.env
+/.odoo-license
 
 # mypy
 .mypy_cache/
