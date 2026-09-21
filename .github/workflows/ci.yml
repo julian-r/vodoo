@@ -48,6 +48,19 @@ jobs:
           cache: pnpm
           cache-dependency-path: packages/typescript/pnpm-lock.yaml
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python package tooling
+        working-directory: ${{ github.workspace }}
+        run: uv sync --extra dev
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -62,8 +75,49 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Cloudflare workerd smoke test
+        run: pnpm test:worker
+
       - name: Build package
         run: pnpm build
+
+      - name: Stage and verify publishable package
+        working-directory: ${{ github.workspace }}
+        run: |
+          uv run python scripts/stage_typescript_package.py --output /tmp/vodoo-npm
+          npm pack /tmp/vodoo-npm --pack-destination /tmp > /tmp/vodoo-pack-name
+          mkdir /tmp/vodoo-consumer
+          cd /tmp/vodoo-consumer
+          npm init -y >/dev/null
+          npm install "/tmp/$(cat /tmp/vodoo-pack-name)"
+          node --input-type=module -e \
+            'import { Cmd, OdooClient } from "vodoo"; if (Cmd.set([1])[2][0] !== 1 || typeof OdooClient !== "function") process.exit(1)'
+
+  swift:
+    name: Swift SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      - name: Build and run shared conformance tests with coverage
+        run: swift test --enable-code-coverage
+
+      - name: Enforce Swift coverage thresholds
+        run: |
+          COVERAGE_PATH="$(swift test --show-codecov-path)"
+          python3 scripts/check_swift_coverage.py "$COVERAGE_PATH"
+
+      - name: Store Swift coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-coverage
+          path: .build/**/codecov/Vodoo.json
+          if-no-files-found: error
 
   lint-and-test:
     name: Lint & Unit Tests
@@ -98,7 +152,7 @@ jobs:
 
   integration-test:
     name: Community Integration – Odoo ${{ matrix.odoo-version }}
-    needs: [codegen-check, typescript, lint-and-test]
+    needs: [codegen-check, typescript, swift, lint-and-test]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -114,6 +168,10 @@ jobs:
             port: 19069
     steps:
       - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -171,6 +229,13 @@ jobs:
           set +a
           pnpm --dir packages/typescript test:integration
 
+      - name: Run Swift integration smoke test
+        run: |
+          set -a
+          source "tests/integration/.env.test.${{ matrix.odoo-version }}"
+          set +a
+          swift test --filter LiveIntegrationTests
+
       - name: Dump logs on failure
         if: failure()
         working-directory: tests/integration
@@ -189,7 +254,7 @@ jobs:
     # its proprietary download credential is unavailable to pull-request refs.
     if: github.event_name == 'push'
     environment: enterprise-ci
-    needs: [codegen-check, typescript, lint-and-test]
+    needs: [codegen-check, typescript, swift, lint-and-test]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:

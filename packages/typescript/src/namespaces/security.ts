@@ -2,6 +2,7 @@ import type { OdooClientApi } from "../client-api.js";
 import { Cmd } from "../commands.js";
 import { VodooError } from "../errors.js";
 import type { OdooRecord } from "../types.js";
+import { GROUP_DEFINITIONS } from "../generated/security_groups.js";
 
 export interface AccessDefinition {
   readonly model: string;
@@ -46,7 +47,7 @@ const rule = (
   permUnlink,
 });
 
-export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
+const LEGACY_GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
   {
     name: "API Mail Gateway",
     comment: "Standalone access for mail gateway (message_process via XML-RPC)",
@@ -137,7 +138,7 @@ export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
   },
   {
     name: "API Knowledge",
-    comment: "Enterprise knowledge base articles",
+    comment: "Knowledge base articles",
     access: [
       access("knowledge.article", true, true, true, false),
       access("knowledge.article.member", true, false, false, false),
@@ -148,7 +149,7 @@ export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
   },
   {
     name: "API Helpdesk",
-    comment: "Enterprise helpdesk tickets",
+    comment: "Helpdesk tickets",
     access: [
       access("helpdesk.ticket", true, true, true, false),
       access("helpdesk.tag", true, true, true, false),
@@ -160,7 +161,9 @@ export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
     rules: [rule("helpdesk.ticket", "[(1, '=', 1)]", true, true, true, false)],
   },
 ]);
+void LEGACY_GROUP_DEFINITIONS;
 
+export { GROUP_DEFINITIONS };
 export interface GroupResult {
   readonly groupIds: Readonly<Record<string, number>>;
   readonly warnings: readonly string[];

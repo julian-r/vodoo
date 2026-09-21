@@ -163,6 +163,13 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
     ),
 )
 
+# Generated from the canonical cross-language security group specification.
+from vodoo.generated.security_groups import (  # noqa: E402
+    GROUP_DEFINITIONS as GENERATED_GROUP_DEFINITIONS,
+)
+
+GROUP_DEFINITIONS = GENERATED_GROUP_DEFINITIONS
+
 
 def _access_name(group_name: str, model: str) -> str:
     return f"vodoo_{_slugify(group_name)}_access_{model.replace('.', '_')}"

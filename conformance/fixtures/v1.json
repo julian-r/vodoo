@@ -101,6 +101,44 @@
     {"id": "mixed", "bytes": [0, 255, 97], "base64": "AP9h"},
     {"id": "text", "bytes": [86, 111, 100, 111, 111], "base64": "Vm9kb28="}
   ],
+  "commands": [
+    {"id": "create", "operation": "create", "args": [{"name": "A"}], "expect": [0, 0, {"name": "A"}]},
+    {"id": "update", "operation": "update", "args": [3, {"name": "B"}], "expect": [1, 3, {"name": "B"}]},
+    {"id": "delete", "operation": "delete", "args": [3], "expect": [2, 3, 0]},
+    {"id": "unlink", "operation": "unlink", "args": [3], "expect": [3, 3, 0]},
+    {"id": "link", "operation": "link", "args": [3], "expect": [4, 3, 0]},
+    {"id": "clear", "operation": "clear", "args": [], "expect": [5, 0, 0]},
+    {"id": "set", "operation": "set", "args": [[2, 3]], "expect": [6, 0, [2, 3]]}
+  ],
+  "retry": [
+    {"id": "first-read-retry", "method": "read", "attempt": 0, "retryable": true, "delayMs": 500},
+    {"id": "second-search-retry", "method": "search", "attempt": 1, "retryable": true, "delayMs": 1000},
+    {"id": "capped-name-search-retry", "method": "name_search", "attempt": 10, "retryable": true, "delayMs": 30000},
+    {"id": "create-not-retryable", "method": "create", "attempt": 0, "retryable": false, "delayMs": 500},
+    {"id": "write-not-retryable", "method": "write", "attempt": 0, "retryable": false, "delayMs": 500}
+  ],
+  "normalization": [
+    {"id": "top-level-false", "input": {"id": 7, "partner_id": false, "active": false, "count": 0}, "expect": {"id": 7, "partner_id": null, "active": null, "count": 0}}
+  ],
+  "operations": [
+    {
+      "id": "helpdesk-create",
+      "operation": "helpdesk.create",
+      "input": {"name": "Broken deployment", "description": "Details", "partnerId": 2, "tagIds": [4, 5], "teamId": 7, "extraFields": {"priority": "3"}},
+      "expectedModel": "helpdesk.ticket",
+      "expectedValues": {"name": "Broken deployment", "description": "Details", "partner_id": 2, "tag_ids": [[6, 0, [4, 5]]], "team_id": 7, "priority": "3"},
+      "expectedResult": 42
+    }
+  ],
+  "createResults": [
+    {"id": "scalar-id", "wire": 42, "expect": 42},
+    {"id": "single-id-list", "wire": [42], "expect": 42},
+    {"id": "null", "wire": null, "expectError": true},
+    {"id": "empty-list", "wire": [], "expectError": true},
+    {"id": "zero", "wire": 0, "expectError": true},
+    {"id": "float", "wire": 4.5, "expectError": true},
+    {"id": "string", "wire": "42", "expectError": true}
+  ],
   "transports": [
     {
       "id": "json2-search-read",

@@ -140,8 +140,10 @@ export {
   LegacyTransport,
   OdooTransport,
   buildJSON2Body,
+  isRetryableMethod,
   parseJSON2Response,
   parseNameSearch,
+  retryDelayMs,
   type OdooTransportApi,
   type TransportOptions,
 } from "./transport.js";

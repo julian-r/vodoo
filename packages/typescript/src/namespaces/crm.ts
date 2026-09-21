@@ -362,9 +362,9 @@ export class CRMNamespace extends GeneratedCRMNamespace {
 
   create(name: string, options: CreateCRMOptions = {}): Promise<number> {
     const values: Record<string, unknown> = {
+      ...options.extraFields,
       name,
       type: options.leadType ?? "opportunity",
-      ...options.extraFields,
     };
     if (options.partnerId !== undefined) values.partner_id = options.partnerId;
     if (options.expectedRevenue !== undefined) {

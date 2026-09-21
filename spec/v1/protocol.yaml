@@ -1,0 +1,22 @@
+specVersion: 1
+protocols:
+  jsonrpc:
+    versions: [17, 18]
+    endpoint: /jsonrpc
+    authentication: common.authenticate
+    modelCall: object.execute_kw
+  json2:
+    versions: [19]
+    endpoint: /json/2/{model}/{method}
+    authentication: bearer-api-key
+    headers:
+      database: X-Odoo-Database
+retry:
+  maxRetries: 2
+  backoffBaseMs: 500
+  backoffMaxMs: 30000
+  methods: [search, search_read, read, fields_get, name_search]
+normalization:
+  emptyRelation: null
+  createResult: positive-integer
+  datetimeTimezone: UTC

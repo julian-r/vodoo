@@ -1,0 +1,32 @@
+specVersion: 1
+types:
+  Id:
+    wire: positive-integer
+  OdooRecord:
+    wire: open-object
+  Domain:
+    wire: prefix-expression-array
+  Many2One:
+    wire: "false | null | [Id, string]"
+    normalizedEmpty: null
+  Date:
+    wire: YYYY-MM-DD
+    runtime:
+      python: date-or-wire-string
+      typescript: Date
+      swift: Date
+  DateTime:
+    wire: YYYY-MM-DD HH:MM:SS
+    timezone: UTC
+    runtime:
+      python: datetime-or-wire-string
+      typescript: Date
+      swift: Date
+  Binary:
+    wire: base64
+    runtime:
+      python: bytes
+      typescript: Uint8Array
+      swift: Data
+  Command:
+    variants: [create, update, delete, unlink, link, clear, set]

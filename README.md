@@ -11,7 +11,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 
-A Python library and CLI for Odoo. Use it as a **library** in your own scripts, services, and automations — or as a **CLI** for quick ad-hoc operations and AI-assisted workflows.
+A multi-language Odoo SDK for Python, TypeScript/Cloudflare Workers, and Swift, plus a Python CLI. Use it in scripts, services, apps, and automations — or as a CLI for quick ad-hoc operations and AI-assisted workflows.
 
 Supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, accounting moves, knowledge articles, and timesheets across Odoo 17–19.
 
@@ -41,6 +41,43 @@ try:
     record = client.generic.search("res.partner", [("id", "=", 999999999)])
 except RecordNotFoundError as e:
     print(f"{e.model} #{e.record_id} not found")
+```
+
+## Quick Start — TypeScript
+
+```bash
+npm install vodoo
+```
+
+```typescript
+import { OdooClient } from "vodoo";
+
+const client = new OdooClient({
+  url: "https://my-instance.odoo.com",
+  database: "mydb",
+  username: "bot@example.com",
+  password: "api-key-or-password",
+});
+const tasks = await client.tasks.list({ limit: 10 });
+```
+
+The TypeScript package is Web Standards-only and is smoke-tested in Cloudflare workerd.
+
+## Quick Start — Swift
+
+Add this repository as a Swift Package dependency, then:
+
+```swift
+import Vodoo
+
+let config = OdooConfig(
+    url: URL(string: "https://my-instance.odoo.com")!,
+    database: "mydb",
+    username: "bot@example.com",
+    password: "api-key-or-password"
+)
+let client = OdooClient(config: config)
+let tasks = try await client.tasks.list(limit: 10)
 ```
 
 ## Quick Start — CLI
@@ -382,11 +419,13 @@ uv run mypy src/vodoo
 pnpm --dir packages/typescript typecheck
 pnpm --dir packages/typescript test
 
-# Shared Python/TypeScript transport and codec contract
+# Shared Python/TypeScript/Swift transport and codec contract
 uv run pytest tests/conformance -q
+swift test --enable-code-coverage
+python3 scripts/check_swift_coverage.py "$(swift test --show-codecov-path)"
 ```
 
-Both SDKs independently validate the transport/error contract in `conformance/fixtures/v1.json`; neither language implementation is used as the conformance oracle. The fixture's date and binary rows are neutral cross-runtime vectors.
+All three SDKs independently validate `conformance/fixtures/v1.json`; no language implementation is used as the conformance oracle. The fixture's protocol, date, binary, command, and operation rows are neutral cross-runtime vectors.
 
 ## Publishing
 
@@ -396,7 +435,7 @@ Version is derived from git tags via `hatch-vcs`:
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-GitHub Actions builds and publishes to PyPI automatically.
+One release tag versions PyPI, npm, and the Swift Package. GitHub Actions publishes Python and TypeScript artifacts; Swift Package Manager resolves the same repository tag. Breaking changes to generated public APIs require a major version, additions require a minor version, and compatible fixes require a patch version.
 
 ## License
 

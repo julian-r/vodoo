@@ -3,7 +3,12 @@
 import argparse
 from pathlib import Path
 
-from tools.codegen.generator import check_generated, generate, stale_outputs
+from tools.codegen.generator import (
+    check_generated,
+    generate,
+    missing_custom_implementations,
+    stale_outputs,
+)
 
 
 def main() -> int:
@@ -21,6 +26,8 @@ def main() -> int:
         return 0
     for path in stale_outputs(root):
         print(f"generated source is stale: {path}")
+    for implementation in missing_custom_implementations(root):
+        print(f"custom implementation is missing: {implementation}")
     return 1
 
 

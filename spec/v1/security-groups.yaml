@@ -1,0 +1,280 @@
+specVersion: 1
+groups:
+- name: API Mail Gateway
+  comment: Standalone access for mail gateway (message_process via XML-RPC)
+  access:
+  - model: mail.message
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: mail.message.subtype
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: mail.alias
+    perm_read: true
+    perm_write: true
+    perm_create: false
+    perm_unlink: false
+  - model: mail.alias.domain
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: mail.followers
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.users
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.partner
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: ir.model
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: ir.model.data
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  rules: []
+- name: API Base
+  comment: Core API access - required for all service accounts
+  access:
+  - model: res.company
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.users
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.partner
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.currency
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.country
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: res.country.state
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: ir.attachment
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: mail.message
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: mail.message.subtype
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: mail.followers
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: mail.notification
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  rules:
+  - model: mail.message
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: mail.followers
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: mail.notification
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+- name: API CRM
+  comment: CRM leads and opportunities
+  access:
+  - model: crm.lead
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: crm.tag
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: crm.stage
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: crm.team
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: utm.source
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: utm.medium
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: utm.campaign
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  rules:
+  - model: crm.lead
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+- name: API Project
+  comment: Projects and tasks (follower-based access)
+  access:
+  - model: project.project
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: project.task
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: project.task.type
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: project.tags
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: project.milestone
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  rules:
+  - model: project.project
+    domain: '[(''message_partner_ids'', ''in'', [user.partner_id.id])]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: project.task
+    domain: '[(''project_id.message_partner_ids'', ''in'', [user.partner_id.id])]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: project.milestone
+    domain: '[(''project_id.message_partner_ids'', ''in'', [user.partner_id.id])]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+- name: API Knowledge
+  comment: Knowledge base articles
+  access:
+  - model: knowledge.article
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: knowledge.article.member
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  rules:
+  - model: knowledge.article
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+- name: API Helpdesk
+  comment: Helpdesk tickets
+  access:
+  - model: helpdesk.ticket
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: helpdesk.tag
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false
+  - model: helpdesk.stage
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: helpdesk.team
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: helpdesk.ticket.type
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  - model: helpdesk.sla
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
+  rules:
+  - model: helpdesk.ticket
+    domain: '[(1, ''='', 1)]'
+    perm_read: true
+    perm_write: true
+    perm_create: true
+    perm_unlink: false

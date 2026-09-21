@@ -647,10 +647,11 @@ def _html_to_markdown(html: str) -> str:
         Markdown-formatted text
 
     """
-    from html import unescape
-
+    # Let HTMLParser decode character references after it has identified tags.
+    # Pre-unescaping would turn text such as ``&lt;placeholder&gt;`` into apparent
+    # markup and silently discard it.
     parser = _HTMLToMarkdown()
-    parser.feed(unescape(html))
+    parser.feed(html)
     return parser.get_markdown()
 
 

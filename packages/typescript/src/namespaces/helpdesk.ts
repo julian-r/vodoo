@@ -36,8 +36,8 @@ export class HelpdeskNamespace extends GeneratedHelpdeskNamespace {
 
   create(name: string, options: CreateTicketOptions = {}): Promise<number> {
     const values: Record<string, unknown> = {
-      name,
       ...options.extraFields,
+      name,
     };
     if (options.description !== undefined) {
       values.description = options.description;

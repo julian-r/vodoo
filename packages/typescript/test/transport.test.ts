@@ -198,6 +198,17 @@ describe("JSON2Transport", () => {
     expect(headers.get("x-custom")).toBe("yes");
   });
 
+  it.each(["null", "false", "[]", "0", "-1", "1.5", '"7"'])(
+    "rejects malformed create IDs: %s",
+    async (body) => {
+      const mock = makeFetch([new Response(body, { status: 200 })]);
+      const transport = new JSON2Transport({ ...config, fetch: mock.fetch });
+      await expect(
+        transport.create("res.partner", { name: "Invalid" }),
+      ).rejects.toThrow("Create returned an invalid record ID");
+    },
+  );
+
   it("authenticates by looking up the configured login and caches uid", async () => {
     const mock = makeFetch([jsonResponse([{ id: 7 }])]);
     const transport = new JSON2Transport({ ...config, fetch: mock.fetch });

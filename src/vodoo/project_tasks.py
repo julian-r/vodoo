@@ -48,6 +48,7 @@ def _build_task_values(
         Tuple of (values, context) dictionaries
     """
     values: dict[str, Any] = {
+        **kwargs,
         "name": name,
         "project_id": project_id,
     }
@@ -60,8 +61,6 @@ def _build_task_values(
         values["tag_ids"] = [(6, 0, tag_ids)]
     if parent_id:
         values["parent_id"] = parent_id
-
-    values.update(kwargs)
 
     context: dict[str, Any] = {"default_project_id": project_id}
     return values, context

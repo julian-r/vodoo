@@ -57,7 +57,7 @@ def _build_ticket_values(
     **extra_fields: Any,
 ) -> dict[str, Any]:
     """Build the values dict for helpdesk.ticket creation."""
-    values: dict[str, Any] = {"name": name, **extra_fields}
+    values: dict[str, Any] = {**extra_fields, "name": name}
     if description is not None:
         values["description"] = description
     if partner_id is not None:

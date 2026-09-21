@@ -23,7 +23,7 @@ def _build_article_values(
     **extra_fields: Any,
 ) -> dict[str, Any]:
     """Build the values dict for knowledge.article creation."""
-    values: dict[str, Any] = {"name": name, **extra_fields}
+    values: dict[str, Any] = {**extra_fields, "name": name}
     if body is not None:
         values["body"] = Markdown(body)
     if parent_id is not None:

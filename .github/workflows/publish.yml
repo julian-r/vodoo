@@ -57,6 +57,60 @@ jobs:
     - name: Publish distribution to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
 
+  publish-to-npm:
+    name: Publish TypeScript package to npm
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/vodoo
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.15.0
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        registry-url: https://registry.npmjs.org
+        cache: pnpm
+        cache-dependency-path: packages/typescript/pnpm-lock.yaml
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install build dependencies
+      run: |
+        uv sync --extra dev
+        pnpm --dir packages/typescript install --frozen-lockfile
+
+    - name: Build and stage npm package
+      env:
+        RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      run: |
+        pnpm --dir packages/typescript build
+        uv run python scripts/stage_typescript_package.py \
+          --output dist/npm \
+          --version "$RELEASE_VERSION"
+        npm pack --dry-run ./dist/npm
+
+    - name: Publish npm package
+      working-directory: dist/npm
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: npm publish --access public --provenance
+
   publish-to-testpypi:
     name: Publish to TestPyPI
     if: github.event_name == 'workflow_dispatch'

@@ -1,0 +1,422 @@
+{
+  "specVersion": 1,
+  "services": {
+    "generic": {
+      "targets": [
+        "python",
+        "asyncPython",
+        "typescript",
+        "swift"
+      ]
+    },
+    "security": {
+      "targets": [
+        "python",
+        "typescript"
+      ]
+    },
+    "timer": {
+      "targets": [
+        "python",
+        "asyncPython",
+        "typescript"
+      ]
+    }
+  },
+  "namespaces": [
+    {
+      "namespace": "account_moves",
+      "className": "AccountMove",
+      "model": "account.move",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "attachments"
+      ],
+      "availability": {
+        "module": "account",
+        "editions": [
+          "community",
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": []
+    },
+    {
+      "namespace": "activities",
+      "className": "Activity",
+      "model": "mail.activity",
+      "capabilities": [
+        "crud"
+      ],
+      "availability": {
+        "module": "mail",
+        "editions": [
+          "community",
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": [
+        {
+          "name": "done",
+          "description": "Mark an activity as done.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "crm",
+      "className": "CRM",
+      "model": "crm.lead",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "tags",
+        "attachments"
+      ],
+      "availability": {
+        "module": "crm",
+        "editions": [
+          "community",
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [
+        {
+          "name": "stages",
+          "kind": "searchRead",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript",
+            "swift"
+          ]
+        }
+      ],
+      "customOperations": [
+        {
+          "name": "create",
+          "description": "Create a lead or opportunity.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "pipeline",
+          "description": "Build a CRM pipeline summary.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "documents",
+      "className": "Document",
+      "model": "documents.document",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "attachments"
+      ],
+      "availability": {
+        "module": "documents",
+        "editions": [
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": [
+        {
+          "name": "folders",
+          "description": "List document folders across supported schemas.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "resolveFolder",
+          "description": "Resolve a folder reference.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "upload",
+          "description": "Upload an in-memory document.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "downloadFile",
+          "description": "Download a document into memory.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "helpdesk",
+      "className": "Helpdesk",
+      "model": "helpdesk.ticket",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "tags",
+        "attachments"
+      ],
+      "availability": {
+        "module": "helpdesk",
+        "editions": [
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": [
+        {
+          "name": "create",
+          "description": "Create a helpdesk ticket.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript",
+            "swift"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "knowledge",
+      "className": "Knowledge",
+      "model": "knowledge.article",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "attachments"
+      ],
+      "availability": {
+        "module": "knowledge",
+        "editions": [
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": [
+        {
+          "name": "create",
+          "description": "Create a knowledge article.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "resolveUrl",
+          "description": "Resolve the server article URL when available.",
+          "targets": [
+            "typescript"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "project_tasks",
+      "className": "Task",
+      "model": "project.task",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "tags",
+        "attachments"
+      ],
+      "availability": {
+        "module": "project",
+        "editions": [
+          "community",
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [],
+      "customOperations": [
+        {
+          "name": "create",
+          "description": "Create a project task.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "setMilestone",
+          "description": "Assign a milestone after validating project membership.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "addDependencies",
+          "description": "Add task dependencies.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "clearDependencies",
+          "description": "Clear task dependencies.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "schedule",
+          "description": "Set task schedule fields.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "createTag",
+          "description": "Create a project tag.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "deleteTag",
+          "description": "Delete a project tag.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "projects",
+      "className": "Project",
+      "model": "project.project",
+      "capabilities": [
+        "crud",
+        "messaging",
+        "attachments"
+      ],
+      "availability": {
+        "module": "project",
+        "editions": [
+          "community",
+          "enterprise"
+        ],
+        "minVersion": 17,
+        "maxVersion": null
+      },
+      "generatedOperations": [
+        {
+          "name": "stages",
+          "kind": "searchRead",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript",
+            "swift"
+          ]
+        },
+        {
+          "name": "reachMilestone",
+          "kind": "write",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript",
+            "swift"
+          ]
+        },
+        {
+          "name": "milestoneTasks",
+          "kind": "searchRead",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript",
+            "swift"
+          ]
+        }
+      ],
+      "customOperations": [
+        {
+          "name": "resolveProjectId",
+          "description": "Resolve a project ID or exact name.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "milestones",
+          "description": "List project milestones.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        },
+        {
+          "name": "createMilestone",
+          "description": "Create a project milestone.",
+          "targets": [
+            "python",
+            "asyncPython",
+            "typescript"
+          ]
+        }
+      ]
+    }
+  ]
+}

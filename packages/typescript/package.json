@@ -28,6 +28,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:worker": "node test/worker/smoke.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "keywords": [
@@ -47,9 +48,11 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.5",
+    "@vitest/coverage-v8": "3.2.7",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.135.0"
   },
   "packageManager": "pnpm@10.15.0"
 }

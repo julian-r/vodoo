@@ -31,11 +31,22 @@ const ATTACHMENT_LIST_FIELDS = [
 ] as const;
 const ATTACHMENT_READ_FIELDS = ["name", "datas", "file_size"] as const;
 
+export type NamespaceCapability = "crud" | "messaging" | "tags" | "attachments";
+
+export interface NamespaceAvailability {
+  readonly module: string;
+  readonly editions: readonly ("community" | "enterprise")[];
+  readonly minVersion: number;
+  readonly maxVersion?: number | null;
+}
+
 export interface NamespaceMetadata {
   readonly model: string;
   readonly defaultFields: readonly string[];
   readonly defaultDetailFields?: readonly string[];
   readonly tagModel?: string;
+  readonly capabilities: readonly NamespaceCapability[];
+  readonly availability: NamespaceAvailability;
 }
 
 export interface ListOptions extends Omit<SearchReadOptions, "fields"> {

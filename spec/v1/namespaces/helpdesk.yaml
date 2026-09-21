@@ -4,17 +4,35 @@ className: Helpdesk
 model: helpdesk.ticket
 recordType: Ticket
 tagModel: helpdesk.tag
+capabilities:
+- crud
+- messaging
+- tags
+- attachments
+availability:
+  module: helpdesk
+  editions:
+  - enterprise
+  minVersion: 17
 defaultFields:
-  - id
-  - name
-  - partner_id
-  - stage_id
-  - user_id
-  - priority
-  - tag_ids
-  - create_date
+- id
+- name
+- partner_id
+- stage_id
+- user_id
+- priority
+- tag_ids
+- create_date
 defaultDetailFields: null
 dateFields:
   create_date: datetime
 fieldSets: {}
 operations: []
+customOperations:
+- name: create
+  description: Create a helpdesk ticket.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift
