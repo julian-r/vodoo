@@ -21,9 +21,9 @@ Vodoo follows a layered architecture where domain modules delegate shared operat
 │  OdooClient (sync) │ AsyncOdooClient (async)         │
 ├──────────────────────────────────────────────────────┤
 │              Transport                               │
-│  Sync: LegacyTransport / JSON2Transport (httpx)      │
+│  Sync: LegacyTransport / JSON2Transport (HTTPX2)     │
 │  Async: AsyncLegacyTransport / AsyncJSON2Transport   │
-│         (httpx)                                      │
+│         (HTTPX2)                                     │
 ├──────────────────────────────────────────────────────┤
 │              Exceptions (exceptions.py)              │
 │  VodooError → TransportError → OdooUserError → ...   │
@@ -70,10 +70,10 @@ The `OdooTransport` ABC defines the interface. Four implementations exist:
 
 | Transport | Odoo Versions | Protocol | HTTP Library |
 |-----------|---------------|----------|--------------|
-| `LegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx` |
-| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx` |
-| `AsyncLegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx` |
-| `AsyncJSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx` |
+| `LegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx2` |
+| `JSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx2` |
+| `AsyncLegacyTransport` | 17–18 | `POST /jsonrpc` | `httpx2` |
+| `AsyncJSON2Transport` | 19+ | `POST /json/2/<model>/<method>` | `httpx2` |
 
 Auto-detection happens on client init: it tries JSON-2 first, falls back to legacy.
 
@@ -108,8 +108,8 @@ The version is derived from git tags via `hatch-vcs` — no hardcoded version st
 | `main.py` | CLI commands via Typer, output formatting |
 | `client.py` | Sync client, transport auto-detection, namespace wiring |
 | `aio/client.py` | Async client, lazy transport init, context manager, namespace wiring |
-| `transport.py` | Sync HTTP (`httpx`) |
-| `aio/transport.py` | Async HTTP (`httpx`) |
+| `transport.py` | Sync HTTP (`httpx2`) |
+| `aio/transport.py` | Async HTTP (`httpx2`) |
 | `config.py` | Configuration loading and validation |
 | `exceptions.py` | Exception hierarchy + Odoo error mapping |
 | `_domain.py` | `DomainNamespace` base class — shared CRUD, messaging, tags, attachments |
@@ -152,5 +152,18 @@ JSON-2 is ~3-4× faster due to reduced envelope overhead and direct model routin
 
 ## HTTP Dependencies
 
-- **Sync** — uses [httpx](https://www.python-httpx.org/) for HTTP
-- **Async** — uses [httpx](https://www.python-httpx.org/) for non-blocking HTTP
+- **Sync** — uses [HTTPX2](https://pydantic.dev/docs/httpx2/) for HTTP
+- **Async** — uses [HTTPX2](https://pydantic.dev/docs/httpx2/) for non-blocking HTTP
+
+### HTTPX2 migration note
+
+Vodoo uses `httpx2` directly and does not install or alias the original `httpx` package. Code that
+interacts with a transport's underlying HTTP client, catches its HTTP exceptions, or supplies test
+responses must therefore use `httpx2` types; original HTTPX and HTTPX2 objects are not
+interchangeable.
+
+HTTPX2 uses the operating system certificate store through `truststore` by default. Vodoo leaves
+environment discovery enabled, so `SSL_CERT_FILE`, `SSL_CERT_DIR`, `HTTP_PROXY`, `HTTPS_PROXY`,
+`ALL_PROXY`, and `NO_PROXY` continue to work. HTTP/2 is enabled and negotiated when the server or reverse
+proxy supports it, with automatic HTTP/1.1 fallback. Legacy JSON-RPC requests now use HTTPX2's default
+`python-httpx2/<version>` User-Agent; JSON-2 requests retain Vodoo's explicit `Vodoo` User-Agent.

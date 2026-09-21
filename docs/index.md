@@ -15,7 +15,7 @@ Vodoo is a typed Python library and CLI for interacting with Odoo instances via 
 ## :rocket: Highlights
 
 - **Dual-use** — works as a CLI tool *and* as an importable Python library
-- **Sync + Async** — full async API under `vodoo.aio` with httpx
+- **Sync + Async** — full async API under `vodoo.aio` with HTTPX2
 - **Auto-detecting transport** — JSON-2 for Odoo 19+ (~3-4× faster), legacy JSON-RPC for 17–18
 - **AI-first design** — clear command structure for Claude Code and similar assistants
 - **Fully typed** — strict mypy, Pydantic models, rich terminal output

@@ -1,6 +1,6 @@
 # Async API
 
-Vodoo provides a full async API via `AsyncOdooClient`. It exposes the same domain namespaces as the sync client, but all methods are `async` and use [httpx](https://www.python-httpx.org/) for non-blocking HTTP.
+Vodoo provides a full async API via `AsyncOdooClient`. It exposes the same domain namespaces as the sync client, but all methods are `async` and use [HTTPX2](https://pydantic.dev/docs/httpx2/) for non-blocking HTTP.
 
 ## Quick Start
 
