@@ -455,7 +455,7 @@ Version is derived from git tags via `hatch-vcs`:
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-One release tag versions PyPI, npm, and the Swift Package. GitHub Actions publishes Python and TypeScript artifacts; Swift Package Manager resolves the same repository tag. Breaking changes to generated public APIs require a major version, additions require a minor version, and compatible fixes require a patch version.
+One release tag versions PyPI, npm, and the Swift Package. GitHub Actions publishes the Python artifact and stages the TypeScript artifact on npm; a maintainer must review and approve the staged npm package with 2FA before it becomes public. Swift Package Manager resolves the same repository tag. Breaking changes to generated public APIs require a major version, additions require a minor version, and compatible fixes require a patch version.
 
 ## License
 
