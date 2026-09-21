@@ -12,6 +12,7 @@ def test_npm_version_accepts_tags_and_converts_hatch_versions() -> None:
     release = ".".join(map(str, (1, 2, 3)))
     assert npm_version(f"v{release}") == release
     assert npm_version(f"{release}.dev4+gabc") == f"{release}-dev.4+gabc"
+    assert npm_version("0.1.dev1+gabc") == "0.1.0-dev.1+gabc"
 
 
 def test_npm_version_rejects_non_versions() -> None:

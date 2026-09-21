@@ -25,7 +25,9 @@ def npm_version(value: str) -> str:
         parsed = Version(raw)
     except InvalidVersion as error:
         raise ValueError(f"Version {value!r} cannot be represented as npm SemVer") from error
-    release = ".".join(str(part) for part in parsed.release[:3])
+    release_parts = [*parsed.release[:3]]
+    release_parts.extend([0] * (3 - len(release_parts)))
+    release = ".".join(str(part) for part in release_parts)
     prerelease: list[str] = []
     if parsed.pre is not None:
         prerelease.extend((parsed.pre[0], str(parsed.pre[1])))
