@@ -56,10 +56,7 @@ private actor TransportHolder {
             _ = try await json2.getUID()
             transport = json2
             return json2
-        } catch let error as VodooError {
-            guard case let .transport(_, code, _) = error, code == 404 || code == 405 else {
-                throw error
-            }
+        } catch is VodooError {
             let legacy = LegacyTransport(config: config)
             transport = legacy
             return legacy
