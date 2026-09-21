@@ -226,6 +226,75 @@ class WriteOperation(_OperationBase):
 
 OperationSpec = Annotated[SearchReadOperation | WriteOperation, Field(discriminator="kind")]
 DateKind = Literal["date", "datetime"]
+Capability = Literal["crud", "messaging", "tags", "attachments"]
+Target = Literal["python", "asyncPython", "typescript", "swift"]
+Edition = Literal["community", "enterprise"]
+
+
+class AvailabilitySpec(StrictModel):
+    module: str
+    editions: list[Edition]
+    min_version: int = Field(alias="minVersion", ge=17, le=19)
+    max_version: int | None = Field(default=None, alias="maxVersion", ge=17, le=19)
+
+    @model_validator(mode="after")
+    def validate_versions(self) -> Self:
+        if self.max_version is not None and self.max_version < self.min_version:
+            raise ValueError("maxVersion must be greater than or equal to minVersion")
+        if len(self.editions) != len(set(self.editions)):
+            raise ValueError("availability editions must be unique")
+        return self
+
+
+class CustomOperationSpec(StrictModel):
+    name: str
+    description: str
+    targets: list[Target]
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return _validate_identifier(value)
+
+    @field_validator("targets")
+    @classmethod
+    def validate_targets(cls, value: list[Target]) -> list[Target]:
+        if not value:
+            raise ValueError("custom operations must claim at least one target")
+        if len(value) != len(set(value)):
+            raise ValueError("custom operation targets must be unique")
+        return value
+
+
+class AccessDefinitionSpec(StrictModel):
+    model: str
+    perm_read: bool
+    perm_write: bool
+    perm_create: bool
+    perm_unlink: bool
+
+
+class RuleDefinitionSpec(AccessDefinitionSpec):
+    domain: str
+
+
+class GroupDefinitionSpec(StrictModel):
+    name: str
+    comment: str
+    access: list[AccessDefinitionSpec]
+    rules: list[RuleDefinitionSpec] = Field(default_factory=list)
+
+
+class SecurityGroupsSpec(StrictModel):
+    spec_version: Literal[1] = Field(alias="specVersion")
+    groups: list[GroupDefinitionSpec]
+
+    @model_validator(mode="after")
+    def validate_groups(self) -> Self:
+        names = [group.name for group in self.groups]
+        if len(names) != len(set(names)):
+            raise ValueError("security group names must be unique")
+        return self
 
 
 class NamespaceSpec(StrictModel):
@@ -235,6 +304,8 @@ class NamespaceSpec(StrictModel):
     model: str
     record_type: str = Field(alias="recordType")
     tag_model: str | None = Field(default=None, alias="tagModel")
+    capabilities: list[Capability]
+    availability: AvailabilitySpec
     default_fields: list[str] = Field(alias="defaultFields")
     default_detail_fields: list[str] | None = Field(default=None, alias="defaultDetailFields")
     date_fields: dict[str, DateKind] = Field(default_factory=dict, alias="dateFields")
@@ -244,6 +315,10 @@ class NamespaceSpec(StrictModel):
         alias="fieldSetDateFields",
     )
     operations: list[OperationSpec] = Field(default_factory=list)
+    custom_operations: list[CustomOperationSpec] = Field(
+        default_factory=list,
+        alias="customOperations",
+    )
 
     @field_validator("namespace")
     @classmethod
@@ -270,10 +345,19 @@ class NamespaceSpec(StrictModel):
                 names = ", ".join(sorted(unknown_fields))
                 raise ValueError(f"{field_set} date metadata references unknown fields: {names}")
 
+        if not self.capabilities or self.capabilities[0] != "crud":
+            raise ValueError("capabilities must start with crud")
+        if len(self.capabilities) != len(set(self.capabilities)):
+            raise ValueError("capabilities must be unique")
+        if ("tags" in self.capabilities) != (self.tag_model is not None):
+            raise ValueError("tags capability and tagModel must be declared together")
+
         operation_names = [operation.name for operation in self.operations]
-        if len(operation_names) != len(set(operation_names)):
-            raise ValueError("operation names must be unique")
-        python_operation_names = [_snake_case(name) for name in operation_names]
+        custom_names = [operation.name for operation in self.custom_operations]
+        all_operation_names = [*operation_names, *custom_names]
+        if len(all_operation_names) != len(set(all_operation_names)):
+            raise ValueError("generated and custom operation names must be unique")
+        python_operation_names = [_snake_case(name) for name in all_operation_names]
         if len(python_operation_names) != len(set(python_operation_names)):
             raise ValueError("operation names must be unique after Python normalization")
 
@@ -286,6 +370,8 @@ class NamespaceSpec(StrictModel):
             f"{prefix}_DEFAULT_FIELDS",
             f"{prefix}_DEFAULT_DETAIL_FIELDS",
             f"{prefix}_DATE_FIELDS",
+            f"{prefix}_CAPABILITIES",
+            f"{prefix}_AVAILABILITY",
             *(_typescript_constant_name(self.class_name, name) for name in self.field_sets),
             *(
                 _typescript_constant_name(self.class_name, f"{name}DateFields")

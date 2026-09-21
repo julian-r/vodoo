@@ -37,8 +37,8 @@ export class KnowledgeNamespace extends GeneratedKnowledgeNamespace {
 
   create(name: string, options: CreateArticleOptions = {}): Promise<number> {
     const values: Record<string, unknown> = {
-      name,
       ...options.extraFields,
+      name,
     };
     if (options.body !== undefined) {
       values.body = richTextToHtml(options.body);

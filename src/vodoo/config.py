@@ -443,7 +443,9 @@ class OdooConfig(BaseSettings):
         None,
         description="Optional secret reference (e.g. op://...) used to resolve password",
     )
-    default_user_id: int | None = Field(None, description="Default user ID for sudo operations")
+    default_user_id: int | None = Field(
+        None, description="Default user ID requested for displayed message authorship"
+    )
     retry_count: int = Field(
         DEFAULT_RETRY.max_retries,
         description="Maximum number of retries for transient errors (0 to disable)",

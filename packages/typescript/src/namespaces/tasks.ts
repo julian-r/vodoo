@@ -50,9 +50,9 @@ export class TaskNamespace extends GeneratedTaskNamespace {
     options: CreateTaskOptions = {},
   ): Promise<number> {
     const values: Record<string, unknown> = {
+      ...options.extraFields,
       name,
       project_id: projectId,
-      ...options.extraFields,
     };
     if (
       options.description !== undefined &&

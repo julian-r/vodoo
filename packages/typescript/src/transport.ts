@@ -91,6 +91,17 @@ interface ResponseBody {
   text: string;
 }
 
+export function isRetryableMethod(method: string): boolean {
+  return RETRYABLE_METHODS.has(method);
+}
+
+export function retryDelayMs(
+  retry: Readonly<RetryConfig>,
+  attempt: number,
+): number {
+  return Math.min(retry.backoffBaseMs * 2 ** attempt, retry.backoffMaxMs);
+}
+
 const defaultSleep: Sleep = (milliseconds) =>
   new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 
@@ -217,7 +228,16 @@ export abstract class OdooTransport implements OdooTransportApi {
     const result = await this.executeKw(model, "create", [values], kwargs);
     const value =
       Array.isArray(result) && result.length === 1 ? result[0] : result;
-    return Number(value);
+    if (
+      typeof value !== "number" ||
+      !Number.isSafeInteger(value) ||
+      value <= 0
+    ) {
+      throw new TransportError("Create returned an invalid record ID", -1, {
+        resultType: Array.isArray(value) ? "array" : typeof value,
+      });
+    }
+    return value;
   }
 
   async write(
@@ -258,15 +278,10 @@ export abstract class OdooTransport implements OdooTransportApi {
         lastError = error;
         const shouldRetry =
           attempt < this.retry.maxRetries &&
-          RETRYABLE_METHODS.has(method) &&
+          isRetryableMethod(method) &&
           error instanceof NetworkError;
         if (!shouldRetry) throw error;
-        await this.sleepImplementation(
-          Math.min(
-            this.retry.backoffBaseMs * 2 ** attempt,
-            this.retry.backoffMaxMs,
-          ),
-        );
+        await this.sleepImplementation(retryDelayMs(this.retry, attempt));
       }
     }
     throw lastError;

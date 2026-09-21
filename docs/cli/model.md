@@ -10,12 +10,19 @@ Generic CRUD operations for any Odoo model. Useful for ad-hoc queries and models
 
 Create a new record in any model.
 
+Values that look like JSON arrays or objects are auto-parsed.
+You can also use the explicit json: prefix for clarity.
+
 Examples:
     vodoo model create product.template name="My Product" list_price=29.99
 
     vodoo model create res.partner name="John Doe" email=john@example.com
 
     vodoo model create project.task name="New Task" project_id=10
+
+    vodoo model create project.task name="Task" project_id=2 'depend_on_ids=[[6,0,[95]]]'
+
+    vodoo model create project.task name="Task" project_id=2 'depend_on_ids=json:[[6,0,[95]]]'
 
 **Arguments:**
 
@@ -28,15 +35,19 @@ Examples:
 
 Read record(s) from any model.
 
+Binary fields are summarized as '<binary N KB>' by default.
+Use --raw-binary to show raw base64 or --save-field to export.
+
 Examples:
-    # Read specific record
     vodoo model read product.template 42
 
-    # Search records
     vodoo model read product.template --domain='[["list_price",">","20.00"]]'
 
-    # With specific fields
     vodoo model read res.partner --field name --field email --limit 10
+
+    vodoo model read ir.attachment 99 --field datas --save-field datas -o report.pdf
+
+    vodoo model read ir.attachment 99 --field datas --raw-binary
 
 **Arguments:**
 
@@ -52,6 +63,9 @@ Examples:
 | `--domain` | TEXT | Search domain as JSON string |
 | `--field` / `-f` | TEXT | Fields to fetch |
 | `--limit` | INT | Maximum number of records (default: 50) |
+| `--save-field` | TEXT | Save a binary field to a file instead of displaying it |
+| `--output` / `-o` | PATH | Output file path for --save-field |
+| `--raw-binary` | BOOL | Show raw base64 for binary fields (default: summarize) |
 
 ### update
 
@@ -92,6 +106,34 @@ Examples:
 | `model` | TEXT | Model name |
 | `record_id` | INT | Record ID |
 
+### fields
+
+Show field definitions for a model.
+
+Examples:
+    vodoo model fields res.partner
+    vodoo model fields res.partner -a string -a type -a required
+    vodoo model fields res.partner --type many2one
+    vodoo model fields res.partner --required
+    vodoo model fields res.partner -f name -f email
+    vodoo model fields res.partner --search tax
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `model` | TEXT | Model name |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--field` / `-f` | TEXT | Specific fields to inspect |
+| `--attr` / `-a` | TEXT | Field attributes to return (e.g. string, type) |
+| `--type` / `-t` | TEXT | Filter by field type (e.g. many2one, char, boolean) |
+| `--required` | BOOL | Show only required fields |
+| `--search` / `-s` | TEXT | Filter fields by name substring |
+
 ### call
 
 Call a method on a model.
@@ -113,4 +155,3 @@ Examples:
 |--------|------|-------------|
 | `--args` | TEXT | JSON array of arguments (default: []) |
 | `--kwargs` | TEXT | JSON object of kwargs (default: {}) |
-

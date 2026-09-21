@@ -9,12 +9,87 @@ permissions:
   contents: write  # needed for gh-pages deployment
 
 jobs:
+  validate-release:
+    name: Validate release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+
+    - name: Verify release tag checkout
+      if: github.event_name == 'release'
+      env:
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+        test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$GITHUB_SHA"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.15.0
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: pnpm
+        cache-dependency-path: packages/typescript/pnpm-lock.yaml
+
+    - uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: "6.0"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        pnpm --dir packages/typescript install --frozen-lockfile
+
+    - name: Validate generated and Python sources
+      run: |
+        uv run python -m tools.codegen check
+        uv run ruff check .
+        uv run ruff format --check .
+        uv run mypy src/vodoo
+        uv run pytest tests/ --ignore=tests/integration -q
+
+    - name: Validate TypeScript and workerd package
+      run: |
+        pnpm --dir packages/typescript format:check
+        pnpm --dir packages/typescript typecheck
+        pnpm --dir packages/typescript typecheck:integration
+        pnpm --dir packages/typescript test
+        pnpm --dir packages/typescript test:worker
+        pnpm --dir packages/typescript build
+        uv run python scripts/stage_typescript_package.py --output /tmp/vodoo-npm
+        npm pack /tmp/vodoo-npm --pack-destination /tmp
+
+    - name: Validate Swift package
+      run: |
+        swift test --enable-code-coverage
+        python3 scripts/check_swift_coverage.py "$(swift test --show-codecov-path)"
+
   build:
     name: Build distribution
+    needs: validate-release
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -56,6 +131,62 @@ jobs:
 
     - name: Publish distribution to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-to-npm:
+    name: Publish TypeScript package to npm
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: validate-release
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/vodoo
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.15.0
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        registry-url: https://registry.npmjs.org
+        cache: pnpm
+        cache-dependency-path: packages/typescript/pnpm-lock.yaml
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install build dependencies
+      run: |
+        uv sync --extra dev
+        pnpm --dir packages/typescript install --frozen-lockfile
+
+    - name: Build and stage npm package
+      env:
+        RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      run: |
+        pnpm --dir packages/typescript build
+        uv run python scripts/stage_typescript_package.py \
+          --output dist/npm \
+          --version "$RELEASE_VERSION"
+        npm pack --dry-run ./dist/npm
+
+    - name: Publish npm package
+      working-directory: dist/npm
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: npm publish --access public --provenance
 
   publish-to-testpypi:
     name: Publish to TestPyPI

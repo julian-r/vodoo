@@ -9,7 +9,7 @@ import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -218,10 +218,7 @@ class OdooTransport(ABC):
         if context:
             kw["context"] = context
         result = self.execute_kw(model, "create", [values], kw if kw else None)
-        # JSON-2 returns a list of IDs (vals_list), unwrap single-record creates
-        if isinstance(result, list) and len(result) == 1:
-            return int(result[0])
-        return int(result)
+        return _coerce_created_id(result)
 
     def write(
         self,
@@ -437,6 +434,14 @@ class JSON2Transport(OdooTransport):
 
 
 # -- Shared helpers -----------------------------------------------------------
+
+
+def _coerce_created_id(result: Any) -> int:
+    """Validate and unwrap the record ID returned by ``create``."""
+    value = result[0] if isinstance(result, list) and len(result) == 1 else result
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise TransportError("Create returned an invalid record ID")
+    return cast(int, value)
 
 
 def _build_json2_body(  # noqa: PLR0912

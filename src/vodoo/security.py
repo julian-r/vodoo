@@ -2,166 +2,25 @@
 
 import secrets
 import string
-from dataclasses import dataclass
 from typing import Any
 
 from vodoo.client import OdooClient
+from vodoo.generated.security_groups import GROUP_DEFINITIONS
+from vodoo.security_definitions import AccessDefinition, GroupDefinition, RuleDefinition
+
+__all__ = [
+    "GROUP_DEFINITIONS",
+    "AccessDefinition",
+    "GroupDefinition",
+    "RuleDefinition",
+    "SecurityNamespace",
+]
 
 
 def _generate_password() -> str:
     """Generate a random 24-character password."""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return "".join(secrets.choice(alphabet) for _ in range(24))
-
-
-@dataclass(frozen=True)
-class AccessDefinition:
-    """Access control entry for a model."""
-
-    model: str
-    perm_read: bool
-    perm_write: bool
-    perm_create: bool
-    perm_unlink: bool
-
-
-@dataclass(frozen=True)
-class RuleDefinition:
-    """Record rule definition for a model."""
-
-    model: str
-    domain: str
-    perm_read: bool
-    perm_write: bool
-    perm_create: bool
-    perm_unlink: bool
-
-
-@dataclass(frozen=True)
-class GroupDefinition:
-    """Security group definition."""
-
-    name: str
-    comment: str
-    access: tuple[AccessDefinition, ...]
-    rules: tuple[RuleDefinition, ...] = ()
-
-
-GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
-    GroupDefinition(
-        name="API Mail Gateway",
-        comment="Standalone access for mail gateway (message_process via XML-RPC)",
-        access=(
-            # Core mail routing (message_process, message_route)
-            AccessDefinition("mail.message", True, False, False, False),
-            AccessDefinition("mail.message.subtype", True, False, False, False),
-            AccessDefinition("mail.alias", True, True, False, False),
-            AccessDefinition("mail.alias.domain", True, False, False, False),
-            # Author/user resolution (_mail_find_user_for_gateway, _mail_find_partner_from_emails)
-            AccessDefinition("mail.followers", True, False, False, False),
-            AccessDefinition("res.users", True, False, False, False),
-            AccessDefinition("res.partner", True, False, False, False),
-            # Model/data lookups (routing, _xmlid_to_res_id for subtypes)
-            AccessDefinition("ir.model", True, False, False, False),
-            AccessDefinition("ir.model.data", True, False, False, False),
-        ),
-    ),
-    GroupDefinition(
-        name="API Base",
-        comment="Core API access - required for all service accounts",
-        access=(
-            AccessDefinition("res.company", True, False, False, False),
-            AccessDefinition("res.users", True, False, False, False),
-            AccessDefinition("res.partner", True, False, False, False),
-            AccessDefinition("res.currency", True, False, False, False),
-            AccessDefinition("res.country", True, False, False, False),
-            AccessDefinition("res.country.state", True, False, False, False),
-            AccessDefinition("ir.attachment", True, True, True, False),
-            AccessDefinition("mail.message", True, True, True, False),
-            AccessDefinition("mail.message.subtype", True, False, False, False),
-            AccessDefinition("mail.followers", True, True, True, False),
-            AccessDefinition("mail.notification", True, True, True, False),
-        ),
-        rules=(
-            RuleDefinition("mail.message", "[(1, '=', 1)]", True, True, True, False),
-            RuleDefinition("mail.followers", "[(1, '=', 1)]", True, True, True, False),
-            RuleDefinition("mail.notification", "[(1, '=', 1)]", True, True, True, False),
-        ),
-    ),
-    GroupDefinition(
-        name="API CRM",
-        comment="CRM leads and opportunities",
-        access=(
-            AccessDefinition("crm.lead", True, True, True, False),
-            AccessDefinition("crm.tag", True, True, True, False),
-            AccessDefinition("crm.stage", True, False, False, False),
-            AccessDefinition("crm.team", True, False, False, False),
-            AccessDefinition("utm.source", True, False, False, False),
-            AccessDefinition("utm.medium", True, False, False, False),
-            AccessDefinition("utm.campaign", True, False, False, False),
-        ),
-        rules=(RuleDefinition("crm.lead", "[(1, '=', 1)]", True, True, True, False),),
-    ),
-    GroupDefinition(
-        name="API Project",
-        comment="Projects and tasks (follower-based access)",
-        access=(
-            AccessDefinition("project.project", True, True, True, False),
-            AccessDefinition("project.task", True, True, True, False),
-            AccessDefinition("project.task.type", True, False, False, False),
-            AccessDefinition("project.tags", True, True, True, False),
-            AccessDefinition("project.milestone", True, True, True, False),
-        ),
-        rules=(
-            RuleDefinition(
-                "project.project",
-                "[('message_partner_ids', 'in', [user.partner_id.id])]",
-                True,
-                True,
-                True,
-                False,
-            ),
-            RuleDefinition(
-                "project.task",
-                "[('project_id.message_partner_ids', 'in', [user.partner_id.id])]",
-                True,
-                True,
-                True,
-                False,
-            ),
-            RuleDefinition(
-                "project.milestone",
-                "[('project_id.message_partner_ids', 'in', [user.partner_id.id])]",
-                True,
-                True,
-                True,
-                False,
-            ),
-        ),
-    ),
-    GroupDefinition(
-        name="API Knowledge",
-        comment="Knowledge base articles",
-        access=(
-            AccessDefinition("knowledge.article", True, True, True, False),
-            AccessDefinition("knowledge.article.member", True, False, False, False),
-        ),
-        rules=(RuleDefinition("knowledge.article", "[(1, '=', 1)]", True, True, True, False),),
-    ),
-    GroupDefinition(
-        name="API Helpdesk",
-        comment="Helpdesk tickets",
-        access=(
-            AccessDefinition("helpdesk.ticket", True, True, True, False),
-            AccessDefinition("helpdesk.tag", True, True, True, False),
-            AccessDefinition("helpdesk.stage", True, False, False, False),
-            AccessDefinition("helpdesk.team", True, False, False, False),
-            AccessDefinition("helpdesk.ticket.type", True, False, False, False),
-            AccessDefinition("helpdesk.sla", True, False, False, False),
-        ),
-        rules=(RuleDefinition("helpdesk.ticket", "[(1, '=', 1)]", True, True, True, False),),
-    ),
-)
 
 
 def _access_name(group_name: str, model: str) -> str:

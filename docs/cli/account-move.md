@@ -125,4 +125,3 @@ Get the web URL for an account move.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `move_id` | INT | Account move ID |
-

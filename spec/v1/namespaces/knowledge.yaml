@@ -3,22 +3,44 @@ namespace: knowledge
 className: Knowledge
 model: knowledge.article
 recordType: Article
+capabilities:
+- crud
+- messaging
+- attachments
+availability:
+  module: knowledge
+  editions:
+  - enterprise
+  minVersion: 17
 defaultFields:
-  - id
-  - name
-  - parent_id
-  - category
-  - icon
-  - write_date
+- id
+- name
+- parent_id
+- category
+- icon
+- write_date
 defaultDetailFields:
-  - id
-  - name
-  - parent_id
-  - category
-  - icon
-  - body
-  - write_date
+- id
+- name
+- parent_id
+- category
+- icon
+- body
+- write_date
 dateFields:
   write_date: datetime
 fieldSets: {}
 operations: []
+customOperations:
+- name: create
+  description: Create a knowledge article.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift
+- name: resolveUrl
+  description: Resolve the server article URL when available.
+  targets:
+  - typescript
+  - swift

@@ -69,7 +69,7 @@ Add a comment to an article (visible to followers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### note
@@ -87,7 +87,7 @@ Add an internal note to an article.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### chatter
@@ -126,4 +126,3 @@ Get the web URL for an article.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `article_id` | INT | Article ID |
-

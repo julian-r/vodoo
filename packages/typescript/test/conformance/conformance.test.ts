@@ -2,19 +2,25 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { decodeBase64, encodeBase64 } from "../../src/binary.js";
+import { OdooClient } from "../../src/client.js";
+import { Cmd } from "../../src/commands.js";
 import {
   formatOdooDate,
   formatOdooDateTime,
   parseOdooDate,
   parseOdooDateTime,
 } from "../../src/dates.js";
-import { transportErrorFromData } from "../../src/errors.js";
+import { TransportError, transportErrorFromData } from "../../src/errors.js";
+import { HelpdeskNamespace } from "../../src/namespaces/helpdesk.js";
+import { RecordingClient } from "../../src/testing.js";
 import {
   buildJSON2Body,
   JSON2Transport,
   LegacyTransport,
+  isRetryableMethod,
   parseJSON2Response,
   parseNameSearch,
+  retryDelayMs,
 } from "../../src/transport.js";
 import type { Domain, FetchLike, JsonObject } from "../../src/types.js";
 
@@ -63,6 +69,51 @@ interface ExpectedRequest {
   readonly json: unknown;
 }
 
+interface CommandScenario {
+  readonly id: string;
+  readonly operation:
+    "create" | "update" | "delete" | "unlink" | "link" | "clear" | "set";
+  readonly args: readonly unknown[];
+  readonly expect: unknown;
+}
+
+interface RetryScenario {
+  readonly id: string;
+  readonly method: string;
+  readonly attempt: number;
+  readonly retryable: boolean;
+  readonly delayMs: number;
+}
+
+interface NormalizationScenario {
+  readonly id: string;
+  readonly input: Readonly<Record<string, unknown>>;
+  readonly expect: Readonly<Record<string, unknown>>;
+}
+
+interface OperationScenario {
+  readonly id: string;
+  readonly operation: "helpdesk.create";
+  readonly input: {
+    readonly name: string;
+    readonly description: string;
+    readonly partnerId: number;
+    readonly tagIds: readonly number[];
+    readonly teamId: number;
+    readonly extraFields: Readonly<Record<string, unknown>>;
+  };
+  readonly expectedModel: string;
+  readonly expectedValues: Readonly<Record<string, unknown>>;
+  readonly expectedResult: number;
+}
+
+interface CreateResultScenario {
+  readonly id: string;
+  readonly wire: unknown;
+  readonly expect?: number;
+  readonly expectError?: boolean;
+}
+
 interface TransportScenario {
   readonly id: string;
   readonly dialect: "json2" | "jsonrpc";
@@ -99,6 +150,11 @@ interface Fixture {
   readonly errors: readonly ErrorScenario[];
   readonly dates: readonly DateScenario[];
   readonly binary: readonly BinaryScenario[];
+  readonly commands: readonly CommandScenario[];
+  readonly retry: readonly RetryScenario[];
+  readonly normalization: readonly NormalizationScenario[];
+  readonly operations: readonly OperationScenario[];
+  readonly createResults: readonly CreateResultScenario[];
   readonly transports: readonly TransportScenario[];
 }
 
@@ -196,6 +252,105 @@ describe("shared cross-language conformance fixture", () => {
       const encoded = encodeBase64(new Uint8Array(scenario.bytes));
       expect(encoded).toBe(scenario.base64);
       expect([...decodeBase64(encoded)]).toEqual(scenario.bytes);
+    });
+  }
+
+  for (const scenario of fixture.commands) {
+    it(`serializes command: ${scenario.id}`, () => {
+      const [first, second] = scenario.args;
+      const value = {
+        create: () => Cmd.create(first as Readonly<Record<string, unknown>>),
+        update: () =>
+          Cmd.update(
+            first as number,
+            second as Readonly<Record<string, unknown>>,
+          ),
+        delete: () => Cmd.delete(first as number),
+        unlink: () => Cmd.unlink(first as number),
+        link: () => Cmd.link(first as number),
+        clear: () => Cmd.clear(),
+        set: () => Cmd.set(first as readonly number[]),
+      }[scenario.operation]();
+      expect(value).toEqual(scenario.expect);
+    });
+  }
+
+  for (const scenario of fixture.retry) {
+    it(`applies retry policy: ${scenario.id}`, () => {
+      expect(isRetryableMethod(scenario.method)).toBe(scenario.retryable);
+      expect(
+        retryDelayMs(
+          { maxRetries: 2, backoffBaseMs: 500, backoffMaxMs: 30_000 },
+          scenario.attempt,
+        ),
+      ).toBe(scenario.delayMs);
+    });
+  }
+
+  for (const scenario of fixture.normalization) {
+    it(`normalizes records: ${scenario.id}`, async () => {
+      const fetch: FetchLike = async () =>
+        new Response(JSON.stringify([scenario.input]), { status: 200 });
+      const transport = new JSON2Transport({
+        url: "https://odoo.example.test",
+        database: "fixture-db",
+        username: "fixture-user",
+        password: "fixture-key",
+        fetch,
+      });
+      const client = new OdooClient(
+        {
+          url: "https://odoo.example.test",
+          database: "fixture-db",
+          username: "fixture-user",
+          password: "fixture-key",
+        },
+        { transport },
+      );
+      await expect(client.searchRead("res.partner")).resolves.toEqual([
+        scenario.expect,
+      ]);
+    });
+  }
+
+  for (const scenario of fixture.operations) {
+    it(`records operation: ${scenario.id}`, async () => {
+      const client = new RecordingClient(undefined, [scenario.expectedResult]);
+      const namespace = new HelpdeskNamespace(client);
+      const result = await namespace.create(scenario.input.name, {
+        description: scenario.input.description,
+        partnerId: scenario.input.partnerId,
+        tagIds: scenario.input.tagIds,
+        teamId: scenario.input.teamId,
+        extraFields: scenario.input.extraFields,
+      });
+      expect(result).toBe(scenario.expectedResult);
+      expect(client.calls).toEqual([
+        {
+          method: "create",
+          args: [scenario.expectedModel, scenario.expectedValues, undefined],
+        },
+      ]);
+    });
+  }
+
+  for (const scenario of fixture.createResults) {
+    it(`validates create result: ${scenario.id}`, async () => {
+      const fetch: FetchLike = async () =>
+        new Response(JSON.stringify(scenario.wire), { status: 200 });
+      const transport = new JSON2Transport({
+        url: "https://odoo.example.test",
+        database: "fixture-db",
+        username: "fixture-user",
+        password: "fixture-key",
+        fetch,
+      });
+      const result = transport.create("res.partner", { name: "Fixture" });
+      if (scenario.expectError === true) {
+        await expect(result).rejects.toBeInstanceOf(TransportError);
+      } else {
+        await expect(result).resolves.toBe(scenario.expect);
+      }
     });
   }
 

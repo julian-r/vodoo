@@ -472,12 +472,16 @@ def add_comment(
 ) -> bool:
     """Add a comment to a record (visible to customers).
 
+    ``user_id`` requests displayed author attribution only. Cross-user attribution
+    requires an internal authenticated user; Odoo may reject or override it for share
+    users, which can reliably attribute only to their own partner.
+
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         message: Comment message (plain text or markdown)
-        user_id: User ID to post as (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         markdown: If True, convert markdown to HTML (default: True)
 
     Returns:
@@ -505,12 +509,16 @@ def add_note(
 ) -> bool:
     """Add an internal note to a record (not visible to customers).
 
+    ``user_id`` requests displayed author attribution only. Cross-user attribution
+    requires an internal authenticated user; Odoo may reject or override it for share
+    users, which can reliably attribute only to their own partner.
+
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         message: Note message (plain text or markdown)
-        user_id: User ID to post as (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         markdown: If True, convert markdown to HTML (default: True)
 
     Returns:
@@ -647,10 +655,11 @@ def _html_to_markdown(html: str) -> str:
         Markdown-formatted text
 
     """
-    from html import unescape
-
+    # Let HTMLParser decode character references after it has identified tags.
+    # Pre-unescaping would turn text such as ``&lt;placeholder&gt;`` into apparent
+    # markup and silently discard it.
     parser = _HTMLToMarkdown()
-    parser.feed(unescape(html))
+    parser.feed(html)
     return parser.get_markdown()
 
 

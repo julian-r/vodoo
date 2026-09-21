@@ -55,7 +55,7 @@ Add a comment to a lead (visible to followers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown conversion |
 
 ### note
@@ -73,7 +73,7 @@ Add an internal note to a lead (not visible to followers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown conversion |
 
 ### tags
@@ -148,8 +148,8 @@ Download all attachments from a lead.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--output` / `-o` | PATH | Output dir |
-| `--ext` | TEXT | Filter by extension |
+| `--output` / `-o` | PATH | Output directory (defaults to current directory) |
+| `--extension` / `--ext` | TEXT | Filter by file extension (e.g., pdf, jpg, png) |
 
 ### fields
 
@@ -213,3 +213,58 @@ Get the web URL for a lead.
 |----------|------|-------------|
 | `lead_id` | INT | Lead/Opportunity ID |
 
+### create
+
+Create a new CRM lead or opportunity.
+
+Examples:
+    vodoo crm create "New deal" --revenue 5000
+    vodoo crm create "Prospect" --type lead --partner 42
+    vodoo crm create "Big deal" -r 50000 --stage 3 --user 5 --tag 1 --tag 2
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `name` | TEXT | Lead/opportunity name |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--partner` / `-p` | INT | Customer partner ID |
+| `--revenue` / `-r` | FLOAT | Expected revenue |
+| `--stage` | INT | Pipeline stage ID |
+| `--user` / `-u` | INT | Salesperson user ID |
+| `--team` | INT | Sales team ID |
+| `--tag` / `-t` | INT | Tag ID (can repeat) |
+| `--type` | TEXT | Type: 'lead' or 'opportunity' (default: opportunity) |
+
+### stages
+
+List CRM pipeline stages.
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--team` | INT | Filter by sales team ID |
+
+### pipeline
+
+Show pipeline summary with stage counts, revenue, and weighted totals.
+
+Examples:
+    vodoo crm pipeline
+    vodoo crm pipeline --team "Sales"
+    vodoo crm pipeline --health --deals
+    vodoo --json crm pipeline
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--team` | TEXT | Filter by sales team name |
+| `--user` | TEXT | Filter by salesperson name |
+| `--health` | BOOL | Show health flags (stale, missing data) |
+| `--deals` | BOOL | Expand individual deals under each stage |

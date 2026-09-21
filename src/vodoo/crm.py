@@ -67,7 +67,7 @@ class CRMNamespace(GeneratedCRMNamespace):
             ID of created record.
 
         """
-        values: dict[str, Any] = {"name": name, "type": lead_type, **extra_fields}
+        values: dict[str, Any] = {**extra_fields, "name": name, "type": lead_type}
         if partner_id is not None:
             values["partner_id"] = partner_id
         if expected_revenue is not None:

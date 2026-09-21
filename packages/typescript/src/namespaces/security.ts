@@ -2,6 +2,7 @@ import type { OdooClientApi } from "../client-api.js";
 import { Cmd } from "../commands.js";
 import { VodooError } from "../errors.js";
 import type { OdooRecord } from "../types.js";
+import { GROUP_DEFINITIONS } from "../generated/security_groups.js";
 
 export interface AccessDefinition {
   readonly model: string;
@@ -22,145 +23,7 @@ export interface GroupDefinition {
   readonly rules?: readonly RuleDefinition[];
 }
 
-const access = (
-  model: string,
-  permRead: boolean,
-  permWrite: boolean,
-  permCreate: boolean,
-  permUnlink: boolean,
-): AccessDefinition => ({ model, permRead, permWrite, permCreate, permUnlink });
-
-const rule = (
-  model: string,
-  domain: string,
-  permRead: boolean,
-  permWrite: boolean,
-  permCreate: boolean,
-  permUnlink: boolean,
-): RuleDefinition => ({
-  model,
-  domain,
-  permRead,
-  permWrite,
-  permCreate,
-  permUnlink,
-});
-
-export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
-  {
-    name: "API Mail Gateway",
-    comment: "Standalone access for mail gateway (message_process via XML-RPC)",
-    access: [
-      access("mail.message", true, false, false, false),
-      access("mail.message.subtype", true, false, false, false),
-      access("mail.alias", true, true, false, false),
-      access("mail.alias.domain", true, false, false, false),
-      access("mail.followers", true, false, false, false),
-      access("res.users", true, false, false, false),
-      access("res.partner", true, false, false, false),
-      access("ir.model", true, false, false, false),
-      access("ir.model.data", true, false, false, false),
-    ],
-  },
-  {
-    name: "API Base",
-    comment: "Core API access - required for all service accounts",
-    access: [
-      access("res.company", true, false, false, false),
-      access("res.users", true, false, false, false),
-      access("res.partner", true, false, false, false),
-      access("res.currency", true, false, false, false),
-      access("res.country", true, false, false, false),
-      access("res.country.state", true, false, false, false),
-      access("ir.attachment", true, true, true, false),
-      access("mail.message", true, true, true, false),
-      access("mail.message.subtype", true, false, false, false),
-      access("mail.followers", true, true, true, false),
-      access("mail.notification", true, true, true, false),
-    ],
-    rules: [
-      rule("mail.message", "[(1, '=', 1)]", true, true, true, false),
-      rule("mail.followers", "[(1, '=', 1)]", true, true, true, false),
-      rule("mail.notification", "[(1, '=', 1)]", true, true, true, false),
-    ],
-  },
-  {
-    name: "API CRM",
-    comment: "CRM leads and opportunities",
-    access: [
-      access("crm.lead", true, true, true, false),
-      access("crm.tag", true, true, true, false),
-      access("crm.stage", true, false, false, false),
-      access("crm.team", true, false, false, false),
-      access("utm.source", true, false, false, false),
-      access("utm.medium", true, false, false, false),
-      access("utm.campaign", true, false, false, false),
-    ],
-    rules: [rule("crm.lead", "[(1, '=', 1)]", true, true, true, false)],
-  },
-  {
-    name: "API Project",
-    comment: "Projects and tasks (follower-based access)",
-    access: [
-      access("project.project", true, true, true, false),
-      access("project.task", true, true, true, false),
-      access("project.task.type", true, false, false, false),
-      access("project.tags", true, true, true, false),
-      access("project.milestone", true, true, true, false),
-    ],
-    rules: [
-      rule(
-        "project.project",
-        "[('message_partner_ids', 'in', [user.partner_id.id])]",
-        true,
-        true,
-        true,
-        false,
-      ),
-      rule(
-        "project.task",
-        "[('project_id.message_partner_ids', 'in', [user.partner_id.id])]",
-        true,
-        true,
-        true,
-        false,
-      ),
-      rule(
-        "project.milestone",
-        "[('project_id.message_partner_ids', 'in', [user.partner_id.id])]",
-        true,
-        true,
-        true,
-        false,
-      ),
-    ],
-  },
-  {
-    name: "API Knowledge",
-    comment: "Enterprise knowledge base articles",
-    access: [
-      access("knowledge.article", true, true, true, false),
-      access("knowledge.article.member", true, false, false, false),
-    ],
-    rules: [
-      rule("knowledge.article", "[(1, '=', 1)]", true, true, true, false),
-    ],
-  },
-  {
-    name: "API Helpdesk",
-    comment: "Enterprise helpdesk tickets",
-    access: [
-      access("helpdesk.ticket", true, true, true, false),
-      access("helpdesk.tag", true, true, true, false),
-      access("helpdesk.stage", true, false, false, false),
-      access("helpdesk.team", true, false, false, false),
-      access("helpdesk.ticket.type", true, false, false, false),
-      access("helpdesk.sla", true, false, false, false),
-    ],
-    rules: [rule("helpdesk.ticket", "[(1, '=', 1)]", true, true, true, false)],
-  },
-]);
-
+export { GROUP_DEFINITIONS };
 export interface GroupResult {
   readonly groupIds: Readonly<Record<string, number>>;
   readonly warnings: readonly string[];

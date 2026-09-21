@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/julian-r/vodoo/spec/v1/schema.json",
+  "title": "Vodoo namespace specification v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specVersion",
+    "namespace",
+    "className",
+    "model",
+    "recordType",
+    "capabilities",
+    "availability",
+    "defaultFields"
+  ],
+  "properties": {
+    "specVersion": { "const": 1 },
+    "namespace": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "className": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+    "model": { "type": "string", "minLength": 1 },
+    "recordType": { "type": "string", "minLength": 1 },
+    "tagModel": { "type": ["string", "null"] },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "prefixItems": [{ "const": "crud" }],
+      "items": { "enum": ["crud", "messaging", "tags", "attachments"] }
+    },
+    "availability": { "$ref": "#/$defs/availability" },
+    "defaultFields": { "$ref": "#/$defs/fields" },
+    "defaultDetailFields": {
+      "oneOf": [{ "$ref": "#/$defs/fields" }, { "type": "null" }]
+    },
+    "dateFields": {
+      "type": "object",
+      "additionalProperties": { "enum": ["date", "datetime"] }
+    },
+    "fieldSets": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/fields" }
+    },
+    "fieldSetDateFields": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "enum": ["date", "datetime"] }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "customOperations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/customOperation" }
+    }
+  },
+  "$defs": {
+    "fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module", "editions", "minVersion"],
+      "properties": {
+        "module": { "type": "string", "minLength": 1 },
+        "editions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["community", "enterprise"] }
+        },
+        "minVersion": { "type": "integer", "minimum": 17, "maximum": 19 },
+        "maxVersion": { "type": ["integer", "null"], "minimum": 17, "maximum": 19 }
+      }
+    },
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "parameter", "field", "operator"],
+      "properties": {
+        "kind": { "enum": ["required", "optional", "optionalList"] },
+        "parameter": { "type": "string" },
+        "field": { "type": "string" },
+        "operator": { "type": "string" }
+      }
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "kind", "description", "model", "fields", "order"],
+          "properties": {
+            "name": { "type": "string" },
+            "kind": { "const": "searchRead" },
+            "description": { "type": "string" },
+            "model": { "type": "string" },
+            "fields": { "type": "string" },
+            "order": { "type": "string" },
+            "domain": { "oneOf": [{ "$ref": "#/$defs/domain" }, { "type": "null" }] },
+            "pythonKeywordOnly": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "kind", "description", "model", "idParameter", "values"],
+          "properties": {
+            "name": { "type": "string" },
+            "kind": { "const": "write" },
+            "description": { "type": "string" },
+            "model": { "type": "string" },
+            "idParameter": { "type": "string" },
+            "values": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "customOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "targets"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["python", "asyncPython", "typescript", "swift"] }
+        }
+      }
+    }
+  }
+}

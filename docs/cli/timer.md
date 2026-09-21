@@ -51,4 +51,3 @@ Examples:
 ### active
 
 Show only currently running timers.
-

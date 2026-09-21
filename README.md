@@ -11,7 +11,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 
-A Python library and CLI for Odoo. Use it as a **library** in your own scripts, services, and automations — or as a **CLI** for quick ad-hoc operations and AI-assisted workflows.
+A multi-language Odoo SDK for Python, TypeScript/Cloudflare Workers, and Swift, plus a Python CLI. Use it in scripts, services, apps, and automations — or as a CLI for quick ad-hoc operations and AI-assisted workflows.
 
 Supports helpdesk tickets, project tasks, projects, CRM leads/opportunities, accounting moves, knowledge articles, and timesheets across Odoo 17–19.
 
@@ -42,6 +42,54 @@ try:
 except RecordNotFoundError as e:
     print(f"{e.model} #{e.record_id} not found")
 ```
+
+## Quick Start — TypeScript
+
+```bash
+npm install vodoo
+```
+
+```typescript
+import { OdooClient } from "vodoo";
+
+const client = new OdooClient({
+  url: "https://my-instance.odoo.com",
+  database: "mydb",
+  username: "bot@example.com",
+  password: "api-key-or-password",
+});
+const tasks = await client.tasks.list({ limit: 10 });
+```
+
+The TypeScript package is Web Standards-only and is smoke-tested in Cloudflare workerd.
+
+## Quick Start — Swift
+
+Add this repository as a Swift Package dependency, then:
+
+```swift
+import Vodoo
+
+let config = OdooConfig(
+    url: URL(string: "https://my-instance.odoo.com")!,
+    database: "mydb",
+    username: "bot@example.com",
+    password: "api-key-or-password"
+)
+let client = OdooClient(config: config)
+let tasks = try await client.tasks.list(limit: 10)
+let taskID = try await client.tasks.create(
+    "Deploy",
+    projectID: 7,
+    options: CreateTaskOptions(description: "**Ship it**")
+)
+```
+
+Python, TypeScript, and Swift provide the same non-CLI feature surface: generic CRUD,
+projects and tasks, CRM pipelines, activities, account moves, helpdesk, knowledge,
+documents, messaging, tags, attachments, security provisioning, and timers. TypeScript
+and Swift document APIs use native in-memory bytes (`Uint8Array` and `Data`); Python and
+async Python document upload/download operations use filesystem paths.
 
 ## Quick Start — CLI
 
@@ -74,6 +122,8 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 
 - 🐍 Clean Python API — `OdooClient` with namespace helpers (`client.helpdesk`, `client.crm`, etc.)
 - ⚡ Full async support via `vodoo.aio` — `AsyncOdooClient` with async context manager
+- 🌐 Feature-equivalent TypeScript SDK for Node.js and Cloudflare Workers
+- 🍎 Feature-equivalent native Swift SDK distributed with Swift Package Manager
 - 🎯 Structured exception hierarchy mirroring Odoo server errors
 - 📦 No CLI dependencies loaded when imported as a library
 - 🔒 Strict mypy typing throughout
@@ -118,8 +168,12 @@ ODOO_DATABASE=your_database
 ODOO_USERNAME=your_username
 ODOO_PASSWORD=your_password_or_api_key
 # Optional alternative: ODOO_PASSWORD_REF=op://Vault/Item/password
-ODOO_DEFAULT_USER_ID=123  # Optional: default user for sudo operations
+ODOO_DEFAULT_USER_ID=123  # Optional: requested displayed author for comments/notes
 ```
+
+Cross-user author attribution requires an internal authenticated Odoo user. Odoo may reject
+or override it for share users; share service accounts can reliably attribute messages only
+to their own partner.
 
 Multi-instance profiles are also supported:
 
@@ -337,7 +391,7 @@ src/vodoo/
 ├── client.py             # OdooClient — delegates to transport layer
 ├── transport.py          # Transport abstraction (JSON-2 + legacy JSON-RPC)
 ├── config.py             # Pydantic configuration from env/.env files
-├── auth.py               # Authentication and sudo utilities
+├── auth.py               # Authentication and author-attribution utilities
 ├── _domain.py            # DomainNamespace base — shared CRUD, messaging, attachments
 ├── main.py               # CLI entry point (Typer) — not loaded by library imports
 ├── helpdesk.py           # Helpdesk ticket operations (enterprise)
@@ -358,7 +412,7 @@ src/vodoo/
 
 ## Integration Tests
 
-The combined native suites run 186 Community and 272 Enterprise live scenarios per Odoo version against real instances in Docker:
+CI runs the Python, TypeScript, and Swift native SDK suites against real Community and Enterprise instances for every supported Odoo version. The local runner provisions the instance and runs Python and TypeScript:
 
 ```bash
 ./tests/integration/run.sh  # All Community editions (17, 18, 19)
@@ -382,11 +436,16 @@ uv run mypy src/vodoo
 pnpm --dir packages/typescript typecheck
 pnpm --dir packages/typescript test
 
-# Shared Python/TypeScript transport and codec contract
+# Shared Python/TypeScript/Swift transport and codec contract
 uv run pytest tests/conformance -q
+swift test --enable-code-coverage
+python3 scripts/check_swift_coverage.py "$(swift test --show-codecov-path)"
 ```
 
-Both SDKs independently validate the transport/error contract in `conformance/fixtures/v1.json`; neither language implementation is used as the conformance oracle. The fixture's date and binary rows are neutral cross-runtime vectors.
+The Swift gate excludes generated sources and currently enforces 80% lines, 74% functions,
+and 68% regions.
+
+All three SDKs independently validate `conformance/fixtures/v1.json`; no language implementation is used as the conformance oracle. The fixture's protocol, date, binary, command, and operation rows are neutral cross-runtime vectors.
 
 ## Publishing
 
@@ -396,7 +455,7 @@ Version is derived from git tags via `hatch-vcs`:
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-GitHub Actions builds and publishes to PyPI automatically.
+One release tag versions PyPI, npm, and the Swift Package. GitHub Actions publishes Python and TypeScript artifacts; Swift Package Manager resolves the same repository tag. Breaking changes to generated public APIs require a major version, additions require a minor version, and compatible fixes require a patch version.
 
 ## License
 

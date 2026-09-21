@@ -56,7 +56,7 @@ The documents namespace probes the running server's legacy `documents.folder` ve
 
 ## Development
 
-The source manifest is intentionally marked private and has no hard-coded version. Release automation will stage a publishable manifest using the repository's git-tag version.
+The source manifest is intentionally marked private and has no hard-coded version. `scripts/stage_typescript_package.py` creates a publishable manifest from the repository git-tag version. CI verifies the staged tarball, and the release workflow publishes it to npm alongside PyPI.
 
 ```bash
 uv run python -m tools.codegen check

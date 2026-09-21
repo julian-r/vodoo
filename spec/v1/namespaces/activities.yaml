@@ -3,33 +3,49 @@ namespace: activities
 className: Activity
 model: mail.activity
 recordType: Activity
+capabilities:
+- crud
+availability:
+  module: mail
+  editions:
+  - community
+  - enterprise
+  minVersion: 17
 defaultFields:
-  - id
-  - res_model
-  - res_id
-  - res_name
-  - summary
-  - activity_type_id
-  - date_deadline
-  - user_id
-  - state
-  - note
+- id
+- res_model
+- res_id
+- res_name
+- summary
+- activity_type_id
+- date_deadline
+- user_id
+- state
+- note
 defaultDetailFields:
-  - id
-  - res_model
-  - res_id
-  - res_name
-  - summary
-  - activity_type_id
-  - date_deadline
-  - user_id
-  - state
-  - note
-  - create_date
-  - write_date
+- id
+- res_model
+- res_id
+- res_name
+- summary
+- activity_type_id
+- date_deadline
+- user_id
+- state
+- note
+- create_date
+- write_date
 dateFields:
   date_deadline: date
   create_date: datetime
   write_date: datetime
 fieldSets: {}
 operations: []
+customOperations:
+- name: done
+  description: Mark an activity as done.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift

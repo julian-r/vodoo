@@ -1,6 +1,31 @@
 """Focused tests for Vodoo security group definitions."""
 
+import subprocess
+import sys
+
 from vodoo.security import GROUP_DEFINITIONS
+
+
+def test_generated_security_groups_can_be_imported_directly() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from vodoo.generated.security_groups import GROUP_DEFINITIONS; "
+            "assert GROUP_DEFINITIONS",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_api_base_can_resolve_stable_message_subtype_external_ids() -> None:
+    base_group = next(group for group in GROUP_DEFINITIONS if group.name == "API Base")
+    model_data = next(entry for entry in base_group.access if entry.model == "ir.model.data")
+    assert model_data.perm_read is True
+    assert model_data.perm_write is False
 
 
 def test_project_milestone_rule_uses_project_follower_boundary() -> None:

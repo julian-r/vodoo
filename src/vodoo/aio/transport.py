@@ -20,6 +20,7 @@ from vodoo.transport import (
     DEFAULT_RETRY,
     RetryConfig,
     _build_json2_body,
+    _coerce_created_id,
     _parse_json2_response,
     _parse_name_search,
 )
@@ -171,9 +172,7 @@ class AsyncOdooTransport(ABC):
         if context:
             kw["context"] = context
         result = await self.execute_kw(model, "create", [values], kw if kw else None)
-        if isinstance(result, list) and len(result) == 1:
-            return int(result[0])
-        return int(result)
+        return _coerce_created_id(result)
 
     async def write(
         self,

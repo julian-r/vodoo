@@ -94,7 +94,7 @@ Add a comment to a task (visible to followers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### note
@@ -112,7 +112,7 @@ Add an internal note to a task.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### tags
@@ -307,11 +307,7 @@ Assign a project task to a milestone.
 | `task_id` | INT | Task ID |
 | `milestone_id` | INT | Milestone ID |
 
-### depends
-
-Project task dependency operations
-
-#### depends add
+### depends add
 
 Add one or more dependencies to a task without replacing existing dependencies.
 
@@ -322,7 +318,7 @@ Add one or more dependencies to a task without replacing existing dependencies.
 | `task_id` | INT | Blocked task ID |
 | `blocked_by_ids` | INT... | IDs of tasks that must be completed first |
 
-#### depends clear
+### depends clear
 
 Remove all dependencies from a task.
 
@@ -331,4 +327,3 @@ Remove all dependencies from a task.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `task_id` | INT | Task ID |
-

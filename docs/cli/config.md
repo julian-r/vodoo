@@ -45,4 +45,3 @@ Test authentication with the selected instance.
 | Option | Type | Description |
 |--------|------|-------------|
 | `--instance` / `-i` | TEXT | Instance/profile name to test |
-

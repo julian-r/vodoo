@@ -13,12 +13,24 @@ export interface SearchReadOptions extends SearchOptions {
 
 export interface OdooClientApi {
   readonly url: string;
+  readonly username: string;
   readonly defaultUserId: number | undefined;
   readonly isJson2: boolean;
   getUid(): Promise<number>;
   execute(
     model: string,
     method: string,
+    args?: readonly unknown[],
+    kwargs?: Readonly<Record<string, unknown>>,
+  ): Promise<unknown>;
+  /**
+   * Inject `sudo_user_id` into the call context.
+   * This requires server-side support and does not change authentication or access checks itself.
+   */
+  executeWithUserContext(
+    model: string,
+    method: string,
+    userId: number,
     args?: readonly unknown[],
     kwargs?: Readonly<Record<string, unknown>>,
   ): Promise<unknown>;

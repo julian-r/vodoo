@@ -158,6 +158,24 @@ class OdooClient:
         """
         return self._transport.execute_kw(model, method, list(args), kwargs or None)
 
+    def execute_with_user_context(
+        self,
+        model: str,
+        method: str,
+        user_id: int,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute with a ``sudo_user_id`` context hint.
+
+        This does not change the authenticated identity or access checks by itself.
+        It only has an effect when server-side code explicitly interprets the context key.
+        """
+        context = dict(kwargs.get("context") or {})
+        context["sudo_user_id"] = user_id
+        kwargs["context"] = context
+        return self.execute(model, method, *args, **kwargs)
+
     def execute_sudo(
         self,
         model: str,
@@ -166,22 +184,12 @@ class OdooClient:
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        """Execute a method as another user using sudo.
+        """Backward-compatible alias for :meth:`execute_with_user_context`.
 
-        Args:
-            model: Odoo model name
-            method: Method name
-            user_id: User ID to execute as
-            *args: Positional arguments
-            **kwargs: Keyword arguments
-
-        Returns:
-            Method result
+        Despite the historical name, this does not impersonate another user or bypass
+        access checks unless custom server-side code honors ``sudo_user_id``.
         """
-        if "context" not in kwargs:
-            kwargs["context"] = {}
-        kwargs["context"]["sudo_user_id"] = user_id
-        return self.execute(model, method, *args, **kwargs)
+        return self.execute_with_user_context(model, method, user_id, *args, **kwargs)
 
     def search(
         self,

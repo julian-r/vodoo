@@ -13,7 +13,12 @@ describe("TaskNamespace", () => {
         userIds: [2],
         tagIds: [3],
         parentId: 4,
-        extraFields: { priority: "1" },
+        extraFields: {
+          name: "Ignored",
+          project_id: 999,
+          description: "Ignored",
+          priority: "1",
+        },
       }),
     ).resolves.toBe(21);
     expect(client.calls[0]).toEqual({

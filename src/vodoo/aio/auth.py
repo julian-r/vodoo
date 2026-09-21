@@ -10,7 +10,7 @@ from vodoo.exceptions import ConfigurationError, RecordNotFoundError
 
 
 async def get_default_user_id(client: AsyncOdooClient, username: str | None = None) -> int:
-    """Get the default user ID for sudo operations.
+    """Get the default requested-author user ID for message operations.
 
     Args:
         client: Async Odoo client
@@ -66,7 +66,11 @@ async def message_post_sudo(
     is_note: bool = False,
     **kwargs: Any,
 ) -> bool:
-    """Post a message or note as a specific user using sudo.
+    """Post a message or note requesting a specific displayed author.
+
+    Cross-user attribution requires an internal authenticated user. Odoo may reject or
+    override it for share users, which can reliably attribute only to their own partner.
+    This does not change the authenticated identity, access checks, or auditing.
 
     Returns:
         True if successful
@@ -94,14 +98,18 @@ async def message_post_sudo_with_id(
     is_note: bool = False,
     **kwargs: Any,
 ) -> int:
-    """Post a message or note as a specific user and return its message ID.
+    """Post requesting a specific displayed author and return the message ID.
+
+    Cross-user attribution requires an internal authenticated user. Odoo may reject or
+    override it for share users, which can reliably attribute only to their own partner.
+    This does not change the authenticated identity, access checks, or auditing.
 
     Args:
         client: Async Odoo client
         model: Model name (e.g., 'helpdesk.ticket')
         res_id: Record ID
         body: Message body (HTML)
-        user_id: User ID to post as (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         message_type: Type of message ('comment' or 'notification')
         is_note: If True, creates an internal note
         **kwargs: Additional arguments for message_post
@@ -120,10 +128,16 @@ async def message_post_sudo_with_id(
 
     partner_id = await get_partner_id_from_user(client, user_id)
 
-    subtype_name = "Note" if is_note else "Discussions"
-    subtype_ids = await client.search(
-        "mail.message.subtype", domain=[("name", "=", subtype_name)], limit=1
+    subtype_xmlid = "mt_note" if is_note else "mt_comment"
+    subtype_rows = await client.search_read(
+        "ir.model.data",
+        domain=[("module", "=", "mail"), ("name", "=", subtype_xmlid)],
+        fields=["res_id"],
+        limit=1,
     )
+    subtype_id = subtype_rows[0].get("res_id") if subtype_rows else None
+    if not isinstance(subtype_id, int) or isinstance(subtype_id, bool) or subtype_id <= 0:
+        raise RecordNotFoundError("mail.message.subtype", 0)
 
     effective_message_type = "notification" if is_note else message_type
 
@@ -132,7 +146,7 @@ async def message_post_sudo_with_id(
         "res_id": res_id,
         "body": body,
         "message_type": effective_message_type,
-        "subtype_id": subtype_ids[0] if subtype_ids else False,
+        "subtype_id": subtype_id,
         "author_id": partner_id,
         **kwargs,
     }

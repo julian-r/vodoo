@@ -3,87 +3,119 @@ namespace: projects
 className: Project
 model: project.project
 recordType: Project
+capabilities:
+- crud
+- messaging
+- attachments
+availability:
+  module: project
+  editions:
+  - community
+  - enterprise
+  minVersion: 17
 defaultFields:
-  - id
-  - name
-  - user_id
-  - partner_id
-  - date_start
-  - date
-  - task_count
-  - color
+- id
+- name
+- user_id
+- partner_id
+- date_start
+- date
+- task_count
+- color
 defaultDetailFields:
-  - id
-  - name
-  - description
-  - active
-  - user_id
-  - partner_id
-  - company_id
-  - date_start
-  - date
-  - task_count
-  - tag_ids
-  - color
-  - write_date
+- id
+- name
+- description
+- active
+- user_id
+- partner_id
+- company_id
+- date_start
+- date
+- task_count
+- tag_ids
+- color
+- write_date
 dateFields:
   date_start: date
   date: date
   write_date: datetime
 fieldSets:
   stages:
-    - id
-    - name
-    - sequence
-    - fold
-    - project_ids
+  - id
+  - name
+  - sequence
+  - fold
+  - project_ids
   milestones:
-    - id
-    - name
-    - project_id
-    - deadline
-    - is_reached
-    - reached_date
-    - is_deadline_exceeded
+  - id
+  - name
+  - project_id
+  - deadline
+  - is_reached
+  - reached_date
+  - is_deadline_exceeded
   milestoneTasks:
-    - id
-    - name
-    - project_id
-    - milestone_id
-    - stage_id
-    - user_ids
-    - priority
+  - id
+  - name
+  - project_id
+  - milestone_id
+  - stage_id
+  - user_ids
+  - priority
 fieldSetDateFields:
   milestones:
     deadline: date
     reached_date: date
 operations:
-  - name: stages
-    kind: searchRead
-    description: List task stages, optionally filtered by project.
-    model: project.task.type
-    fields: stages
-    order: sequence
-    domain:
-      kind: optionalList
-      parameter: projectId
-      field: project_ids
-      operator: in
-  - name: reachMilestone
-    kind: write
-    description: Mark a milestone as reached.
-    model: project.milestone
-    idParameter: milestoneId
-    values:
-      is_reached: true
-  - name: milestoneTasks
-    kind: searchRead
-    description: List tasks assigned to a milestone.
-    model: project.task
-    fields: milestoneTasks
-    order: id
-    domain:
-      kind: required
-      parameter: milestoneId
-      field: milestone_id
-      operator: "="
+- name: stages
+  kind: searchRead
+  description: List task stages, optionally filtered by project.
+  model: project.task.type
+  fields: stages
+  order: sequence
+  domain:
+    kind: optionalList
+    parameter: projectId
+    field: project_ids
+    operator: in
+- name: reachMilestone
+  kind: write
+  description: Mark a milestone as reached.
+  model: project.milestone
+  idParameter: milestoneId
+  values:
+    is_reached: true
+- name: milestoneTasks
+  kind: searchRead
+  description: List tasks assigned to a milestone.
+  model: project.task
+  fields: milestoneTasks
+  order: id
+  domain:
+    kind: required
+    parameter: milestoneId
+    field: milestone_id
+    operator: '='
+customOperations:
+- name: resolveProjectId
+  description: Resolve a project ID or exact name.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift
+- name: milestones
+  description: List project milestones.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift
+- name: createMilestone
+  description: Create a project milestone.
+  targets:
+  - python
+  - asyncPython
+  - typescript
+  - swift
