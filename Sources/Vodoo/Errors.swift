@@ -4,6 +4,7 @@ public enum VodooError: Error, Sendable, Equatable, CustomStringConvertible {
     case configuration(String)
     case authentication(String)
     case recordNotFound(model: String, id: Int)
+    case operation(String)
     case access(message: String, code: Int, data: OdooRecord)
     case validation(message: String, code: Int, data: OdooRecord)
     case transport(message: String, code: Int, data: OdooRecord)
@@ -11,7 +12,8 @@ public enum VodooError: Error, Sendable, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case let .configuration(message), let .authentication(message), let .invalidResponse(message):
+        case let .configuration(message), let .authentication(message),
+             let .invalidResponse(message), let .operation(message):
             return message
         case let .recordNotFound(model, id):
             return "Record \(id) not found in \(model)"

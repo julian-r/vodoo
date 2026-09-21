@@ -51,13 +51,18 @@ Vitest reports each behavior independently rather than bundling a namespace into
 
 The TypeScript suite uses the same provisioned instances as Python while retaining Worker-safe `Uint8Array` binary APIs and native `Date` assertions.
 
+### Native Swift coverage
+
+XCTest runs the portable feature-parity suite plus live Community namespace workflows on Odoo 17–19. Enterprise CI additionally exercises Helpdesk, Knowledge, Documents, and timers. Swift coverage excludes generated sources and enforces lines, functions, and regions independently.
+
 ### Cross-language conformance
 
-Python and TypeScript independently consume `conformance/fixtures/v1.json`. The hermetic conformance suites verify canonical JSON-RPC and JSON-2 requests, response normalization, and typed error mapping without treating either implementation as the oracle. Date and binary rows are neutral cross-runtime vectors: TypeScript exercises its production codecs, while Python uses an explicitly test-local stdlib adapter because it has no standalone public codec API.
+Python, TypeScript, and Swift independently consume `conformance/fixtures/v1.json`. The hermetic conformance suites verify canonical JSON-RPC and JSON-2 requests, response normalization, and typed error mapping without treating any implementation as the oracle. Date and binary rows are neutral cross-runtime vectors; Python uses an explicitly test-local stdlib adapter because it has no standalone public codec API.
 
 ```bash
 uv run pytest tests/conformance -q
 pnpm --dir packages/typescript test
+swift test --enable-code-coverage
 ```
 
 ## Architecture
@@ -77,6 +82,10 @@ tests/integration/
 
 packages/typescript/test/integration/
 └── odoo.integration.ts     # Native Vitest live scenarios
+
+swift-tests/VodooTests/
+├── FeatureParityTests.swift # Hermetic namespace workflow coverage
+└── LiveIntegrationTests.swift # Community and Enterprise live scenarios
 
 conformance/fixtures/
 └── v1.json                 # Shared normative cross-language contract

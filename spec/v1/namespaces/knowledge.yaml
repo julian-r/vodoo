@@ -38,7 +38,9 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: resolveUrl
   description: Resolve the server article URL when available.
   targets:
   - typescript
+  - swift

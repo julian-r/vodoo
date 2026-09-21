@@ -271,6 +271,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -341,6 +345,13 @@ jobs:
           source "tests/integration/.env.test.${{ matrix.odoo-version }}ee"
           set +a
           pnpm --dir packages/typescript test:integration
+
+      - name: Run Swift Enterprise integration tests
+        run: |
+          set -a
+          source "tests/integration/.env.test.${{ matrix.odoo-version }}ee"
+          set +a
+          swift test --filter LiveIntegrationTests
 
       - name: Dump logs on failure
         if: failure()

@@ -36,6 +36,7 @@ ASYNC_PYTHON_OUTPUT_PATH = ASYNC_PYTHON_OUTPUT_DIR / "projects.py"
 SWIFT_OUTPUT_PATH = SWIFT_OUTPUT_DIR / "Projects.swift"
 PYTHON_SECURITY_GROUPS_PATH = PYTHON_OUTPUT_DIR / "security_groups.py"
 TYPESCRIPT_SECURITY_GROUPS_PATH = TYPESCRIPT_OUTPUT_DIR / "security_groups.ts"
+SWIFT_SECURITY_GROUPS_PATH = SWIFT_OUTPUT_DIR / "SecurityGroups.swift"
 OUTPUT_PATH = TYPESCRIPT_OUTPUT_PATH  # Backward-compatible alias for tooling imports.
 API_MANIFEST_PATH = Path("generated/api-manifest-v1.json")
 OUTPUT_PATHS = (
@@ -98,6 +99,7 @@ def all_output_paths(root: Path | None = None) -> tuple[Path, ...]:
         *(path for spec in _load_specs(root) for path in _output_paths(spec)),
         PYTHON_SECURITY_GROUPS_PATH,
         TYPESCRIPT_SECURITY_GROUPS_PATH,
+        SWIFT_SECURITY_GROUPS_PATH,
         API_MANIFEST_PATH,
     )
 
@@ -745,6 +747,47 @@ def render_python_security_groups(spec: SecurityGroupsSpec) -> str:
     return "\n".join(lines)
 
 
+def render_swift_security_groups(spec: SecurityGroupsSpec) -> str:
+    lines = [
+        f"// {_GENERATED_MARKER}",
+        f"// Source: {SECURITY_GROUPS_SPEC_PATH.as_posix()}",
+        "",
+        "public let SECURITY_GROUP_DEFINITIONS: [SecurityGroupDefinition] = [",
+    ]
+    for group in spec.groups:
+        lines.extend(
+            [
+                "    SecurityGroupDefinition(",
+                f"        name: {_typescript_literal(group.name)},",
+                f"        comment: {_typescript_literal(group.comment)},",
+                "        access: [",
+            ]
+        )
+        for definition in group.access:
+            lines.append(
+                "            SecurityAccessDefinition("
+                f"model: {_typescript_literal(definition.model)}, "
+                f"read: {str(definition.perm_read).lower()}, "
+                f"write: {str(definition.perm_write).lower()}, "
+                f"create: {str(definition.perm_create).lower()}, "
+                f"unlink: {str(definition.perm_unlink).lower()}),"
+            )
+        lines.extend(["        ],", "        rules: ["])
+        for definition in group.rules:
+            lines.append(
+                "            SecurityRuleDefinition("
+                f"model: {_typescript_literal(definition.model)}, "
+                f"domain: {_typescript_literal(definition.domain)}, "
+                f"read: {str(definition.perm_read).lower()}, "
+                f"write: {str(definition.perm_write).lower()}, "
+                f"create: {str(definition.perm_create).lower()}, "
+                f"unlink: {str(definition.perm_unlink).lower()}),"
+            )
+        lines.extend(["        ]", "    ),"])
+    lines.extend(["]", ""])
+    return "\n".join(lines)
+
+
 def render_typescript_security_groups(spec: SecurityGroupsSpec) -> str:
     lines = [
         f"// {_GENERATED_MARKER}",
@@ -825,9 +868,10 @@ def render_api_manifest(specs: tuple[NamespaceSpec, ...]) -> str:
     manifest = {
         "specVersion": 1,
         "services": {
+            "auth": {"targets": ["python", "typescript", "swift"]},
             "generic": {"targets": ["python", "asyncPython", "typescript", "swift"]},
-            "security": {"targets": ["python", "typescript"]},
-            "timer": {"targets": ["python", "asyncPython", "typescript"]},
+            "security": {"targets": ["python", "typescript", "swift"]},
+            "timer": {"targets": ["python", "asyncPython", "typescript", "swift"]},
         },
         "namespaces": [
             {
@@ -861,6 +905,7 @@ def _all_rendered_outputs(root: Path) -> dict[Path, str]:
     outputs = {path: content for spec in specs for path, content in _rendered_outputs(spec).items()}
     outputs[PYTHON_SECURITY_GROUPS_PATH] = render_python_security_groups(security_groups)
     outputs[TYPESCRIPT_SECURITY_GROUPS_PATH] = render_typescript_security_groups(security_groups)
+    outputs[SWIFT_SECURITY_GROUPS_PATH] = render_swift_security_groups(security_groups)
     outputs[API_MANIFEST_PATH] = render_api_manifest(specs)
     return outputs
 

@@ -58,9 +58,11 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: pipeline
   description: Build a CRM pipeline summary.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift

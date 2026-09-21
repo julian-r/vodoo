@@ -37,21 +37,25 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: resolveFolder
   description: Resolve a folder reference.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: upload
   description: Upload an in-memory document.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: downloadFile
   description: Download a document into memory.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift

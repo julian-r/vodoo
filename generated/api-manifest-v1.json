@@ -1,6 +1,13 @@
 {
   "specVersion": 1,
   "services": {
+    "auth": {
+      "targets": [
+        "python",
+        "typescript",
+        "swift"
+      ]
+    },
     "generic": {
       "targets": [
         "python",
@@ -12,14 +19,16 @@
     "security": {
       "targets": [
         "python",
-        "typescript"
+        "typescript",
+        "swift"
       ]
     },
     "timer": {
       "targets": [
         "python",
         "asyncPython",
-        "typescript"
+        "typescript",
+        "swift"
       ]
     }
   },
@@ -69,7 +78,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]
@@ -112,7 +122,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -121,7 +132,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]
@@ -151,7 +163,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -160,7 +173,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -169,7 +183,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -178,7 +193,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]
@@ -240,14 +256,16 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
           "name": "resolveUrl",
           "description": "Resolve the server article URL when available.",
           "targets": [
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]
@@ -279,7 +297,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -288,7 +307,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -297,7 +317,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -306,7 +327,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -315,7 +337,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -324,7 +347,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -333,7 +357,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]
@@ -395,7 +420,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -404,7 +430,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         },
         {
@@ -413,7 +440,8 @@
           "targets": [
             "python",
             "asyncPython",
-            "typescript"
+            "typescript",
+            "swift"
           ]
         }
       ]

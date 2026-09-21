@@ -48,3 +48,4 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift

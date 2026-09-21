@@ -13,6 +13,7 @@ export interface RecordedCall {
 /** Minimal queue-backed client for generated namespace conformance tests. */
 export class RecordingClient implements OdooClientApi {
   readonly calls: RecordedCall[] = [];
+  readonly username = "user@example.com";
   readonly defaultUserId: number | undefined;
 
   constructor(
@@ -44,6 +45,23 @@ export class RecordingClient implements OdooClientApi {
     kwargs?: Readonly<Record<string, unknown>>,
   ): Promise<unknown> {
     return this.next("execute", [model, method, args, kwargs]);
+  }
+
+  executeSudo(
+    model: string,
+    method: string,
+    userId: number,
+    args: readonly unknown[] = [],
+    kwargs: Readonly<Record<string, unknown>> = {},
+  ): Promise<unknown> {
+    const context =
+      typeof kwargs.context === "object" && kwargs.context !== null
+        ? (kwargs.context as Readonly<Record<string, unknown>>)
+        : {};
+    return this.execute(model, method, args, {
+      ...kwargs,
+      context: { ...context, sudo_user_id: userId },
+    });
   }
 
   async search(model: string, options?: SearchOptions): Promise<number[]> {

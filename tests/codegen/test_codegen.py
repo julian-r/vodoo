@@ -39,9 +39,21 @@ def test_namespace_specs_match_independent_json_schema() -> None:
 def test_checked_in_namespaces_are_current() -> None:
     root = Path.cwd()
     assert check_generated(root)
-    assert len(all_output_paths(root)) == 35
+    assert len(all_output_paths(root)) == 36
     assert set(OUTPUT_PATHS).issubset(all_output_paths(root))
     assert missing_custom_implementations(root) == ()
+
+
+def test_swift_claims_every_declared_namespace_workflow() -> None:
+    root = Path.cwd()
+    for path in sorted((root / SPEC_DIR).glob("*.yaml")):
+        spec = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for operation in spec.get("customOperations", []):
+            assert "swift" in operation["targets"], f"{path}:{operation['name']}"
+
+    manifest = json.loads((root / API_MANIFEST_PATH).read_text(encoding="utf-8"))
+    for service in ("auth", "generic", "security", "timer"):
+        assert "swift" in manifest["services"][service]["targets"]
 
 
 def test_generation_is_deterministic_for_all_specs(tmp_path: Path) -> None:

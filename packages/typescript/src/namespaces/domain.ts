@@ -1,14 +1,11 @@
 import type { OdooClientApi, SearchReadOptions } from "../client-api.js";
+import { messagePostSudoWithId } from "../auth.js";
 import { binaryBytes, decodeBase64, encodeBase64 } from "../binary.js";
 import type { BinaryInput } from "../binary.js";
 import { richTextToHtml } from "../content.js";
 import type { RichText } from "../content.js";
 import { decodeRecordDates } from "../dates.js";
-import {
-  ConfigurationError,
-  RecordNotFoundError,
-  VodooError,
-} from "../errors.js";
+import { RecordNotFoundError, VodooError } from "../errors.js";
 import type { OdooRecord } from "../types.js";
 
 const TAG_FIELDS = ["id", "name", "color"] as const;
@@ -67,12 +64,6 @@ export interface AttachmentData {
   readonly name: string;
   readonly data: Uint8Array;
   readonly mimetype?: string;
-}
-
-function many2OneId(value: unknown): number | null {
-  if (typeof value === "number" && Number.isInteger(value)) return value;
-  if (Array.isArray(value) && typeof value[0] === "number") return value[0];
-  return null;
 }
 
 /** Shared namespace CRUD, messaging, tags, and in-memory attachments. */
@@ -326,29 +317,15 @@ export class DomainNamespace {
     isNote: boolean,
     options: MessageOptions,
   ): Promise<number> {
-    const userId = options.userId ?? this.client.defaultUserId;
-    if (userId === undefined) {
-      throw new ConfigurationError("No default user ID configured");
-    }
-    const users = await this.client.read("res.users", [userId], ["partner_id"]);
-    if (users[0] === undefined) {
-      throw new RecordNotFoundError("res.users", userId);
-    }
-    const partnerId = many2OneId(users[0].partner_id);
-    if (partnerId === null) {
-      throw new RecordNotFoundError("res.partner", 0);
-    }
-    const subtypeIds = await this.client.search("mail.message.subtype", {
-      domain: [["name", "=", isNote ? "Note" : "Discussions"]],
-      limit: 1,
-    });
-    return this.client.create("mail.message", {
-      model: this.metadata.model,
-      res_id: recordId,
-      body: richTextToHtml(message, options.markdown ?? true),
-      message_type: isNote ? "notification" : "comment",
-      subtype_id: subtypeIds[0] ?? false,
-      author_id: partnerId,
-    });
+    return messagePostSudoWithId(
+      this.client,
+      this.metadata.model,
+      recordId,
+      richTextToHtml(message, options.markdown ?? true),
+      {
+        ...(options.userId === undefined ? {} : { userId: options.userId }),
+        isNote,
+      },
+    );
   }
 }

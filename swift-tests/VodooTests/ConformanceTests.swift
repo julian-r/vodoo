@@ -254,7 +254,7 @@ final class ConformanceTests: XCTestCase {
             ),
             transport: transport
         )
-        let generic = client.generic("res.partner")
+        let generic = client.model("res.partner")
         let ids = try await generic.search(limit: 2)
         let read = try await generic.read([4])
         let searchRead = try await generic.searchRead(limit: 1)

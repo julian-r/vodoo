@@ -32,9 +32,9 @@ def production_totals(report: dict[str, Any]) -> dict[str, float]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("report", type=Path)
-    parser.add_argument("--min-lines", type=float, default=65)
-    parser.add_argument("--min-functions", type=float, default=60)
-    parser.add_argument("--min-regions", type=float, default=60)
+    parser.add_argument("--min-lines", type=float, default=80)
+    parser.add_argument("--min-functions", type=float, default=74)
+    parser.add_argument("--min-regions", type=float, default=68)
     args = parser.parse_args()
 
     report = json.loads(args.report.read_text(encoding="utf-8"))

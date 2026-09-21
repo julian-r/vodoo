@@ -125,6 +125,23 @@ export class OdooClient implements OdooClientApi {
     );
   }
 
+  executeSudo(
+    model: string,
+    method: string,
+    userId: number,
+    args: readonly unknown[] = [],
+    kwargs: Readonly<Record<string, unknown>> = {},
+  ): Promise<unknown> {
+    const context =
+      typeof kwargs.context === "object" && kwargs.context !== null
+        ? (kwargs.context as Readonly<Record<string, unknown>>)
+        : {};
+    return this.execute(model, method, args, {
+      ...kwargs,
+      context: { ...context, sudo_user_id: userId },
+    });
+  }
+
   async search(model: string, options: SearchOptions = {}): Promise<number[]> {
     return (await this.ensureTransport()).search(
       model,

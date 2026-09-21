@@ -13,7 +13,7 @@ The fixture covers:
 - recording-client operation payloads for generated/simple namespaces
 - UTC date/datetime and base64 vectors
 
-TypeScript date and binary rows exercise production codecs. Swift consumes the command, JSON-2 body, legacy envelope, retry, name-search, date, create-result, operation, and generated-metadata vectors through XCTest. Python has no standalone public codec API, so its date and binary rows use an explicitly test-local stdlib adapter. Transport and error rows exercise production code in Python and TypeScript.
+TypeScript date and binary rows exercise production codecs. Swift consumes the command, JSON-2 body, legacy envelope, retry, name-search, date, create-result, operation, and generated-metadata vectors through XCTest. Its feature-parity XCTest suite separately covers every namespace workflow, including messaging, attachments, CRM aggregation, documents, security, and timers. Python has no standalone public codec API, so its date and binary rows use an explicitly test-local stdlib adapter. Transport and error rows exercise production code in Python and TypeScript.
 
 Run both consumers:
 

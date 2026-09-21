@@ -37,39 +37,46 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: setMilestone
   description: Assign a milestone after validating project membership.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: addDependencies
   description: Add task dependencies.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: clearDependencies
   description: Clear task dependencies.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: schedule
   description: Set task schedule fields.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: createTag
   description: Create a project tag.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: deleteTag
   description: Delete a project tag.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift

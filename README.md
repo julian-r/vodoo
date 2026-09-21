@@ -78,7 +78,18 @@ let config = OdooConfig(
 )
 let client = OdooClient(config: config)
 let tasks = try await client.tasks.list(limit: 10)
+let taskID = try await client.tasks.create(
+    "Deploy",
+    projectID: 7,
+    options: CreateTaskOptions(description: "**Ship it**")
+)
 ```
+
+Python, TypeScript, and Swift provide the same non-CLI feature surface: generic CRUD,
+projects and tasks, CRM pipelines, activities, account moves, helpdesk, knowledge,
+documents, messaging, tags, attachments, security provisioning, and timers. Binary
+and download APIs use native in-memory types for each runtime (`bytes`, `Uint8Array`,
+and `Data`).
 
 ## Quick Start — CLI
 
@@ -111,6 +122,8 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 
 - 🐍 Clean Python API — `OdooClient` with namespace helpers (`client.helpdesk`, `client.crm`, etc.)
 - ⚡ Full async support via `vodoo.aio` — `AsyncOdooClient` with async context manager
+- 🌐 Feature-equivalent TypeScript SDK for Node.js and Cloudflare Workers
+- 🍎 Feature-equivalent native Swift SDK distributed with Swift Package Manager
 - 🎯 Structured exception hierarchy mirroring Odoo server errors
 - 📦 No CLI dependencies loaded when imported as a library
 - 🔒 Strict mypy typing throughout
@@ -395,7 +408,7 @@ src/vodoo/
 
 ## Integration Tests
 
-The combined native suites run 186 Community and 272 Enterprise live scenarios per Odoo version against real instances in Docker:
+CI runs the Python, TypeScript, and Swift native SDK suites against real Community and Enterprise instances for every supported Odoo version. The local runner provisions the instance and runs Python and TypeScript:
 
 ```bash
 ./tests/integration/run.sh  # All Community editions (17, 18, 19)
@@ -424,6 +437,9 @@ uv run pytest tests/conformance -q
 swift test --enable-code-coverage
 python3 scripts/check_swift_coverage.py "$(swift test --show-codecov-path)"
 ```
+
+The Swift gate excludes generated sources and currently enforces 80% lines, 74% functions,
+and 68% regions.
 
 All three SDKs independently validate `conformance/fixtures/v1.json`; no language implementation is used as the conformance oracle. The fixture's protocol, date, binary, command, and operation rows are neutral cross-runtime vectors.
 

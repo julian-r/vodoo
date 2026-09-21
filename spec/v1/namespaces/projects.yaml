@@ -104,15 +104,18 @@ customOperations:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: milestones
   description: List project milestones.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift
 - name: createMilestone
   description: Create a project milestone.
   targets:
   - python
   - asyncPython
   - typescript
+  - swift

@@ -2,8 +2,10 @@ import Foundation
 
 public protocol OdooClientAPI: Sendable {
     var baseURL: URL { get }
+    var username: String { get }
     var defaultUserID: Int? { get }
     func getUID() async throws -> Int
+    func transportDialect() async throws -> TransportDialect
     func execute(model: String, method: String, args: [JSONValue], kwargs: OdooRecord?) async throws -> JSONValue
     func search(
         model: String,
@@ -24,7 +26,11 @@ public protocol OdooClientAPI: Sendable {
     func create(model: String, values: OdooRecord, context: OdooRecord?) async throws -> Int
     func write(model: String, ids: [Int], values: OdooRecord) async throws -> Bool
     func unlink(model: String, ids: [Int]) async throws -> Bool
-    func fieldsGet(model: String) async throws -> OdooRecord
+    func fieldsGet(
+        model: String,
+        fields: [String]?,
+        attributes: [String]?
+    ) async throws -> OdooRecord
     func nameSearch(
         model: String,
         name: String,
@@ -66,6 +72,8 @@ private actor TransportHolder {
 
 public final class OdooClient: OdooClientAPI, @unchecked Sendable {
     public let baseURL: URL
+    public let database: String
+    public let username: String
     public let defaultUserID: Int?
     public lazy var projects = GeneratedProjectNamespace(client: self)
     public lazy var tasks = GeneratedTaskNamespace(client: self)
@@ -75,6 +83,9 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
     public lazy var documents = GeneratedDocumentNamespace(client: self)
     public lazy var activities = GeneratedActivityNamespace(client: self)
     public lazy var accountMoves = GeneratedAccountMoveNamespace(client: self)
+    public lazy var generic = GenericNamespace(client: self)
+    public lazy var security = SecurityNamespace(client: self)
+    public lazy var timer = TimerNamespace(client: self)
 
     private let holder: TransportHolder
 
@@ -84,6 +95,8 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         transport: (any OdooTransportProtocol)? = nil
     ) {
         baseURL = config.url
+        database = config.database
+        username = config.username
         defaultUserID = config.defaultUserID
         holder = TransportHolder(config: config, autoDetect: autoDetect, transport: transport)
     }
@@ -101,6 +114,20 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         kwargs: OdooRecord? = nil
     ) async throws -> JSONValue {
         try await holder.value().execute(model: model, method: method, args: args, kwargs: kwargs)
+    }
+
+    public func executeSudo(
+        model: String,
+        method: String,
+        userID: Int,
+        args: [JSONValue] = [],
+        kwargs: OdooRecord? = nil
+    ) async throws -> JSONValue {
+        var values = kwargs ?? [:]
+        var context = values["context"]?.objectValue ?? [:]
+        context["sudo_user_id"] = .integer(userID)
+        values["context"] = .object(context)
+        return try await execute(model: model, method: method, args: args, kwargs: values)
     }
 
     public func search(
@@ -200,8 +227,19 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         return value
     }
 
-    public func fieldsGet(model: String) async throws -> OdooRecord {
-        let result = try await execute(model: model, method: "fields_get", args: [.array([])])
+    public func fieldsGet(
+        model: String,
+        fields: [String]? = nil,
+        attributes: [String]? = nil
+    ) async throws -> OdooRecord {
+        var kwargs: OdooRecord = [:]
+        if let attributes { kwargs["attributes"] = .array(attributes.map(JSONValue.string)) }
+        let result = try await execute(
+            model: model,
+            method: "fields_get",
+            args: [.array((fields ?? []).map(JSONValue.string))],
+            kwargs: kwargs
+        )
         guard let fields = result.objectValue else {
             throw VodooError.invalidResponse("fields_get returned a non-object result")
         }

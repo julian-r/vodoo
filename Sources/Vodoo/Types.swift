@@ -47,6 +47,23 @@ public enum JSONValue: Codable, Sendable, Equatable {
         guard case let .object(value) = self else { return nil }
         return value
     }
+
+    public var arrayValue: [JSONValue]? {
+        guard case let .array(value) = self else { return nil }
+        return value
+    }
+
+    public var boolValue: Bool? {
+        guard case let .bool(value) = self else { return nil }
+        return value
+    }
+
+    public var doubleValue: Double? {
+        guard case let .number(value) = self else { return nil }
+        return value
+    }
+
+    public var isNull: Bool { self == .null }
 }
 
 public typealias OdooRecord = [String: JSONValue]

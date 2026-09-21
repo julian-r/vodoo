@@ -1,4 +1,11 @@
 export { OdooClient, type OdooClientOptions } from "./client.js";
+export {
+  getDefaultUserId,
+  getPartnerIdFromUser,
+  messagePostSudo,
+  messagePostSudoWithId,
+  type SudoMessageOptions,
+} from "./auth.js";
 export type {
   OdooClientApi,
   SearchOptions,
