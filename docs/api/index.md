@@ -35,7 +35,7 @@ Domain operations are accessed as namespaces on the client (e.g. `client.helpdes
 
 ## Async API
 
-Vodoo provides a full async API via `AsyncOdooClient` with the same namespace interface as the sync client but using `async`/`await` and [httpx](https://www.python-httpx.org/) for non-blocking HTTP.
+Vodoo provides a full async API via `AsyncOdooClient` with the same namespace interface as the sync client but using `async`/`await` and [HTTPX2](https://pydantic.dev/docs/httpx2/) for non-blocking HTTP.
 
 | Module | Description |
 |--------|-------------|

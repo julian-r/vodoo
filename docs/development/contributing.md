@@ -54,7 +54,7 @@ vodoo/
 │   ├── __init__.py           # Public API exports
 │   ├── main.py               # CLI entry point (Typer)
 │   ├── client.py             # OdooClient (sync) + namespace wiring
-│   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, httpx)
+│   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, HTTPX2)
 │   ├── config.py             # Pydantic configuration
 │   ├── exceptions.py         # Exception hierarchy (incl. Odoo server errors)
 │   ├── auth.py               # Authentication / sudo
@@ -71,7 +71,7 @@ vodoo/
 │   └── aio/                  # Async API (mirrors sync modules)
 │       ├── __init__.py       # AsyncOdooClient export
 │       ├── client.py         # AsyncOdooClient + namespace wiring
-│       ├── transport.py      # Async transport (httpx)
+│       ├── transport.py      # Async transport (HTTPX2)
 │       ├── auth.py           # Async auth / sudo
 │       ├── _domain.py        # AsyncDomainNamespace base class
 │       ├── helpdesk.py       # Async HelpdeskNamespace

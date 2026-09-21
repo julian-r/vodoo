@@ -137,7 +137,7 @@ client = OdooClient(config, transport=transport)
 ```
 
 ## Async API
-Vodoo provides a full async API under `vodoo.aio` using [httpx](https://www.python-httpx.org/) for non-blocking HTTP. The `AsyncOdooClient` has the same namespace properties, but methods return awaitables.
+Vodoo provides a full async API under `vodoo.aio` using [HTTPX2](https://pydantic.dev/docs/httpx2/) for non-blocking HTTP. The `AsyncOdooClient` has the same namespace properties, but methods return awaitables.
 ```python
 import asyncio
 from vodoo import AsyncOdooClient, OdooConfig

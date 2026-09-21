@@ -137,6 +137,16 @@ Requirements:
 
 If `ODOO_PASSWORD_REF` is set, it takes precedence over `ODOO_PASSWORD`.
 
+## TLS Certificates and HTTP Proxies
+
+Vodoo uses HTTPX2 and validates TLS certificates against the operating system trust store. To use
+a custom or corporate CA bundle, set `SSL_CERT_FILE`; to use a directory of hashed CA
+certificates, set `SSL_CERT_DIR`.
+
+Standard `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` environment variables are
+honored. HTTP/2 is negotiated when the server or reverse proxy supports it, with automatic
+HTTP/1.1 fallback.
+
 ## Custom HTTP Headers
 
 If your Odoo instance is behind a reverse proxy that requires additional headers (e.g. Cloudflare Zero Trust), set `ODOO_HTTP_HEADERS` to a JSON object. These headers are sent with every request.

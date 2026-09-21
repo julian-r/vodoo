@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, cast
 
-import httpx
+import httpx2 as httpx
 
 from vodoo.exceptions import AuthenticationError, TransportError, transport_error_from_data
 
@@ -80,7 +80,12 @@ class OdooTransport(ABC):
         self.retry = retry or DEFAULT_RETRY
         self._uid: int | None = None
         self._extra_headers = extra_headers or {}
-        self._http = httpx.Client(timeout=timeout, headers=self._extra_headers)
+        self._http = httpx.Client(
+            timeout=timeout,
+            headers=self._extra_headers,
+            trust_env=True,
+            http2=True,
+        )
 
     @property
     def uid(self) -> int:
