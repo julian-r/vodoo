@@ -1,4 +1,4 @@
-"""Release publication must be gated by validation of the release source."""
+"""Release publication and staging must be gated by exact-source validation."""
 
 from pathlib import Path
 from typing import Any
@@ -25,7 +25,7 @@ def test_release_publishers_depend_on_exact_source_validation() -> None:
         step for step in validation["steps"] if step.get("name") == "Verify release tag checkout"
     )
 
-    for job_name in ("validate-release", "build", "publish-to-npm"):
+    for job_name in ("validate-release", "build", "stage-on-npm"):
         assert _checkout_ref(jobs[job_name]) == "${{ github.sha }}"
 
     assert verification["if"] == "github.event_name == 'release'"
@@ -34,6 +34,24 @@ def test_release_publishers_depend_on_exact_source_validation() -> None:
     assert 'test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$GITHUB_SHA"' in verification["run"]
 
     assert jobs["build"]["needs"] == "validate-release"
-    assert jobs["publish-to-npm"]["needs"] == "validate-release"
+    assert jobs["stage-on-npm"]["needs"] == "validate-release"
     assert jobs["publish-to-pypi"]["needs"] == ["build"]
     assert jobs["publish-to-testpypi"]["needs"] == ["build"]
+
+
+def test_npm_release_uses_staging_and_requires_manual_2fa_approval() -> None:
+    npm_job = _publish_jobs()["stage-on-npm"]
+    npm_install = next(
+        step
+        for step in npm_job["steps"]
+        if step.get("name") == "Install npm with staged publishing support"
+    )
+    staging = next(
+        step
+        for step in npm_job["steps"]
+        if step.get("name") == "Stage npm package for 2FA approval"
+    )
+
+    assert npm_install["run"] == "npm install --global npm@12.0.2"
+    assert staging["run"] == "npm stage publish --access public --provenance"
+    assert staging["env"]["NODE_AUTH_TOKEN"] == "${{ secrets.NPM_TOKEN }}"
