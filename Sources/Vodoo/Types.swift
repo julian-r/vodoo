@@ -5,6 +5,8 @@ public enum JSONValue: Codable, Sendable, Equatable {
     case bool(Bool)
     case number(Double)
     case string(String)
+    case date(Date)
+    case dateTime(Date)
     case array([JSONValue])
     case object([String: JSONValue])
 
@@ -25,6 +27,8 @@ public enum JSONValue: Codable, Sendable, Equatable {
         case let .bool(value): try container.encode(value)
         case let .number(value): try container.encode(value)
         case let .string(value): try container.encode(value)
+        case let .date(value): try container.encode(OdooDateCodec.formatDate(value))
+        case let .dateTime(value): try container.encode(OdooDateCodec.formatDateTime(value))
         case let .array(value): try container.encode(value)
         case let .object(value): try container.encode(value)
         }
@@ -41,6 +45,13 @@ public enum JSONValue: Codable, Sendable, Equatable {
     public var stringValue: String? {
         guard case let .string(value) = self else { return nil }
         return value
+    }
+
+    public var dateValue: Date? {
+        switch self {
+        case let .date(value), let .dateTime(value): return value
+        default: return nil
+        }
     }
 
     public var objectValue: [String: JSONValue]? {

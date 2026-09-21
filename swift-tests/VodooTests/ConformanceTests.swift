@@ -147,6 +147,11 @@ final class ConformanceTests: XCTestCase {
                     ? OdooDateCodec.formatDate(value)
                     : OdooDateCodec.formatDateTime(value)
                 XCTAssertEqual(encoded, wire)
+                let json: JSONValue = kind == "date" ? .date(value) : .dateTime(value)
+                XCTAssertEqual(
+                    String(decoding: try JSONEncoder().encode(json), as: UTF8.self),
+                    "\"\(wire)\""
+                )
             }
         }
     }
@@ -186,6 +191,7 @@ final class ConformanceTests: XCTestCase {
 
     func testNameSearchNormalizationFollowsSharedFixture() async throws {
         let contract = try XCTUnwrap(fixture()["nameSearch"] as? [String: Any])
+        let transport = QueueTransport([try jsonValue(try XCTUnwrap(contract["input"]))])
         let client = OdooClient(
             config: OdooConfig(
                 url: try XCTUnwrap(URL(string: "https://odoo.example.test")),
@@ -193,7 +199,7 @@ final class ConformanceTests: XCTestCase {
                 username: "user",
                 password: "key"
             ),
-            transport: QueueTransport([try jsonValue(try XCTUnwrap(contract["input"]))])
+            transport: transport
         )
         let expectedRows = try XCTUnwrap(contract["expect"] as? [[Any]])
         let expected = try expectedRows.map {
@@ -204,6 +210,30 @@ final class ConformanceTests: XCTestCase {
         }
         let actual = try await client.nameSearch(model: "res.partner", name: "a")
         XCTAssertEqual(actual, expected)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.first?.kwargs?["limit"], .integer(7))
+    }
+
+    func testJSON2UIDProbeMapsConnectionFailuresToAuthentication() async throws {
+        let config = OdooConfig(
+            url: try XCTUnwrap(URL(string: "http://127.0.0.1:1")),
+            database: "fixture",
+            username: "user",
+            password: "invalid",
+            timeout: 0.1
+        )
+        let transport = JSON2Transport(
+            config: config,
+            retryPolicy: RetryPolicy(maxRetries: 0)
+        )
+        do {
+            _ = try await transport.getUID()
+            XCTFail("Expected authentication error")
+        } catch let error as VodooError {
+            guard case .authentication = error else {
+                return XCTFail("Expected authentication error, got \(error)")
+            }
+        }
     }
 
     func testCreateResultsFollowSharedFixture() async throws {

@@ -6,6 +6,7 @@ import ast
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -552,6 +553,14 @@ def _swift_string_list(values: list[str]) -> str:
     return "[" + ", ".join(_typescript_literal(value) for value in values) + "]"
 
 
+def _swift_date_fields(values: Mapping[str, str]) -> str:
+    fields = ", ".join(
+        f"{_typescript_literal(field)}: .{'dateTime' if kind == 'datetime' else 'date'}"
+        for field, kind in values.items()
+    )
+    return f"[{fields}]"
+
+
 def _swift_json(value: object) -> str:  # noqa: PLR0911
     if value is None:
         return ".null"
@@ -618,19 +627,30 @@ def _render_swift_operation(spec: NamespaceSpec, operation: OperationSpec) -> st
         else:
             domain_lines = [f"        let domain: Domain = [{term}]"]
     fields = _swift_string_list(spec.field_sets[operation.fields])
+    date_fields = spec.field_set_date_fields.get(operation.fields, {})
+    result_lines = [
+        "        let records = try await client.searchRead(",
+        f"            model: {_typescript_literal(operation.model)},",
+        "            domain: domain,",
+        f"            fields: {fields},",
+        "            limit: nil,",
+        "            offset: 0,",
+        f"            order: {_typescript_literal(operation.order)}",
+        "        )",
+    ]
+    if date_fields:
+        result_lines.append(
+            "        return try records.map { try decodeRecordDates($0, fields: "
+            f"{_swift_date_fields(date_fields)}) }}"
+        )
+    else:
+        result_lines.append("        return records")
     return "\n".join(
         [
             f"    /// {operation.description}",
             f"    public func {operation.name}({signature}) async throws -> [OdooRecord] {{",
             *domain_lines,
-            "        return try await client.searchRead(",
-            f"            model: {_typescript_literal(operation.model)},",
-            "            domain: domain,",
-            f"            fields: {fields},",
-            "            limit: nil,",
-            "            offset: 0,",
-            f"            order: {_typescript_literal(operation.order)}",
-            "        )",
+            *result_lines,
             "    }",
         ]
     )
@@ -661,6 +681,7 @@ def render_swift(spec: NamespaceSpec) -> str:
         f"            defaultFields: {_swift_string_list(spec.default_fields)},",
         f"            defaultDetailFields: {detail},",
         f"            tagModel: {tag},",
+        f"            dateFields: {_swift_date_fields(spec.date_fields)},",
         f"            capabilities: {_swift_string_list(spec.capabilities)},",
         "            availability: NamespaceAvailability(",
         f"                module: {_typescript_literal(availability.module)},",
@@ -694,7 +715,7 @@ def render_python_security_groups(spec: SecurityGroupsSpec) -> str:
         f"# {_GENERATED_MARKER}",
         f"# Source: {SECURITY_GROUPS_SPEC_PATH.as_posix()}",
         "",
-        "from vodoo.security import (",
+        "from vodoo.security_definitions import (",
         "    AccessDefinition,",
         "    GroupDefinition,",
         "    RuleDefinition,",

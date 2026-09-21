@@ -55,4 +55,3 @@ All domain subcommands (`helpdesk`, `project-task`, `project`, `crm`) share a co
 | Download one | `vodoo <cmd> download <ATTACHMENT_ID>` |
 | Download all | `vodoo <cmd> download-all <ID>` |
 | Get URL | `vodoo <cmd> url <ID>` |
-

@@ -52,7 +52,7 @@ Add a comment to a project (visible to followers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### note
@@ -70,7 +70,7 @@ Add an internal note to a project.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### chatter
@@ -191,7 +191,7 @@ List milestones for a project.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--project` / `-p` | TEXT | Project ID or exact name |
+| `--project` / `-p` | TEXT | Project ID or exact name (required) |
 
 ### milestone create
 
@@ -201,9 +201,9 @@ Create a milestone for a project.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--project` / `-p` | TEXT | Project ID or exact name |
-| `--name` / `-n` | TEXT | Milestone name |
-| `--deadline` / `-d` | TEXT | Deadline (YYYY-MM-DD) |
+| `--project` / `-p` | TEXT | Project ID or exact name (required) |
+| `--name` / `-n` | TEXT | Milestone name (required) |
+| `--deadline` / `-d` | TEXT | Deadline (YYYY-MM-DD) (required) |
 
 ### milestone reach
 
@@ -224,4 +224,3 @@ List tasks assigned to a milestone.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `milestone_id` | INT | Milestone ID |
-

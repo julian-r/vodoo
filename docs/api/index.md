@@ -31,7 +31,7 @@ Domain operations are accessed as namespaces on the client (e.g. `client.helpdes
 | Module | Description |
 |--------|-------------|
 | [Base Operations](base.md) | Shared CRUD, messaging, attachment helpers (base class for domain namespaces) |
-| [Auth](auth.md) | Authentication and sudo utilities |
+| [Auth](auth.md) | Authentication and message author-attribution utilities |
 
 ## Async API
 

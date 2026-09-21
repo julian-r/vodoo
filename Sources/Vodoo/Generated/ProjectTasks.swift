@@ -12,6 +12,7 @@ open class GeneratedTaskNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "partner_id", "project_id", "stage_id", "user_ids", "priority", "tag_ids", "create_date"],
             defaultDetailFields: nil,
             tagModel: "project.tags",
+            dateFields: ["create_date": .dateTime],
             capabilities: ["crud", "messaging", "tags", "attachments"],
             availability: NamespaceAvailability(
                 module: "project",

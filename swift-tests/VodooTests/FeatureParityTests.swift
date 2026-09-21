@@ -78,6 +78,24 @@ private func featureClient(
 private func row(_ values: OdooRecord) -> JSONValue { .object(values) }
 private func rows(_ values: [OdooRecord]) -> JSONValue { .array(values.map(JSONValue.object)) }
 
+final class DomainNamespaceCompatibilityTests: XCTestCase {
+    func testInitializerDefaultsDateFieldsForSourceCompatibility() {
+        let namespace = DomainNamespace(
+            client: featureClient(FeatureTransport()),
+            model: "x.fixture",
+            defaultFields: [],
+            defaultDetailFields: nil,
+            tagModel: nil,
+            capabilities: [],
+            availability: NamespaceAvailability(
+                module: "base", editions: ["community"], minVersion: 17
+            )
+        )
+
+        XCTAssertEqual(namespace.dateFields, [:])
+    }
+}
+
 final class ContentFeatureTests: XCTestCase {
     func testMarkdownHeadingsListsAndInlineFormatting() {
         XCTAssertEqual(
@@ -101,8 +119,12 @@ final class ContentFeatureTests: XCTestCase {
     func testExplicitHTMLAndPlainTextModes() {
         XCTAssertEqual(OdooContent.richTextToHTML(.html("<b>ok</b>")), "<b>ok</b>")
         XCTAssertEqual(
-            OdooContent.richTextToHTML(.plain("<b>text</b>"), markdownByDefault: false),
-            "<p>&lt;b&gt;text&lt;/b&gt;</p>"
+            OdooContent.richTextToHTML(.plain("**literal** <b>text</b>")),
+            "<p>**literal** &lt;b&gt;text&lt;/b&gt;</p>"
+        )
+        XCTAssertEqual(
+            OdooContent.richTextToHTML(.markdown("**literal**"), markdownByDefault: false),
+            "<p>**literal**</p>"
         )
     }
 }
@@ -121,6 +143,18 @@ final class DomainFeatureTests: XCTestCase {
         XCTAssertEqual(calls.last?.model, "mail.message")
         XCTAssertEqual(calls.last?.args.first?.objectValue?["body"], .string("<p><strong>Done</strong></p>"))
         XCTAssertEqual(calls.last?.args.first?.objectValue?["author_id"], .integer(8))
+    }
+
+    func testMarkdownFalseTreatsStringLiteralAsPlainText() async throws {
+        let transport = FeatureTransport([
+            rows([["partner_id": .integer(8)]]), .array([]), .integer(93),
+        ])
+        let client = featureClient(transport, defaultUserID: 7)
+        _ = try await client.tasks.comment(
+            2, message: "**literal** <b>text</b>", options: MessageOptions(markdown: false)
+        )
+        let values = await transport.recorded().last?.args.first?.objectValue
+        XCTAssertEqual(values?["body"], .string("<p>**literal** &lt;b&gt;text&lt;/b&gt;</p>"))
     }
 
     func testNotesUseNotificationSubtype() async throws {
@@ -299,16 +333,35 @@ final class TaskProjectKnowledgeFeatureTests: XCTestCase {
         }
     }
 
-    func testProjectListsAndCreatesMilestones() async throws {
+    func testProjectAndMilestoneDatesDecodeToNativeValues() async throws {
         let transport = FeatureTransport([
-            rows([["id": .integer(4), "name": .string("Beta")]]), .integer(5),
+            rows([[
+                "id": .integer(7), "date_start": .string("2026-01-02"),
+                "write_date": .string("2026-01-02 03:04:05"),
+            ]]),
+            rows([[
+                "id": .integer(4), "name": .string("Beta"),
+                "deadline": .string("2026-07-08"), "reached_date": .string("2026-07-09"),
+            ]]),
+            .integer(5),
         ])
         let projects = featureClient(transport).projects
+        let project = try await projects.get(7)
         let milestones = try await projects.milestones(7)
         let createdID = try await projects.createMilestone(
             7, name: "Launch", deadline: OdooDateCodec.parseDate("2026-07-08")
         )
-        XCTAssertEqual(milestones.first?["id"], .integer(4))
+        XCTAssertEqual(
+            try project["date_start"]?.dateValue.map(OdooDateCodec.formatDate), "2026-01-02"
+        )
+        XCTAssertEqual(
+            try project["write_date"]?.dateValue.map(OdooDateCodec.formatDateTime),
+            "2026-01-02 03:04:05"
+        )
+        XCTAssertEqual(
+            try milestones.first?["deadline"]?.dateValue.map(OdooDateCodec.formatDate),
+            "2026-07-08"
+        )
         XCTAssertEqual(createdID, 5)
     }
 

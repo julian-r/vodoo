@@ -12,6 +12,7 @@ open class GeneratedCRMNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "partner_id", "stage_id", "user_id", "team_id", "expected_revenue", "probability", "type", "priority", "tag_ids", "create_date"],
             defaultDetailFields: nil,
             tagModel: "crm.tag",
+            dateFields: ["create_date": .dateTime],
             capabilities: ["crud", "messaging", "tags", "attachments"],
             availability: NamespaceAvailability(
                 module: "crm",
@@ -26,7 +27,7 @@ open class GeneratedCRMNamespace: DomainNamespace, @unchecked Sendable {
     public func stages(teamId: Int? = nil) async throws -> [OdooRecord] {
         let domain: Domain
         if let teamId { domain = [.array([.string("team_id"), .string("="), .integer(teamId)])] } else { domain = [] }
-        return try await client.searchRead(
+        let records = try await client.searchRead(
             model: "crm.stage",
             domain: domain,
             fields: ["id", "name", "sequence", "is_won", "fold"],
@@ -34,5 +35,6 @@ open class GeneratedCRMNamespace: DomainNamespace, @unchecked Sendable {
             offset: 0,
             order: "sequence"
         )
+        return records
     }
 }

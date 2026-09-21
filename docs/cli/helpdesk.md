@@ -52,7 +52,7 @@ Add a comment to a ticket (visible to customers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### note
@@ -70,7 +70,7 @@ Add an internal note to a ticket (not visible to customers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User ID to post as |
+| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### tags
@@ -219,4 +219,3 @@ Get the web URL for a ticket.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `ticket_id` | INT | Ticket ID |
-

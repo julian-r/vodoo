@@ -12,6 +12,7 @@ open class GeneratedHelpdeskNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "partner_id", "stage_id", "user_id", "priority", "tag_ids", "create_date"],
             defaultDetailFields: nil,
             tagModel: "helpdesk.tag",
+            dateFields: ["create_date": .dateTime],
             capabilities: ["crud", "messaging", "tags", "attachments"],
             availability: NamespaceAvailability(
                 module: "helpdesk",

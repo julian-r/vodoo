@@ -47,6 +47,8 @@ public struct SudoMessageOptions: Sendable, Equatable {
     }
 }
 
+/// Creates a message with the selected user's partner as its displayed author.
+/// This does not change the authenticated execution identity, access checks, or auditing.
 public func messagePostSudoWithID(
     client: any OdooClientAPI,
     model: String,
@@ -75,6 +77,8 @@ public func messagePostSudoWithID(
     return try await client.create(model: "mail.message", values: values, context: nil)
 }
 
+/// Creates a message with selected-user author attribution.
+/// This does not change the authenticated execution identity, access checks, or auditing.
 public func messagePostSudo(
     client: any OdooClientAPI,
     model: String,

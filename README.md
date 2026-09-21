@@ -87,9 +87,9 @@ let taskID = try await client.tasks.create(
 
 Python, TypeScript, and Swift provide the same non-CLI feature surface: generic CRUD,
 projects and tasks, CRM pipelines, activities, account moves, helpdesk, knowledge,
-documents, messaging, tags, attachments, security provisioning, and timers. Binary
-and download APIs use native in-memory types for each runtime (`bytes`, `Uint8Array`,
-and `Data`).
+documents, messaging, tags, attachments, security provisioning, and timers. TypeScript
+and Swift document APIs use native in-memory bytes (`Uint8Array` and `Data`); Python and
+async Python document upload/download operations use filesystem paths.
 
 ## Quick Start — CLI
 
@@ -168,7 +168,7 @@ ODOO_DATABASE=your_database
 ODOO_USERNAME=your_username
 ODOO_PASSWORD=your_password_or_api_key
 # Optional alternative: ODOO_PASSWORD_REF=op://Vault/Item/password
-ODOO_DEFAULT_USER_ID=123  # Optional: default user for sudo operations
+ODOO_DEFAULT_USER_ID=123  # Optional: default displayed author for comments/notes
 ```
 
 Multi-instance profiles are also supported:
@@ -387,7 +387,7 @@ src/vodoo/
 ├── client.py             # OdooClient — delegates to transport layer
 ├── transport.py          # Transport abstraction (JSON-2 + legacy JSON-RPC)
 ├── config.py             # Pydantic configuration from env/.env files
-├── auth.py               # Authentication and sudo utilities
+├── auth.py               # Authentication and author-attribution utilities
 ├── _domain.py            # DomainNamespace base — shared CRUD, messaging, attachments
 ├── main.py               # CLI entry point (Typer) — not loaded by library imports
 ├── helpdesk.py           # Helpdesk ticket operations (enterprise)

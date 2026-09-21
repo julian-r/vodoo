@@ -256,6 +256,7 @@ def test_renderers_escape_operation_descriptions() -> None:
 def test_safe_symbol_table_emits_compilable_python_and_unique_typescript_symbols() -> None:
     spec = NamespaceSpec.model_validate(
         _minimal_spec(
+            dateFields={"write_date": "datetime"},
             fieldSets={"milestones": ["id", "deadline"]},
             fieldSetDateFields={"milestones": {"deadline": "date"}},
             operations=[
@@ -283,6 +284,10 @@ def test_safe_symbol_table_emits_compilable_python_and_unique_typescript_symbols
     constants = re.findall(r"^export const ([A-Z][A-Z0-9_]*) =", typescript_source, re.MULTILINE)
     assert len(constants) == len(set(constants))
     assert "async milestoneTasks(milestoneId: number)" in typescript_source
+
+    swift_source = render_swift(spec)
+    assert 'dateFields: ["write_date": .dateTime]' in swift_source
+    assert 'decodeRecordDates($0, fields: ["deadline": .date])' in swift_source
 
 
 def test_spec_filename_must_match_namespace(tmp_path: Path) -> None:

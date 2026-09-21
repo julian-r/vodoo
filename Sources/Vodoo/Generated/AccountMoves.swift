@@ -12,6 +12,7 @@ open class GeneratedAccountMoveNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "ref", "move_type", "state", "date", "invoice_date", "partner_id", "company_id", "currency_id", "amount_total"],
             defaultDetailFields: ["id", "name", "ref", "move_type", "state", "date", "invoice_date", "invoice_date_due", "payment_state", "partner_id", "company_id", "currency_id", "amount_total", "amount_untaxed", "amount_tax", "invoice_origin", "invoice_user_id", "narration", "create_date", "write_date"],
             tagModel: nil,
+            dateFields: ["date": .date, "invoice_date": .date, "invoice_date_due": .date, "create_date": .dateTime, "write_date": .dateTime],
             capabilities: ["crud", "messaging", "attachments"],
             availability: NamespaceAvailability(
                 module: "account",

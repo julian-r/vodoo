@@ -59,7 +59,7 @@ vodoo config test --instance staging
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ODOO_PASSWORD_REF` | Secret reference (for example `op://Vault/Item/password`) | `None` |
-| `ODOO_DEFAULT_USER_ID` | Default user ID for sudo/comment operations | `None` |
+| `ODOO_DEFAULT_USER_ID` | Default user whose partner is shown as the comment/note author | `None` |
 | `ODOO_RETRY_COUNT` | Maximum retries for transient errors | `2` |
 | `ODOO_RETRY_BACKOFF` | Base backoff delay in seconds (exponential) | `0.5` |
 | `ODOO_RETRY_MAX_BACKOFF` | Maximum backoff delay in seconds | `30.0` |

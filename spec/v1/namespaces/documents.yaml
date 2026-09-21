@@ -46,14 +46,14 @@ customOperations:
   - typescript
   - swift
 - name: upload
-  description: Upload an in-memory document.
+  description: Upload a document (path-based in Python; in-memory bytes in TypeScript and Swift).
   targets:
   - python
   - asyncPython
   - typescript
   - swift
 - name: downloadFile
-  description: Download a document into memory.
+  description: Download a document (to a path in Python; as in-memory bytes in TypeScript and Swift).
   targets:
   - python
   - asyncPython

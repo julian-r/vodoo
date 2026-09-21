@@ -223,12 +223,26 @@ public actor JSON2Transport: OdooTransportProtocol {
 
     public func getUID() async throws -> Int {
         if let uid { return uid }
-        let result = try await execute(
-            model: "res.users",
-            method: "search_read",
-            args: [.array([.array([.string("login"), .string("="), .string(config.username)])])],
-            kwargs: ["fields": .array([.string("id")]), "limit": .integer(1)]
-        )
+        let result: JSONValue
+        do {
+            result = try await execute(
+                model: "res.users",
+                method: "search_read",
+                args: [.array([.array([.string("login"), .string("="), .string(config.username)])])],
+                kwargs: ["fields": .array([.string("id")]), "limit": .integer(1)]
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as VodooError {
+            if case .authentication = error { throw error }
+            throw VodooError.authentication(
+                "Authentication failed — API key may be invalid or lack access: \(error.description)"
+            )
+        } catch {
+            throw VodooError.authentication(
+                "Authentication failed — API key may be invalid or lack access: \(error.localizedDescription)"
+            )
+        }
         guard case let .array(records) = result,
               let first = records.first?.objectValue,
               let value = first["id"]?.intValue,

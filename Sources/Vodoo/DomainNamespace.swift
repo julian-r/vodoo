@@ -34,6 +34,7 @@ open class DomainNamespace: @unchecked Sendable {
     public let defaultFields: [String]
     public let defaultDetailFields: [String]?
     public let tagModel: String?
+    public let dateFields: [String: OdooDateKind]
     public let capabilities: [String]
     public let availability: NamespaceAvailability
     internal let client: any OdooClientAPI
@@ -44,6 +45,7 @@ open class DomainNamespace: @unchecked Sendable {
         defaultFields: [String],
         defaultDetailFields: [String]?,
         tagModel: String?,
+        dateFields: [String: OdooDateKind] = [:],
         capabilities: [String],
         availability: NamespaceAvailability
     ) {
@@ -52,6 +54,7 @@ open class DomainNamespace: @unchecked Sendable {
         self.defaultFields = defaultFields
         self.defaultDetailFields = defaultDetailFields
         self.tagModel = tagModel
+        self.dateFields = dateFields
         self.capabilities = capabilities
         self.availability = availability
     }
@@ -62,7 +65,7 @@ open class DomainNamespace: @unchecked Sendable {
         fields: [String]? = nil,
         order: String = "create_date desc"
     ) async throws -> [OdooRecord] {
-        try await client.searchRead(
+        let records = try await client.searchRead(
             model: model,
             domain: domain,
             fields: fields ?? defaultFields,
@@ -70,6 +73,7 @@ open class DomainNamespace: @unchecked Sendable {
             offset: 0,
             order: order
         )
+        return try records.map { try decodeRecordDates($0, fields: dateFields) }
     }
 
     open func get(_ recordID: Int, fields: [String]? = nil) async throws -> OdooRecord {
@@ -81,7 +85,7 @@ open class DomainNamespace: @unchecked Sendable {
         guard let record = records.first else {
             throw VodooError.recordNotFound(model: model, id: recordID)
         }
-        return record
+        return try decodeRecordDates(record, fields: dateFields)
     }
 
     public func set(_ recordID: Int, values: OdooRecord) async throws -> Bool {
@@ -125,7 +129,7 @@ open class DomainNamespace: @unchecked Sendable {
     }
 
     public func messages(_ recordID: Int, limit: Int? = nil) async throws -> [OdooRecord] {
-        try await client.searchRead(
+        let records = try await client.searchRead(
             model: "mail.message",
             domain: [
                 .array([.string("model"), .string("="), .string(model)]),
@@ -139,6 +143,7 @@ open class DomainNamespace: @unchecked Sendable {
             offset: 0,
             order: "date desc"
         )
+        return try records.map { try decodeRecordDates($0, fields: ["date": .dateTime]) }
     }
 
     public func tags() async throws -> [OdooRecord] {
@@ -165,7 +170,7 @@ open class DomainNamespace: @unchecked Sendable {
     }
 
     public func attachments(_ recordID: Int) async throws -> [OdooRecord] {
-        try await client.searchRead(
+        let records = try await client.searchRead(
             model: "ir.attachment",
             domain: [
                 .array([.string("res_model"), .string("="), .string(model)]),
@@ -176,6 +181,7 @@ open class DomainNamespace: @unchecked Sendable {
             offset: 0,
             order: nil
         )
+        return try records.map { try decodeRecordDates($0, fields: ["create_date": .dateTime]) }
     }
 
     public func attach(

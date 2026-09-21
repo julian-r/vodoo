@@ -7,7 +7,7 @@ function relationId(value: unknown): number | null {
   return null;
 }
 
-/** Resolve the configured user (or an explicit login) for sudo operations. */
+/** Resolve the configured user (or an explicit login) for author-attributed messages. */
 export async function getDefaultUserId(
   client: OdooClientApi,
   username = client.username,
@@ -40,7 +40,10 @@ export interface SudoMessageOptions {
   extraValues?: Readonly<Record<string, unknown>>;
 }
 
-/** Post pre-rendered HTML as a selected user and return the mail.message ID. */
+/**
+ * Post pre-rendered HTML with a selected user's partner as the displayed author.
+ * This does not change the authenticated execution identity, access checks, or auditing.
+ */
 export async function messagePostSudoWithId(
   client: OdooClientApi,
   model: string,
@@ -71,7 +74,10 @@ export async function messagePostSudoWithId(
   });
 }
 
-/** Post pre-rendered HTML as a selected user. */
+/**
+ * Post pre-rendered HTML with selected-user author attribution.
+ * This does not change the authenticated execution identity, access checks, or auditing.
+ */
 export async function messagePostSudo(
   client: OdooClientApi,
   model: string,

@@ -49,7 +49,7 @@ public extension GeneratedProjectNamespace {
     }
 
     private func milestones(projectID: Int) async throws -> [OdooRecord] {
-        try await client.searchRead(
+        let records = try await client.searchRead(
             model: "project.milestone",
             domain: [.array([.string("project_id"), .string("="), .integer(projectID)])],
             fields: [
@@ -60,6 +60,9 @@ public extension GeneratedProjectNamespace {
             offset: 0,
             order: "deadline, id"
         )
+        return try records.map {
+            try decodeRecordDates($0, fields: ["deadline": .date, "reached_date": .date])
+        }
     }
 
     private func createMilestone(projectID: Int, name: String, deadline: Date) async throws -> Int {

@@ -12,6 +12,7 @@ open class GeneratedActivityNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "res_model", "res_id", "res_name", "summary", "activity_type_id", "date_deadline", "user_id", "state", "note"],
             defaultDetailFields: ["id", "res_model", "res_id", "res_name", "summary", "activity_type_id", "date_deadline", "user_id", "state", "note", "create_date", "write_date"],
             tagModel: nil,
+            dateFields: ["date_deadline": .date, "create_date": .dateTime, "write_date": .dateTime],
             capabilities: ["crud"],
             availability: NamespaceAvailability(
                 module: "mail",

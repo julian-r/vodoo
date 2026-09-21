@@ -696,7 +696,8 @@ def helpdesk_comment(
     ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -725,7 +726,8 @@ def helpdesk_note(
     ticket_id: Annotated[int, typer.Argument(help="Ticket ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1178,7 +1180,8 @@ def project_comment(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1219,7 +1222,8 @@ def project_note(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1645,7 +1649,8 @@ def project_project_comment(
     project_id: Annotated[int, typer.Argument(help="Project ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1674,7 +1679,8 @@ def project_project_note(
     project_id: Annotated[int, typer.Argument(help="Project ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -2044,7 +2050,8 @@ def knowledge_comment(
     article_id: Annotated[int, typer.Argument(help="Article ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
@@ -2072,7 +2079,8 @@ def knowledge_note(
     article_id: Annotated[int, typer.Argument(help="Article ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
@@ -2920,7 +2928,8 @@ def crm_comment(
     lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown conversion")
@@ -2946,7 +2955,8 @@ def crm_note(
     lead_id: Annotated[int, typer.Argument(help="Lead/Opportunity ID")],
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
-        int | None, typer.Option("--author", "-a", help="User ID to post as")
+        int | None,
+        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown conversion")

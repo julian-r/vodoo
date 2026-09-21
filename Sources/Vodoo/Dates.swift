@@ -1,5 +1,27 @@
 import Foundation
 
+public enum OdooDateKind: String, Sendable, Equatable {
+    case date
+    case dateTime = "datetime"
+}
+
+public func decodeRecordDates(
+    _ record: OdooRecord,
+    fields: [String: OdooDateKind]
+) throws -> OdooRecord {
+    var result = record
+    for (field, kind) in fields {
+        guard case let .string(value) = result[field] else { continue }
+        switch kind {
+        case .date:
+            result[field] = .date(try OdooDateCodec.parseDate(value))
+        case .dateTime:
+            result[field] = .dateTime(try OdooDateCodec.parseDateTime(value))
+        }
+    }
+    return result
+}
+
 public enum OdooDateCodec {
     private static let utc = TimeZone(secondsFromGMT: 0)!
     private static var calendar: Calendar {

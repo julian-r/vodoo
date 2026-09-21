@@ -10,7 +10,7 @@ from vodoo.exceptions import ConfigurationError, RecordNotFoundError
 
 
 async def get_default_user_id(client: AsyncOdooClient, username: str | None = None) -> int:
-    """Get the default user ID for sudo operations.
+    """Get the default user ID for author-attributed message operations.
 
     Args:
         client: Async Odoo client
@@ -66,7 +66,9 @@ async def message_post_sudo(
     is_note: bool = False,
     **kwargs: Any,
 ) -> bool:
-    """Post a message or note as a specific user using sudo.
+    """Post with a specific user's displayed author attribution.
+
+    This does not change the authenticated execution identity, access checks, or auditing.
 
     Returns:
         True if successful
@@ -94,14 +96,16 @@ async def message_post_sudo_with_id(
     is_note: bool = False,
     **kwargs: Any,
 ) -> int:
-    """Post a message or note as a specific user and return its message ID.
+    """Post with a specific user's author attribution and return the message ID.
+
+    This does not change the authenticated execution identity, access checks, or auditing.
 
     Args:
         client: Async Odoo client
         model: Model name (e.g., 'helpdesk.ticket')
         res_id: Record ID
         body: Message body (HTML)
-        user_id: User ID to post as (uses default if None)
+        user_id: User whose partner is shown as author (uses default if None)
         message_type: Type of message ('comment' or 'notification')
         is_note: If True, creates an internal note
         **kwargs: Additional arguments for message_post

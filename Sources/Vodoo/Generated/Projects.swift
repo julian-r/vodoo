@@ -12,6 +12,7 @@ open class GeneratedProjectNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "user_id", "partner_id", "date_start", "date", "task_count", "color"],
             defaultDetailFields: ["id", "name", "description", "active", "user_id", "partner_id", "company_id", "date_start", "date", "task_count", "tag_ids", "color", "write_date"],
             tagModel: nil,
+            dateFields: ["date_start": .date, "date": .date, "write_date": .dateTime],
             capabilities: ["crud", "messaging", "attachments"],
             availability: NamespaceAvailability(
                 module: "project",
@@ -26,7 +27,7 @@ open class GeneratedProjectNamespace: DomainNamespace, @unchecked Sendable {
     public func stages(projectId: Int? = nil) async throws -> [OdooRecord] {
         let domain: Domain
         if let projectId { domain = [.array([.string("project_ids"), .string("in"), .array([.integer(projectId)])])] } else { domain = [] }
-        return try await client.searchRead(
+        let records = try await client.searchRead(
             model: "project.task.type",
             domain: domain,
             fields: ["id", "name", "sequence", "fold", "project_ids"],
@@ -34,6 +35,7 @@ open class GeneratedProjectNamespace: DomainNamespace, @unchecked Sendable {
             offset: 0,
             order: "sequence"
         )
+        return records
     }
 
     /// Mark a milestone as reached.
@@ -48,7 +50,7 @@ open class GeneratedProjectNamespace: DomainNamespace, @unchecked Sendable {
     /// List tasks assigned to a milestone.
     public func milestoneTasks(milestoneId: Int) async throws -> [OdooRecord] {
         let domain: Domain = [.array([.string("milestone_id"), .string("="), .integer(milestoneId)])]
-        return try await client.searchRead(
+        let records = try await client.searchRead(
             model: "project.task",
             domain: domain,
             fields: ["id", "name", "project_id", "milestone_id", "stage_id", "user_ids", "priority"],
@@ -56,5 +58,6 @@ open class GeneratedProjectNamespace: DomainNamespace, @unchecked Sendable {
             offset: 0,
             order: "id"
         )
+        return records
     }
 }

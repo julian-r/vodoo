@@ -73,4 +73,3 @@ Examples:
 | `--user-id` / `-u` | INT | User ID |
 | `--login` / `-l` | TEXT | User login/email |
 | `--password` / `-p` | TEXT | New password (generated if not provided) |
-

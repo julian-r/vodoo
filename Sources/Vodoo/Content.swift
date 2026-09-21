@@ -22,9 +22,9 @@ public enum OdooContent {
     public static func richTextToHTML(_ value: RichText, markdownByDefault: Bool = true) -> String {
         switch value {
         case let .html(text): return text
-        case let .markdown(text): return markdownToHTML(text)
-        case let .plain(text):
+        case let .markdown(text):
             return markdownByDefault ? markdownToHTML(text) : "<p>\(escapeHTML(text))</p>"
+        case let .plain(text): return "<p>\(escapeHTML(text))</p>"
         }
     }
 

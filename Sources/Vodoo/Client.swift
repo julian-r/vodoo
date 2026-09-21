@@ -250,7 +250,7 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         model: String,
         name: String,
         domain: Domain = [],
-        limit: Int = 100
+        limit: Int = 7
     ) async throws -> [NameSearchResult] {
         let result = try await execute(
             model: model,

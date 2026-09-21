@@ -18,5 +18,7 @@ retry:
   methods: [search, search_read, read, fields_get, name_search]
 normalization:
   emptyRelation: null
+  recordBooleanFalse: null
+  recordBooleanFalseNote: read and search_read normalize all false record values for compatibility
   createResult: positive-integer
   datetimeTimezone: UTC

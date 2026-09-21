@@ -12,6 +12,7 @@ open class GeneratedKnowledgeNamespace: DomainNamespace, @unchecked Sendable {
             defaultFields: ["id", "name", "parent_id", "category", "icon", "write_date"],
             defaultDetailFields: ["id", "name", "parent_id", "category", "icon", "body", "write_date"],
             tagModel: nil,
+            dateFields: ["write_date": .dateTime],
             capabilities: ["crud", "messaging", "attachments"],
             availability: NamespaceAvailability(
                 module: "knowledge",
