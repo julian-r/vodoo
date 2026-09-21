@@ -46,12 +46,18 @@ try {
     date: "2026-09-20",
   });
 } finally {
-  if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM");
+  const killGroup = (signal) => {
+    if (child.pid === undefined) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch (error) {
+      if (error?.code !== "ESRCH") throw error;
+    }
+  };
+  killGroup("SIGTERM");
   await Promise.race([
     new Promise((resolve) => child.once("exit", resolve)),
     new Promise((resolve) => setTimeout(resolve, 2_000)),
   ]);
-  if (child.exitCode === null && child.pid !== undefined) {
-    process.kill(-child.pid, "SIGKILL");
-  }
+  if (child.exitCode === null) killGroup("SIGKILL");
 }

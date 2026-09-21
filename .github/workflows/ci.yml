@@ -117,6 +117,7 @@ jobs:
         with:
           name: swift-coverage
           path: .build/**/codecov/Vodoo.json
+          include-hidden-files: true
           if-no-files-found: error
 
   lint-and-test:
