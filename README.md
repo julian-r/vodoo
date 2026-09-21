@@ -168,8 +168,12 @@ ODOO_DATABASE=your_database
 ODOO_USERNAME=your_username
 ODOO_PASSWORD=your_password_or_api_key
 # Optional alternative: ODOO_PASSWORD_REF=op://Vault/Item/password
-ODOO_DEFAULT_USER_ID=123  # Optional: default displayed author for comments/notes
+ODOO_DEFAULT_USER_ID=123  # Optional: requested displayed author for comments/notes
 ```
+
+Cross-user author attribution requires an internal authenticated Odoo user. Odoo may reject
+or override it for share users; share service accounts can reliably attribute messages only
+to their own partner.
 
 Multi-instance profiles are also supported:
 

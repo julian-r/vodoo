@@ -7,7 +7,7 @@ from vodoo.exceptions import ConfigurationError, RecordNotFoundError
 
 
 def get_default_user_id(client: OdooClient, username: str | None = None) -> int:
-    """Get the default user ID for author-attributed message operations.
+    """Get the default requested-author user ID for message operations.
 
     Args:
         client: Odoo client
@@ -71,9 +71,11 @@ def message_post_sudo(
     is_note: bool = False,
     **kwargs: Any,
 ) -> bool:
-    """Post a message or note with a specific user's author attribution.
+    """Post a message or note requesting a specific displayed author.
 
-    This does not change the authenticated execution identity, access checks, or auditing.
+    Cross-user attribution requires an internal authenticated user. Odoo may reject or
+    override it for share users, which can reliably attribute only to their own partner.
+    This does not change the authenticated identity, access checks, or auditing.
 
     Returns:
         True if successful
@@ -102,16 +104,18 @@ def message_post_sudo_with_id(
     is_note: bool = False,
     **kwargs: Any,
 ) -> int:
-    """Post with a specific user's author attribution and return the message ID.
+    """Post requesting a specific displayed author and return the message ID.
 
-    This does not change the authenticated execution identity, access checks, or auditing.
+    Cross-user attribution requires an internal authenticated user. Odoo may reject or
+    override it for share users, which can reliably attribute only to their own partner.
+    This does not change the authenticated identity, access checks, or auditing.
 
     Args:
         client: Odoo client
         model: Model name (e.g., 'helpdesk.ticket')
         res_id: Record ID
         body: Message body (HTML)
-        user_id: User whose partner is shown as author (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         message_type: Type of message ('comment' or 'notification')
         is_note: If True, creates an internal note (not visible to customers)
         **kwargs: Additional arguments for message_post
@@ -136,11 +140,17 @@ def message_post_sudo_with_id(
     # Create the message directly in mail.message model
     # This avoids the RPC marshalling issue with message_post
 
-    # For notes, we want the "Note" subtype, for comments we want "Discussions"
-    subtype_name = "Note" if is_note else "Discussions"
-    subtype_ids = client.search(
-        "mail.message.subtype", domain=[("name", "=", subtype_name)], limit=1
+    # Resolve translated subtype labels through their stable external IDs.
+    subtype_xmlid = "mt_note" if is_note else "mt_comment"
+    subtype_rows = client.search_read(
+        "ir.model.data",
+        domain=[("module", "=", "mail"), ("name", "=", subtype_xmlid)],
+        fields=["res_id"],
+        limit=1,
     )
+    subtype_id = subtype_rows[0].get("res_id") if subtype_rows else None
+    if not isinstance(subtype_id, int) or isinstance(subtype_id, bool) or subtype_id <= 0:
+        raise RecordNotFoundError("mail.message.subtype", 0)
 
     # For non-internal users (share users), internal notes require message_type='notification'
     # because Odoo's mail.message._get_forbidden_access() blocks message_type='comment'
@@ -152,7 +162,7 @@ def message_post_sudo_with_id(
         "res_id": res_id,
         "body": body,
         "message_type": effective_message_type,
-        "subtype_id": subtype_ids[0] if subtype_ids else False,
+        "subtype_id": subtype_id,
         "author_id": partner_id,  # Use partner_id, not user_id
         **kwargs,
     }

@@ -32,6 +32,7 @@ public let SECURITY_GROUP_DEFINITIONS: [SecurityGroupDefinition] = [
             SecurityAccessDefinition(model: "ir.attachment", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "mail.message", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "mail.message.subtype", read: true, write: false, create: false, unlink: false),
+            SecurityAccessDefinition(model: "ir.model.data", read: true, write: false, create: false, unlink: false),
             SecurityAccessDefinition(model: "mail.followers", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "mail.notification", read: true, write: true, create: true, unlink: false),
         ],

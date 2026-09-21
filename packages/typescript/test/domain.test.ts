@@ -11,10 +11,10 @@ describe("DomainNamespace messaging", () => {
       undefined,
       [
         [{ partner_id: [9, "Author"] }],
-        [3],
+        [{ res_id: 3 }],
         101,
         [{ partner_id: [9, "Author"] }],
-        [4],
+        [{ res_id: 4 }],
         102,
       ],
       7,

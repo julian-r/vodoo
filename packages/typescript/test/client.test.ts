@@ -57,7 +57,7 @@ describe("OdooClient generic API", () => {
     expect(client.generic).toBeInstanceOf(GenericNamespace);
     await expect(client.getUid()).resolves.toBe(7);
     await client.execute("res.partner", "custom", [[1]], { flag: true });
-    await client.executeSudo("res.partner", "custom", 9, [[1]], {
+    await client.executeWithUserContext("res.partner", "custom", 9, [[1]], {
       context: { lang: "en_US" },
     });
     await expect(client.search("res.partner", { limit: 2 })).resolves.toEqual([

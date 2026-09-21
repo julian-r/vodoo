@@ -472,15 +472,16 @@ def add_comment(
 ) -> bool:
     """Add a comment to a record (visible to customers).
 
-    ``user_id`` controls displayed author attribution only; it does not change the
-    authenticated execution identity, access checks, or auditing.
+    ``user_id`` requests displayed author attribution only. Cross-user attribution
+    requires an internal authenticated user; Odoo may reject or override it for share
+    users, which can reliably attribute only to their own partner.
 
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         message: Comment message (plain text or markdown)
-        user_id: User whose partner is shown as author (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         markdown: If True, convert markdown to HTML (default: True)
 
     Returns:
@@ -508,15 +509,16 @@ def add_note(
 ) -> bool:
     """Add an internal note to a record (not visible to customers).
 
-    ``user_id`` controls displayed author attribution only; it does not change the
-    authenticated execution identity, access checks, or auditing.
+    ``user_id`` requests displayed author attribution only. Cross-user attribution
+    requires an internal authenticated user; Odoo may reject or override it for share
+    users, which can reliably attribute only to their own partner.
 
     Args:
         client: Odoo client
         model: Model name
         record_id: Record ID
         message: Note message (plain text or markdown)
-        user_id: User whose partner is shown as author (uses default if None)
+        user_id: User whose partner is requested as author (uses default if None)
         markdown: If True, convert markdown to HTML (default: True)
 
     Returns:

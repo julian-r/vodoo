@@ -133,13 +133,18 @@ final class DomainFeatureTests: XCTestCase {
     func testCommentsResolveAuthorSubtypeAndRenderMarkdown() async throws {
         let transport = FeatureTransport([
             rows([["partner_id": .array([.integer(8), .string("Ada")])]]),
-            .array([.integer(4)]),
+            rows([["res_id": .integer(4)]]),
             .integer(91),
         ])
         let client = featureClient(transport, defaultUserID: 7)
         let didComment = try await client.tasks.comment(2, message: "**Done**")
         XCTAssertTrue(didComment)
         let calls = await transport.recorded()
+        XCTAssertEqual(calls[1].model, "ir.model.data")
+        XCTAssertEqual(calls[1].args.first, .array([
+            .array([.string("module"), .string("="), .string("mail")]),
+            .array([.string("name"), .string("="), .string("mt_comment")]),
+        ]))
         XCTAssertEqual(calls.last?.model, "mail.message")
         XCTAssertEqual(calls.last?.args.first?.objectValue?["body"], .string("<p><strong>Done</strong></p>"))
         XCTAssertEqual(calls.last?.args.first?.objectValue?["author_id"], .integer(8))
@@ -147,7 +152,7 @@ final class DomainFeatureTests: XCTestCase {
 
     func testMarkdownFalseTreatsStringLiteralAsPlainText() async throws {
         let transport = FeatureTransport([
-            rows([["partner_id": .integer(8)]]), .array([]), .integer(93),
+            rows([["partner_id": .integer(8)]]), rows([["res_id": .integer(4)]]), .integer(93),
         ])
         let client = featureClient(transport, defaultUserID: 7)
         _ = try await client.tasks.comment(
@@ -159,14 +164,33 @@ final class DomainFeatureTests: XCTestCase {
 
     func testNotesUseNotificationSubtype() async throws {
         let transport = FeatureTransport([
-            rows([["partner_id": .integer(8)]]), .array([]), .integer(92),
+            rows([["partner_id": .integer(8)]]), rows([["res_id": .integer(5)]]), .integer(92),
         ])
         let client = featureClient(transport, defaultUserID: 7)
         let noteID = try await client.tasks.noteWithID(2, message: .html("<b>Note</b>"))
         XCTAssertEqual(noteID, 92)
         let values = await transport.recorded().last?.args.first?.objectValue
         XCTAssertEqual(values?["message_type"], .string("notification"))
-        XCTAssertEqual(values?["subtype_id"], .bool(false))
+        XCTAssertEqual(values?["subtype_id"], .integer(5))
+    }
+
+    func testMessagingRequiresPositiveStableSubtypeExternalID() async {
+        let invalidSubtypeRows: [JSONValue] = [
+            rows([]), rows([["res_id": .integer(0)]]), rows([["res_id": .integer(-1)]]),
+            rows([["res_id": .bool(false)]]),
+        ]
+        for subtypeRows in invalidSubtypeRows {
+            let client = featureClient(
+                FeatureTransport([rows([["partner_id": .integer(8)]]), subtypeRows]),
+                defaultUserID: 7
+            )
+            do {
+                _ = try await client.tasks.comment(2, message: "x")
+                XCTFail("Expected missing subtype")
+            } catch let error as VodooError {
+                XCTAssertEqual(error, .recordNotFound(model: "mail.message.subtype", id: 0))
+            } catch { XCTFail("Unexpected error: \(error)") }
+        }
     }
 
     func testMessagingRequiresDefaultUser() async {
@@ -621,9 +645,9 @@ final class GenericAndClientFeatureTests: XCTestCase {
         XCTAssertEqual(result, .array([.integer(8), .string("Acme")]))
     }
 
-    func testExecuteSudoMergesExistingContext() async throws {
+    func testExecuteWithUserContextMergesExistingContext() async throws {
         let transport = FeatureTransport([.bool(true)])
-        let result = try await featureClient(transport).executeSudo(
+        let result = try await featureClient(transport).executeWithUserContext(
             model: "res.partner", method: "write", userID: 9,
             kwargs: ["context": .object(["lang": .string("en_US")])]
         )
@@ -876,8 +900,8 @@ final class AuthFeatureTests: XCTestCase {
 
     func testAuthPostsCommentsAndNotesWithTypedPrecedence() async throws {
         let transport = FeatureTransport([
-            rows([["partner_id": .integer(8)]]), .array([.integer(4)]), .integer(91),
-            rows([["partner_id": .integer(8)]]), .array([]), .integer(92),
+            rows([["partner_id": .integer(8)]]), rows([["res_id": .integer(4)]]), .integer(91),
+            rows([["partner_id": .integer(8)]]), rows([["res_id": .integer(5)]]), .integer(92),
         ])
         let client = featureClient(transport, defaultUserID: 7)
         let commentID = try await messagePostSudoWithID(

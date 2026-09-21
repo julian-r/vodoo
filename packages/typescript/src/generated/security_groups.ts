@@ -61,6 +61,7 @@ export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
       access("ir.attachment",true,true,true,false),
       access("mail.message",true,true,true,false),
       access("mail.message.subtype",true,false,false,false),
+      access("ir.model.data",true,false,false,false),
       access("mail.followers",true,true,true,false),
       access("mail.notification",true,true,true,false),
     ],

@@ -697,7 +697,14 @@ def helpdesk_comment(
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -727,7 +734,14 @@ def helpdesk_note(
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1181,7 +1195,14 @@ def project_comment(
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1223,7 +1244,14 @@ def project_note(
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1650,7 +1678,14 @@ def project_project_comment(
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -1680,7 +1715,14 @@ def project_project_note(
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool,
@@ -2051,7 +2093,14 @@ def knowledge_comment(
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
@@ -2080,7 +2129,14 @@ def knowledge_note(
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown to HTML conversion")
@@ -2929,7 +2985,14 @@ def crm_comment(
     message: Annotated[str, typer.Argument(help="Comment message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown conversion")
@@ -2956,7 +3019,14 @@ def crm_note(
     message: Annotated[str, typer.Argument(help="Note message")],
     author_id: Annotated[
         int | None,
-        typer.Option("--author", "-a", help="User whose partner is shown as the displayed author"),
+        typer.Option(
+            "--author",
+            "-a",
+            help=(
+                "Requested author; cross-user attribution requires an internal user; "
+                "Odoo may reject or override share users"
+            ),
+        ),
     ] = None,
     no_markdown: Annotated[
         bool, typer.Option("--no-markdown", help="Disable markdown conversion")

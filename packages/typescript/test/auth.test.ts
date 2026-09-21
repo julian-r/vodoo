@@ -34,7 +34,14 @@ describe("authentication helpers", () => {
   it("posts comments and notes with typed values taking precedence", async () => {
     const client = new RecordingClient(
       undefined,
-      [[{ partner_id: 8 }], [4], 91, [{ partner_id: 8 }], [], 92],
+      [
+        [{ partner_id: 8 }],
+        [{ res_id: 4 }],
+        91,
+        [{ partner_id: 8 }],
+        [{ res_id: 5 }],
+        92,
+      ],
       7,
     );
     await expect(
@@ -55,9 +62,42 @@ describe("authentication helpers", () => {
     });
     expect(client.calls[5]?.args[1]).toMatchObject({
       message_type: "notification",
-      subtype_id: false,
+      subtype_id: 5,
+    });
+    expect(client.calls[1]).toMatchObject({
+      method: "searchRead",
+      args: [
+        "ir.model.data",
+        {
+          domain: [
+            ["module", "=", "mail"],
+            ["name", "=", "mt_comment"],
+          ],
+          fields: ["res_id"],
+          limit: 1,
+        },
+      ],
     });
   });
+
+  it.each([
+    { label: "missing", rows: [] },
+    { label: "zero", rows: [{ res_id: 0 }] },
+    { label: "negative", rows: [{ res_id: -1 }] },
+    { label: "boolean", rows: [{ res_id: false }] },
+  ])(
+    "requires a positive stable message subtype external ID for $label",
+    async ({ rows: subtypeRows }) => {
+      const client = new RecordingClient(
+        undefined,
+        [[{ partner_id: 8 }], subtypeRows],
+        7,
+      );
+      await expect(
+        messagePostSudo(client, "project.task", 2, "x"),
+      ).rejects.toBeInstanceOf(RecordNotFoundError);
+    },
+  );
 
   it("requires a configured message user", async () => {
     await expect(

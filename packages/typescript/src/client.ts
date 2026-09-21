@@ -125,7 +125,11 @@ export class OdooClient implements OdooClientApi {
     );
   }
 
-  executeSudo(
+  /**
+   * Inject `sudo_user_id` into the call context for server-side code that supports it.
+   * This does not change the authenticated identity or access checks by itself.
+   */
+  executeWithUserContext(
     model: string,
     method: string,
     userId: number,

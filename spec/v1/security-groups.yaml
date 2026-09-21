@@ -97,6 +97,11 @@ groups:
     perm_write: false
     perm_create: false
     perm_unlink: false
+  - model: ir.model.data
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
   - model: mail.followers
     perm_read: true
     perm_write: true

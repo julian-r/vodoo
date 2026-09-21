@@ -59,7 +59,7 @@ vodoo config test --instance staging
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ODOO_PASSWORD_REF` | Secret reference (for example `op://Vault/Item/password`) | `None` |
-| `ODOO_DEFAULT_USER_ID` | Default user whose partner is shown as the comment/note author | `None` |
+| `ODOO_DEFAULT_USER_ID` | Default user whose partner is requested as the comment/note author | `None` |
 | `ODOO_RETRY_COUNT` | Maximum retries for transient errors | `2` |
 | `ODOO_RETRY_BACKOFF` | Base backoff delay in seconds (exponential) | `0.5` |
 | `ODOO_RETRY_MAX_BACKOFF` | Maximum backoff delay in seconds | `30.0` |
@@ -71,6 +71,10 @@ vodoo config test --instance staging
 | `ODOO_HTTP_HEADERS_CACHE_BACKEND` | Cache backend for command headers (`keyring` or `none`) | `keyring` |
 | `ODOO_HTTP_HEADERS_CACHE_KEY` | Optional cache key override for command headers | auto |
 | `ODOO_HTTP_HEADERS_CACHE_TTL` | Fallback cache TTL in seconds when no expiry is returned | `300` |
+
+Cross-user author attribution requires an internal authenticated Odoo user. Odoo may reject
+or override it for share users; share service accounts can reliably attribute messages only
+to their own partner.
 
 ## Example Config Files
 

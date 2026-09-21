@@ -444,7 +444,7 @@ class OdooConfig(BaseSettings):
         description="Optional secret reference (e.g. op://...) used to resolve password",
     )
     default_user_id: int | None = Field(
-        None, description="Default user ID for displayed message author attribution"
+        None, description="Default user ID requested for displayed message authorship"
     )
     retry_count: int = Field(
         DEFAULT_RETRY.max_retries,

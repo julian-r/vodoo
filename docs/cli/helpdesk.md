@@ -52,7 +52,7 @@ Add a comment to a ticket (visible to customers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### note
@@ -70,7 +70,7 @@ Add an internal note to a ticket (not visible to customers).
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--author` / `-a` | INT | User whose partner is shown as the displayed author |
+| `--author` / `-a` | INT | Requested author; cross-user attribution requires an internal user; Odoo may reject or override share users |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion |
 
 ### tags

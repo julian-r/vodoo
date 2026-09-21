@@ -114,7 +114,7 @@ The version is derived from git tags via `hatch-vcs` — no hardcoded version st
 | `exceptions.py` | Exception hierarchy + Odoo error mapping |
 | `_domain.py` | `DomainNamespace` base class — shared CRUD, messaging, tags, attachments |
 | `aio/_domain.py` | `AsyncDomainNamespace` base class — async mirror |
-| `auth.py` / `aio/auth.py` | Authentication helpers and displayed-author attribution for messages |
+| `auth.py` / `aio/auth.py` | Authentication helpers and requested-author attribution for messages |
 | `helpdesk.py` / `crm.py` / `account_moves.py` / ... | Domain namespace subclasses |
 | `security.py` / `aio/security.py` | Security group creation, user management |
 

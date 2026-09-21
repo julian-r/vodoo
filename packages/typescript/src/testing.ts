@@ -47,7 +47,7 @@ export class RecordingClient implements OdooClientApi {
     return this.next("execute", [model, method, args, kwargs]);
   }
 
-  executeSudo(
+  executeWithUserContext(
     model: string,
     method: string,
     userId: number,

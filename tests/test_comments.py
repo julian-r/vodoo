@@ -22,6 +22,7 @@ from vodoo.aio.auth import (
 from vodoo.aio.project_tasks import AsyncTaskNamespace
 from vodoo.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.base import configure_output
+from vodoo.exceptions import RecordNotFoundError
 from vodoo.project_tasks import TaskNamespace
 
 
@@ -39,7 +40,7 @@ def reset_output_state() -> Iterator[None]:
 def _sync_client(message_id: int = 9766) -> MagicMock:
     client = MagicMock()
     client.read.return_value = [{"partner_id": [7, "Author"]}]
-    client.search.return_value = [1]
+    client.search_read.return_value = [{"res_id": 1}]
     client.create.return_value = message_id
     return client
 
@@ -47,7 +48,7 @@ def _sync_client(message_id: int = 9766) -> MagicMock:
 def _async_client(message_id: int = 9766) -> MagicMock:
     client = MagicMock()
     client.read = AsyncMock(return_value=[{"partner_id": [7, "Author"]}])
-    client.search = AsyncMock(return_value=[1])
+    client.search_read = AsyncMock(return_value=[{"res_id": 1}])
     client.create = AsyncMock(return_value=message_id)
     return client
 
@@ -61,6 +62,22 @@ def test_message_post_sudo_preserves_bool_and_id_contracts() -> None:
     assert success is True
     assert type(message_id) is int
     assert message_id == 9766
+
+
+def test_message_subtypes_use_stable_external_ids_and_are_required() -> None:
+    client = _sync_client()
+    message_post_sudo_with_id(client, "project.task", 189, "Done", user_id=3)
+    client.search_read.assert_called_once_with(
+        "ir.model.data",
+        domain=[("module", "=", "mail"), ("name", "=", "mt_comment")],
+        fields=["res_id"],
+        limit=1,
+    )
+
+    for invalid_rows in ([], [{"res_id": 0}], [{"res_id": -1}], [{"res_id": True}]):
+        client.search_read.return_value = invalid_rows
+        with pytest.raises(RecordNotFoundError):
+            message_post_sudo_with_id(client, "project.task", 189, "Note", user_id=3, is_note=True)
 
 
 def test_async_message_post_sudo_preserves_bool_and_id_contracts() -> None:

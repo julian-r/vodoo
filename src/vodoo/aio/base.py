@@ -150,7 +150,7 @@ async def add_comment(
     user_id: int | None = None,
     markdown: bool = True,
 ) -> bool:
-    """Add a comment to a record (visible to customers)."""
+    """Add a comment, requesting cross-user authorship only for internal users."""
     body = _convert_to_html(message, markdown)
     return await message_post_sudo(
         client,
@@ -170,7 +170,7 @@ async def add_note(
     user_id: int | None = None,
     markdown: bool = True,
 ) -> bool:
-    """Add an internal note to a record (not visible to customers)."""
+    """Add a note, requesting cross-user authorship only for internal users."""
     body = _convert_to_html(message, markdown)
     return await message_post_sudo(
         client,

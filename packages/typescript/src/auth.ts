@@ -7,7 +7,7 @@ function relationId(value: unknown): number | null {
   return null;
 }
 
-/** Resolve the configured user (or an explicit login) for author-attributed messages. */
+/** Resolve the configured user (or an explicit login) for requested-author messages. */
 export async function getDefaultUserId(
   client: OdooClientApi,
   username = client.username,
@@ -41,8 +41,10 @@ export interface SudoMessageOptions {
 }
 
 /**
- * Post pre-rendered HTML with a selected user's partner as the displayed author.
- * This does not change the authenticated execution identity, access checks, or auditing.
+ * Post pre-rendered HTML requesting a selected user's partner as displayed author.
+ * Cross-user attribution requires an internal authenticated user. Odoo may reject or
+ * override it for share users, which can reliably attribute only to their own partner.
+ * This does not change authenticated identity, access checks, or auditing.
  */
 export async function messagePostSudoWithId(
   client: OdooClientApi,
@@ -55,11 +57,23 @@ export async function messagePostSudoWithId(
   if (userId === undefined)
     throw new ConfigurationError("No default user ID configured");
   const partnerId = await getPartnerIdFromUser(client, userId);
-  const subtypeName = options.isNote === true ? "Note" : "Discussions";
-  const subtypeIds = await client.search("mail.message.subtype", {
-    domain: [["name", "=", subtypeName]],
+  const subtypeXmlId = options.isNote === true ? "mt_note" : "mt_comment";
+  const subtypeRows = await client.searchRead("ir.model.data", {
+    domain: [
+      ["module", "=", "mail"],
+      ["name", "=", subtypeXmlId],
+    ],
+    fields: ["res_id"],
     limit: 1,
   });
+  const subtypeId = subtypeRows[0]?.res_id;
+  if (
+    typeof subtypeId !== "number" ||
+    !Number.isInteger(subtypeId) ||
+    subtypeId <= 0
+  ) {
+    throw new RecordNotFoundError("mail.message.subtype", 0);
+  }
   return client.create("mail.message", {
     ...options.extraValues,
     model,
@@ -69,14 +83,16 @@ export async function messagePostSudoWithId(
       options.isNote === true
         ? "notification"
         : (options.messageType ?? "comment"),
-    subtype_id: subtypeIds[0] ?? false,
+    subtype_id: subtypeId,
     author_id: partnerId,
   });
 }
 
 /**
- * Post pre-rendered HTML with selected-user author attribution.
- * This does not change the authenticated execution identity, access checks, or auditing.
+ * Post pre-rendered HTML requesting selected-user author attribution.
+ * Cross-user attribution requires an internal authenticated user. Odoo may reject or
+ * override it for share users, which can reliably attribute only to their own partner.
+ * This does not change authenticated identity, access checks, or auditing.
  */
 export async function messagePostSudo(
   client: OdooClientApi,

@@ -185,20 +185,20 @@ Creating messages directly via the Odoo API requires:
 
 1. **Access rights**: User must be in a group with `mail.message` create permission (API Base provides this)
 2. **Document access**: User must have access to the related document (e.g., be a follower for projects)
-3. **Subtype**: The `subtype_id` field must be provided (e.g., `1` for "Discussions")
+3. **Subtype**: The `subtype_id` field must be provided. Vodoo resolves the stable XML IDs `mail.mt_comment` and `mail.mt_note` rather than translated subtype names.
 
-Without `subtype_id`, Odoo's security checks will reject the create operation.
+Without `subtype_id`, Odoo's security checks will reject the create operation. The API Base group therefore includes read-only access to `ir.model.data` for XML-ID resolution.
 
-### Author Impersonation (author_id)
+### Requested Author Attribution (`author_id`)
 
-Share users **cannot** set `author_id` to a different partner when creating messages. Odoo's SaaS platform enforces this restriction.
+Cross-user author attribution requires an internal authenticated user. Odoo may reject or override a different `author_id` for share users, which can reliably attribute messages only to their own partner.
 
-| User Type | Can create messages | Can set author_id to others |
-|-----------|--------------------|-----------------------------|
-| Share user | ✅ (with subtype_id) | ❌ Forced to own partner |
+| User Type | Can create messages | Cross-user author attribution |
+|-----------|--------------------|-------------------------------|
+| Share user | ✅ (with subtype_id) | ❌ May be rejected or forced to own partner |
 | Internal user | ✅ | ✅ |
 
-**To enable author impersonation**, the bot must be an internal user:
+**To enable cross-user author attribution**, the bot must be an internal user:
 
 ```bash
 # Add bot to base.group_user (makes it internal)

@@ -116,7 +116,9 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         try await holder.value().execute(model: model, method: method, args: args, kwargs: kwargs)
     }
 
-    public func executeSudo(
+    /// Injects `sudo_user_id` for server-side code that explicitly supports this context key.
+    /// This does not change the authenticated identity or access checks by itself.
+    public func executeWithUserContext(
         model: String,
         method: String,
         userID: Int,

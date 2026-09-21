@@ -21,6 +21,13 @@ def test_generated_security_groups_can_be_imported_directly() -> None:
     assert result.returncode == 0, result.stderr
 
 
+def test_api_base_can_resolve_stable_message_subtype_external_ids() -> None:
+    base_group = next(group for group in GROUP_DEFINITIONS if group.name == "API Base")
+    model_data = next(entry for entry in base_group.access if entry.model == "ir.model.data")
+    assert model_data.perm_read is True
+    assert model_data.perm_write is False
+
+
 def test_project_milestone_rule_uses_project_follower_boundary() -> None:
     project_group = next(group for group in GROUP_DEFINITIONS if group.name == "API Project")
     milestone_rule = next(rule for rule in project_group.rules if rule.model == "project.milestone")

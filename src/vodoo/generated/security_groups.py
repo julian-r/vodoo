@@ -39,6 +39,7 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
             AccessDefinition("ir.attachment", True, True, True, False),
             AccessDefinition("mail.message", True, True, True, False),
             AccessDefinition("mail.message.subtype", True, False, False, False),
+            AccessDefinition("ir.model.data", True, False, False, False),
             AccessDefinition("mail.followers", True, True, True, False),
             AccessDefinition("mail.notification", True, True, True, False),
         ),

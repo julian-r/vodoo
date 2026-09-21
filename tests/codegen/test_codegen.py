@@ -56,6 +56,39 @@ def test_swift_claims_every_declared_namespace_workflow() -> None:
         assert "swift" in manifest["services"][service]["targets"]
 
 
+def test_swift_custom_operation_must_belong_to_expected_namespace(tmp_path: Path) -> None:
+    root = Path.cwd()
+    copytree(root / SPEC_DIR, tmp_path / SPEC_DIR)
+    copytree(root / "src/vodoo", tmp_path / "src/vodoo")
+    copytree(
+        root / "packages/typescript/src/namespaces",
+        tmp_path / "packages/typescript/src/namespaces",
+    )
+    copytree(root / "Sources/Vodoo", tmp_path / "Sources/Vodoo")
+
+    task_extensions = tmp_path / "Sources/Vodoo/TaskExtensions.swift"
+    task_source = task_extensions.read_text(encoding="utf-8")
+    task_extensions.write_text(
+        task_source.replace("func schedule(", "func scheduleMissing(", 1)
+        + "\n// extension GeneratedProjectTasksNamespace { func schedule() {} }\n"
+        + 'let fakeImplementation = #"func schedule() { }"#\n'
+        + "public extension GeneratedProjectTasksNamespace {\n"
+        + "    struct NestedHelper { func schedule() {} }\n"
+        + "}\n",
+        encoding="utf-8",
+    )
+    helpdesk_extensions = tmp_path / "Sources/Vodoo/HelpdeskExtensions.swift"
+    helpdesk_extensions.write_text(
+        helpdesk_extensions.read_text(encoding="utf-8")
+        + "\npublic extension GeneratedHelpdeskNamespace {\n"
+        + "    func schedule() {}\n"
+        + "}\n",
+        encoding="utf-8",
+    )
+
+    assert "swift:project_tasks.schedule" in missing_custom_implementations(tmp_path)
+
+
 def test_generation_is_deterministic_for_all_specs(tmp_path: Path) -> None:
     root = Path.cwd()
     copytree(root / SPEC_DIR, tmp_path / SPEC_DIR)

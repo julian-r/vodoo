@@ -942,6 +942,94 @@ def _python_methods(path: Path) -> set[str]:
     }
 
 
+def _mask_swift_noncode(source: str) -> str:
+    """Mask Swift strings and comments while preserving offsets and line breaks."""
+    masked = list(source)
+
+    def mask(start: int, end: int) -> None:
+        for position in range(start, end):
+            if masked[position] != "\n":
+                masked[position] = " "
+
+    index = 0
+    while index < len(source):
+        if source.startswith("//", index):
+            end = source.find("\n", index + 2)
+            end = len(source) if end < 0 else end
+            mask(index, end)
+            index = end
+            continue
+        if source.startswith("/*", index):
+            start = index
+            index += 2
+            depth = 1
+            while index < len(source) and depth:
+                if source.startswith("/*", index):
+                    depth += 1
+                    index += 2
+                elif source.startswith("*/", index):
+                    depth -= 1
+                    index += 2
+                else:
+                    index += 1
+            mask(start, index)
+            continue
+        string_match = re.match(r'(?P<hashes>#{0,})(?P<quotes>"""|")', source[index:])
+        if string_match:
+            start = index
+            hashes = string_match.group("hashes")
+            quotes = string_match.group("quotes")
+            delimiter = quotes + hashes
+            index += len(hashes) + len(quotes)
+            while index < len(source):
+                if source.startswith(delimiter, index):
+                    index += len(delimiter)
+                    break
+                if not hashes and source[index] == "\\":
+                    index += 2
+                else:
+                    index += 1
+            mask(start, min(index, len(source)))
+            continue
+        index += 1
+    return "".join(masked)
+
+
+def _swift_extension_bodies(source: str, type_name: str) -> tuple[str, ...]:
+    """Return balanced code bodies for every extension of one generated namespace type."""
+    code = _mask_swift_noncode(source)
+    header = re.compile(rf"\b(?:public\s+)?extension\s+{re.escape(type_name)}\b[^{{]*{{")
+    bodies: list[str] = []
+    for match in header.finditer(code):
+        start = match.end()
+        depth = 1
+        for index in range(start, len(code)):
+            if code[index] == "{":
+                depth += 1
+            elif code[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    bodies.append(code[start:index])
+                    break
+    return tuple(bodies)
+
+
+def _swift_extension_methods(paths: list[Path], type_name: str) -> set[str]:
+    methods: set[str] = set()
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        for body in _swift_extension_bodies(source, type_name):
+            depth = 0
+            for token in re.finditer(r"[{}]|\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", body):
+                if token.group(0) == "{":
+                    depth += 1
+                elif token.group(0) == "}":
+                    depth -= 1
+                elif depth == 0 and (method := token.group(1)) is not None:
+                    methods.add(method)
+    return methods
+
+
 def missing_custom_implementations(root: Path | None = None) -> tuple[str, ...]:
     root = root or Path.cwd()
     missing: list[str] = []
@@ -960,7 +1048,9 @@ def missing_custom_implementations(root: Path | None = None) -> tuple[str, ...]:
         typescript_source = (
             typescript_path.read_text(encoding="utf-8") if typescript_path.exists() else ""
         )
-        swift_source = "\n".join(path.read_text(encoding="utf-8") for path in swift_paths)
+        swift_methods = _swift_extension_methods(
+            swift_paths, f"Generated{spec.class_name}Namespace"
+        )
         for operation in spec.custom_operations:
             python_name = _snake_case(operation.name)
             if "python" in operation.targets and python_name not in python_methods:
@@ -971,9 +1061,7 @@ def missing_custom_implementations(root: Path | None = None) -> tuple[str, ...]:
                 rf"\b{re.escape(operation.name)}\s*\(", typescript_source
             ):
                 missing.append(f"typescript:{spec.namespace}.{operation.name}")
-            if "swift" in operation.targets and not re.search(
-                rf"\bfunc\s+{re.escape(operation.name)}\s*\(", swift_source
-            ):
+            if "swift" in operation.targets and operation.name not in swift_methods:
                 missing.append(f"swift:{spec.namespace}.{operation.name}")
     return tuple(missing)
 

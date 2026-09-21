@@ -23,7 +23,11 @@ export interface OdooClientApi {
     args?: readonly unknown[],
     kwargs?: Readonly<Record<string, unknown>>,
   ): Promise<unknown>;
-  executeSudo(
+  /**
+   * Inject `sudo_user_id` into the call context.
+   * This requires server-side support and does not change authentication or access checks itself.
+   */
+  executeWithUserContext(
     model: string,
     method: string,
     userId: number,
