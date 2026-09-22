@@ -187,8 +187,6 @@ jobs:
 
     - name: Stage npm package for 2FA approval
       working-directory: dist/npm
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       run: npm stage publish --access public --provenance
 
   publish-to-testpypi:
