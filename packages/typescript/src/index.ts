@@ -1,4 +1,10 @@
-export { OdooClient, type OdooClientOptions } from "./client.js";
+export {
+  OdooClient,
+  type OdooClientOptions,
+  type OdooProtocol,
+  type OdooWorkerBindings,
+  type OdooWorkerClientOptions,
+} from "./client.js";
 export {
   getDefaultUserId,
   getPartnerIdFromUser,

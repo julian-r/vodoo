@@ -4,7 +4,7 @@ import type {
   SearchReadOptions,
 } from "./client-api.js";
 import { processContentValues } from "./content.js";
-import { VodooError } from "./errors.js";
+import { ConfigurationError, VodooError } from "./errors.js";
 import { AccountMoveNamespace } from "./namespaces/account-moves.js";
 import { ActivityNamespace } from "./namespaces/activities.js";
 import { CRMNamespace } from "./namespaces/crm.js";
@@ -28,12 +28,35 @@ import type {
   NameSearchResult,
   OdooConfig,
   OdooRecord,
+  RetryConfig,
   Sleep,
 } from "./types.js";
 
+export type OdooProtocol = "auto" | "json2" | "jsonrpc";
+
+/** Minimum structural contract implemented by a Worker's generated Env type. */
+export interface OdooWorkerBindings {
+  ODOO_URL: string;
+  ODOO_DATABASE: string;
+  ODOO_USERNAME: string;
+  ODOO_PASSWORD: string;
+}
+
 export interface OdooClientOptions {
   transport?: OdooTransportApi;
+  protocol?: OdooProtocol;
+  /** @deprecated Use `protocol: "jsonrpc"` instead. */
   autoDetect?: boolean;
+  fetch?: FetchLike;
+  sleep?: Sleep;
+}
+
+export interface OdooWorkerClientOptions {
+  protocol?: OdooProtocol;
+  defaultUserId?: number;
+  timeoutMs?: number;
+  retry?: Partial<RetryConfig>;
+  headers?: Readonly<Record<string, string>>;
   fetch?: FetchLike;
   sleep?: Sleep;
 }
@@ -65,7 +88,7 @@ export class OdooClient implements OdooClientApi {
   readonly generic: GenericNamespace;
 
   private readonly config: OdooConfig;
-  private readonly autoDetect: boolean;
+  private readonly protocol: OdooProtocol;
   private readonly fetchImplementation: FetchLike | undefined;
   private readonly sleepImplementation: Sleep | undefined;
   private transportValue: OdooTransportApi | null;
@@ -77,7 +100,8 @@ export class OdooClient implements OdooClientApi {
     this.database = config.database;
     this.username = config.username;
     this.defaultUserId = config.defaultUserId;
-    this.autoDetect = options.autoDetect ?? true;
+    this.protocol =
+      options.protocol ?? (options.autoDetect === false ? "jsonrpc" : "auto");
     this.fetchImplementation = options.fetch;
     this.sleepImplementation = options.sleep;
     this.transportValue = options.transport ?? null;
@@ -92,6 +116,44 @@ export class OdooClient implements OdooClientApi {
     this.timer = new TimerNamespace(this);
     this.security = new SecurityNamespace(this);
     this.generic = new GenericNamespace(this);
+  }
+
+  static fromBindings(
+    bindings: OdooWorkerBindings,
+    options: OdooWorkerClientOptions = {},
+  ): OdooClient {
+    const requiredBindings = [
+      "ODOO_URL",
+      "ODOO_DATABASE",
+      "ODOO_USERNAME",
+      "ODOO_PASSWORD",
+    ] as const;
+    for (const name of requiredBindings) {
+      if (typeof bindings[name] !== "string" || bindings[name].length === 0) {
+        throw new ConfigurationError(
+          `Missing required Odoo Worker binding: ${name}`,
+        );
+      }
+    }
+
+    const config: OdooConfig = {
+      url: bindings.ODOO_URL,
+      database: bindings.ODOO_DATABASE,
+      username: bindings.ODOO_USERNAME,
+      password: bindings.ODOO_PASSWORD,
+    };
+    if (options.defaultUserId !== undefined)
+      config.defaultUserId = options.defaultUserId;
+    if (options.timeoutMs !== undefined) config.timeoutMs = options.timeoutMs;
+    if (options.retry !== undefined) config.retry = options.retry;
+    if (options.headers !== undefined) config.headers = options.headers;
+
+    const clientOptions: OdooClientOptions = {
+      protocol: options.protocol ?? "auto",
+    };
+    if (options.fetch !== undefined) clientOptions.fetch = options.fetch;
+    if (options.sleep !== undefined) clientOptions.sleep = options.sleep;
+    return new OdooClient(config, clientOptions);
   }
 
   get transport(): OdooTransportApi {
@@ -279,8 +341,9 @@ export class OdooClient implements OdooClientApi {
 
   private async initializeTransport(): Promise<OdooTransportApi> {
     const options = this.transportOptions();
-    if (!this.autoDetect) return new LegacyTransport(options);
+    if (this.protocol === "jsonrpc") return new LegacyTransport(options);
     const json2 = new JSON2Transport(options);
+    if (this.protocol === "json2") return json2;
     try {
       await json2.authenticate();
       return json2;
