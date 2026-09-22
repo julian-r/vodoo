@@ -6,6 +6,7 @@ public protocol OdooClientAPI: Sendable {
     var defaultUserID: Int? { get }
     func getUID() async throws -> Int
     func transportDialect() async throws -> TransportDialect
+    func recordURL(model: String, recordID: Int) -> URL
     func execute(model: String, method: String, args: [JSONValue], kwargs: OdooRecord?) async throws -> JSONValue
     func search(
         model: String,
@@ -39,34 +40,109 @@ public protocol OdooClientAPI: Sendable {
     ) async throws -> [NameSearchResult]
 }
 
+public extension OdooClientAPI {
+    /// Legacy-compatible default for custom client conformers without synchronous transport state.
+    func recordURL(model: String, recordID: Int) -> URL {
+        buildRecordURL(baseURL: baseURL, model: model, recordID: recordID, dialect: .jsonrpc)
+    }
+}
+
+private final class TransportDialectState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: TransportDialect?
+
+    init(_ value: TransportDialect?) { self.value = value }
+
+    func get() -> TransportDialect? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func set(_ value: TransportDialect) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.value = value
+    }
+}
+
 private actor TransportHolder {
     private let config: OdooConfig
     private let autoDetect: Bool
+    private let dialectState: TransportDialectState
+    private let transportInitializer: (@Sendable () async throws -> any OdooTransportProtocol)?
     private var transport: (any OdooTransportProtocol)?
+    private var initializationTask: Task<any OdooTransportProtocol, Error>?
+    private var initializationGeneration = 0
 
-    init(config: OdooConfig, autoDetect: Bool, transport: (any OdooTransportProtocol)?) {
+    init(
+        config: OdooConfig,
+        autoDetect: Bool,
+        transport: (any OdooTransportProtocol)?,
+        dialectState: TransportDialectState,
+        transportInitializer: (@Sendable () async throws -> any OdooTransportProtocol)? = nil
+    ) {
         self.config = config
         self.autoDetect = autoDetect
         self.transport = transport
+        self.dialectState = dialectState
+        self.transportInitializer = transportInitializer
     }
 
     func value() async throws -> any OdooTransportProtocol {
-        if let transport { return transport }
-        if !autoDetect {
-            let legacy = LegacyTransport(config: config)
-            transport = legacy
-            return legacy
+        if let transport {
+            dialectState.set(transport.dialect)
+            return transport
         }
-        let json2 = JSON2Transport(config: config)
-        do {
-            _ = try await json2.getUID()
-            transport = json2
-            return json2
-        } catch is VodooError {
-            let legacy = LegacyTransport(config: config)
-            transport = legacy
-            return legacy
+        if let initializationTask {
+            return try await initializationTask.value
         }
+
+        let config = config
+        let autoDetect = autoDetect
+        let transportInitializer = transportInitializer
+        initializationGeneration += 1
+        let generation = initializationGeneration
+        let task = Task<any OdooTransportProtocol, Error> {
+            do {
+                let selected: any OdooTransportProtocol
+                if let transportInitializer {
+                    selected = try await transportInitializer()
+                } else if !autoDetect {
+                    selected = LegacyTransport(config: config)
+                } else {
+                    let json2 = JSON2Transport(config: config)
+                    do {
+                        _ = try await json2.getUID()
+                        selected = json2
+                    } catch is VodooError {
+                        selected = LegacyTransport(config: config)
+                    }
+                }
+                publish(selected, generation: generation)
+                return selected
+            } catch {
+                clearInitialization(generation: generation)
+                throw error
+            }
+        }
+        initializationTask = task
+        return try await task.value
+    }
+
+    private func publish(
+        _ selected: any OdooTransportProtocol,
+        generation: Int
+    ) {
+        guard generation == initializationGeneration else { return }
+        transport = selected
+        dialectState.set(selected.dialect)
+        initializationTask = nil
+    }
+
+    private func clearInitialization(generation: Int) {
+        guard generation == initializationGeneration else { return }
+        initializationTask = nil
     }
 }
 
@@ -87,6 +163,7 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
     public lazy var security = SecurityNamespace(client: self)
     public lazy var timer = TimerNamespace(client: self)
 
+    private let dialectState: TransportDialectState
     private let holder: TransportHolder
 
     public init(
@@ -98,13 +175,50 @@ public final class OdooClient: OdooClientAPI, @unchecked Sendable {
         database = config.database
         username = config.username
         defaultUserID = config.defaultUserID
-        holder = TransportHolder(config: config, autoDetect: autoDetect, transport: transport)
+        let state = TransportDialectState(
+            transport?.dialect ?? (autoDetect ? nil : .jsonrpc)
+        )
+        dialectState = state
+        holder = TransportHolder(
+            config: config,
+            autoDetect: autoDetect,
+            transport: transport,
+            dialectState: state
+        )
+    }
+
+    init(
+        config: OdooConfig,
+        transportInitializer: @escaping @Sendable () async throws -> any OdooTransportProtocol
+    ) {
+        baseURL = config.url
+        database = config.database
+        username = config.username
+        defaultUserID = config.defaultUserID
+        let state = TransportDialectState(nil)
+        dialectState = state
+        holder = TransportHolder(
+            config: config,
+            autoDetect: true,
+            transport: nil,
+            dialectState: state,
+            transportInitializer: transportInitializer
+        )
     }
 
     public func getUID() async throws -> Int { try await holder.value().getUID() }
 
     public func transportDialect() async throws -> TransportDialect {
         try await holder.value().dialect
+    }
+
+    public func recordURL(model: String, recordID: Int) -> URL {
+        buildRecordURL(
+            baseURL: baseURL,
+            model: model,
+            recordID: recordID,
+            dialect: dialectState.get() ?? .jsonrpc
+        )
     }
 
     public func execute(

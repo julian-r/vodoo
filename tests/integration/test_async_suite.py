@@ -26,6 +26,13 @@ from vodoo.exceptions import (
 )
 
 
+def _expected_record_url(client: AsyncOdooClient, model: str, record_id: int) -> str:
+    base = client.url.rstrip("/")
+    if client.is_json2:
+        return f"{base}/odoo/{model}/{record_id}"
+    return f"{base}/web#id={record_id}&model={model}&view_type=form"
+
+
 async def _model_exists(async_client: AsyncOdooClient, model_name: str) -> bool:
     models = await async_client.search_read(
         "ir.model",
@@ -259,8 +266,7 @@ class TestAsyncProject:
 
     async def test_project_url(self, async_client: AsyncOdooClient) -> None:
         url = async_client.projects.url(self.project_id)
-        assert str(self.project_id) in url
-        assert "project.project" in url or "/web#" in url
+        assert url == _expected_record_url(async_client, "project.project", self.project_id)
 
     async def test_project_comment(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()
@@ -345,7 +351,7 @@ class TestAsyncProjectTask:
 
     async def test_task_url(self, async_client: AsyncOdooClient) -> None:
         url = async_client.tasks.url(self.task_id)
-        assert str(self.task_id) in url
+        assert url == _expected_record_url(async_client, "project.task", self.task_id)
 
     async def test_task_comment(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()
@@ -553,7 +559,7 @@ class TestAsyncCRM:
 
     async def test_lead_url(self, async_client: AsyncOdooClient) -> None:
         url = async_client.crm.url(self.lead_id)
-        assert str(self.lead_id) in url
+        assert url == _expected_record_url(async_client, "crm.lead", self.lead_id)
 
     async def test_lead_comment(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()
@@ -633,7 +639,7 @@ class TestAsyncAccountMove:
 
     async def test_account_move_url(self, async_client: AsyncOdooClient) -> None:
         url = async_client.account_moves.url(self.move_id)
-        assert str(self.move_id) in url
+        assert url == _expected_record_url(async_client, "account.move", self.move_id)
 
     async def test_account_move_attachment(self, async_client: AsyncOdooClient) -> None:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
@@ -781,7 +787,7 @@ class TestAsyncHelpdesk:
 
     async def test_ticket_url(self, async_client: AsyncOdooClient) -> None:
         url = async_client.helpdesk.url(self.ticket_id)
-        assert str(self.ticket_id) in url
+        assert url == _expected_record_url(async_client, "helpdesk.ticket", self.ticket_id)
 
     async def test_ticket_comment(self, async_client: AsyncOdooClient) -> None:
         uid = await async_client.get_uid()

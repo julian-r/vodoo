@@ -65,7 +65,7 @@ final class LiveIntegrationTests: XCTestCase {
     }
 
     func testFeatureParityNamespacesAgainstLiveOdoo() async throws {
-        let (client, _) = try clientFromEnvironment()
+        let (client, version) = try clientFromEnvironment()
         let uid = try await client.getUID()
         let enterprise = ProcessInfo.processInfo.environment["ODOO_ENTERPRISE"] == "1"
         let suffix = UUID().uuidString
@@ -76,6 +76,13 @@ final class LiveIntegrationTests: XCTestCase {
                 model: "project.project", values: ["name": .string("Swift project \(suffix)")]
             )
             cleanup.append(("project.project", projectID))
+            let baseURL = client.baseURL.absoluteString.trimmingCharacters(
+                in: CharacterSet(charactersIn: "/")
+            )
+            let expectedProjectURL = version >= 19
+                ? "\(baseURL)/odoo/project.project/\(projectID)"
+                : "\(baseURL)/web#id=\(projectID)&model=project.project&view_type=form"
+            XCTAssertEqual(client.projects.url(projectID).absoluteString, expectedProjectURL)
             let resolvedProjectID = try await client.projects.resolveProjectID("Swift project \(suffix)")
             XCTAssertEqual(resolvedProjectID, projectID)
 

@@ -4,6 +4,7 @@ import type {
   SearchReadOptions,
 } from "./client-api.js";
 import type { Domain, NameSearchResult, OdooRecord } from "./types.js";
+import { buildRecordUrl } from "./urls.js";
 
 export interface RecordedCall {
   readonly method: string;
@@ -23,6 +24,15 @@ export class RecordingClient implements OdooClientApi {
     readonly isJson2 = false,
   ) {
     this.defaultUserId = defaultUserId;
+  }
+
+  recordUrl(model: string, recordId: number): string {
+    return buildRecordUrl(
+      this.url,
+      model,
+      recordId,
+      this.isJson2 ? "json2" : "jsonrpc",
+    );
   }
 
   private next(method: string, args: readonly unknown[]): unknown {

@@ -59,6 +59,38 @@ private actor FeatureTransport: OdooTransportProtocol {
     func recorded() -> [FeatureCall] { calls }
 }
 
+private actor TransportInitializationCounter {
+    private(set) var count = 0
+
+    func initialize() async throws -> any OdooTransportProtocol {
+        count += 1
+        try await Task.sleep(nanoseconds: 20_000_000)
+        return FeatureTransport(dialect: .json2, uid: 7)
+    }
+}
+
+private actor FailingOnceTransportInitializationCounter {
+    private(set) var count = 0
+
+    func initialize() async throws -> any OdooTransportProtocol {
+        count += 1
+        try await Task.sleep(nanoseconds: 20_000_000)
+        if count == 1 { throw VodooError.invalidResponse("expected initialization failure") }
+        return FeatureTransport(dialect: .json2, uid: 7)
+    }
+}
+
+private func retryAfterInitializationFailure(_ client: OdooClient) async throws -> Int {
+    do {
+        _ = try await client.getUID()
+        throw VodooError.invalidResponse("expected first initialization to fail")
+    } catch VodooError.invalidResponse(let message)
+        where message == "expected initialization failure"
+    {
+        return try await client.getUID()
+    }
+}
+
 private func featureClient(
     _ transport: FeatureTransport,
     defaultUserID: Int? = nil
@@ -79,6 +111,72 @@ private func row(_ values: OdooRecord) -> JSONValue { .object(values) }
 private func rows(_ values: [OdooRecord]) -> JSONValue { .array(values.map(JSONValue.object)) }
 
 final class DomainNamespaceCompatibilityTests: XCTestCase {
+    func testUninitializedAutoClientUsesLegacyRecordURLWithoutIO() throws {
+        let client = OdooClient(
+            config: OdooConfig(
+                url: try XCTUnwrap(URL(string: "https://odoo.example.test/")),
+                database: "fixture",
+                username: "user",
+                password: "key"
+            )
+        )
+
+        XCTAssertEqual(
+            client.projects.url(7).absoluteString,
+            "https://odoo.example.test/web#id=7&model=project.project&view_type=form"
+        )
+    }
+
+    func testConcurrentFirstUseSharesTransportInitialization() async throws {
+        let counter = TransportInitializationCounter()
+        let client = OdooClient(
+            config: OdooConfig(
+                url: try XCTUnwrap(URL(string: "https://odoo.example.test/")),
+                database: "fixture",
+                username: "user",
+                password: "key"
+            ),
+            transportInitializer: { try await counter.initialize() }
+        )
+
+        async let firstUID = client.getUID()
+        async let secondUID = client.getUID()
+        let uids = try await [firstUID, secondUID]
+
+        let initializationCount = await counter.count
+        XCTAssertEqual(uids, [7, 7])
+        XCTAssertEqual(initializationCount, 1)
+        XCTAssertEqual(
+            client.projects.url(7).absoluteString,
+            "https://odoo.example.test/odoo/project.project/7"
+        )
+    }
+
+    func testConcurrentInitializationFailureCanRetryImmediately() async throws {
+        let counter = FailingOnceTransportInitializationCounter()
+        let client = OdooClient(
+            config: OdooConfig(
+                url: try XCTUnwrap(URL(string: "https://odoo.example.test/")),
+                database: "fixture",
+                username: "user",
+                password: "key"
+            ),
+            transportInitializer: { try await counter.initialize() }
+        )
+
+        async let firstUID = retryAfterInitializationFailure(client)
+        async let secondUID = retryAfterInitializationFailure(client)
+        let uids = try await [firstUID, secondUID]
+        let initializationCount = await counter.count
+
+        XCTAssertEqual(uids, [7, 7])
+        XCTAssertEqual(initializationCount, 2)
+        XCTAssertEqual(
+            client.projects.url(7).absoluteString,
+            "https://odoo.example.test/odoo/project.project/7"
+        )
+    }
+
     func testInitializerDefaultsDateFieldsForSourceCompatibility() {
         let namespace = DomainNamespace(
             client: featureClient(FeatureTransport()),
@@ -416,7 +514,7 @@ final class TaskProjectKnowledgeFeatureTests: XCTestCase {
         XCTAssertEqual(serverURL.absoluteString, "https://kb.example.test/a")
         XCTAssertEqual(
             fallbackURL.absoluteString,
-            "https://odoo.example.test/web#id=2&model=knowledge.article&view_type=form"
+            "https://odoo.example.test/odoo/knowledge.article/2"
         )
     }
 }

@@ -69,14 +69,19 @@ describe("KnowledgeNamespace", () => {
   });
 
   it("resolves article_url with a synchronous URL fallback", async () => {
-    const client = new RecordingClient("https://odoo.example.com/", [
-      [{ id: 4, article_url: "/knowledge/article/4" }],
-      [{ id: 5, article_url: false }],
-    ]);
+    const client = new RecordingClient(
+      "https://odoo.example.com/",
+      [
+        [{ id: 4, article_url: "/knowledge/article/4" }],
+        [{ id: 5, article_url: false }],
+      ],
+      undefined,
+      true,
+    );
     const knowledge = new KnowledgeNamespace(client);
     await expect(knowledge.resolveUrl(4)).resolves.toBe("/knowledge/article/4");
     await expect(knowledge.resolveUrl(5)).resolves.toBe(
-      "https://odoo.example.com/web#id=5&model=knowledge.article&view_type=form",
+      "https://odoo.example.com/odoo/knowledge.article/5",
     );
   });
 });

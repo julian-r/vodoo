@@ -21,6 +21,13 @@ from vodoo.exceptions import (
 from vodoo.transport import JSON2Transport, LegacyTransport
 
 
+def _expected_record_url(client: OdooClient, model: str, record_id: int) -> str:
+    base = client.url.rstrip("/")
+    if client.is_json2:
+        return f"{base}/odoo/{model}/{record_id}"
+    return f"{base}/web#id={record_id}&model={model}&view_type=form"
+
+
 def _model_exists(client: OdooClient, model_name: str) -> bool:
     models = client.search_read(
         "ir.model",
@@ -227,8 +234,7 @@ class TestProject:
 
     def test_project_url(self, client: OdooClient) -> None:
         url = client.projects.url(self.project_id)
-        assert str(self.project_id) in url
-        assert "project.project" in url or "/web#" in url
+        assert url == _expected_record_url(client, "project.project", self.project_id)
 
     def test_project_comment(self, client: OdooClient) -> None:
         success = client.projects.comment(
@@ -309,7 +315,7 @@ class TestProjectTask:
 
     def test_task_url(self, client: OdooClient) -> None:
         url = client.tasks.url(self.task_id)
-        assert str(self.task_id) in url
+        assert url == _expected_record_url(client, "project.task", self.task_id)
 
     def test_task_comment(self, client: OdooClient) -> None:
         message_id = client.tasks.comment_with_id(
@@ -514,7 +520,7 @@ class TestCRM:
 
     def test_lead_url(self, client: OdooClient) -> None:
         url = client.crm.url(self.lead_id)
-        assert str(self.lead_id) in url
+        assert url == _expected_record_url(client, "crm.lead", self.lead_id)
 
     def test_lead_comment(self, client: OdooClient) -> None:
         success = client.crm.comment(self.lead_id, "Lead comment from vodoo", user_id=client.uid)
@@ -659,7 +665,7 @@ class TestAccountMove:
 
     def test_account_move_url(self, client: OdooClient) -> None:
         url = client.account_moves.url(self.move_id)
-        assert str(self.move_id) in url
+        assert url == _expected_record_url(client, "account.move", self.move_id)
 
     def test_account_move_attachment(self, client: OdooClient) -> None:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
@@ -806,7 +812,7 @@ class TestHelpdesk:
 
     def test_ticket_url(self, client: OdooClient) -> None:
         url = client.helpdesk.url(self.ticket_id)
-        assert str(self.ticket_id) in url
+        assert url == _expected_record_url(client, "helpdesk.ticket", self.ticket_id)
 
     def test_ticket_comment(self, client: OdooClient) -> None:
         success = client.helpdesk.comment(

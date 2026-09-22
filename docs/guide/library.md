@@ -108,6 +108,19 @@ timesheets = client.timer.today()
 client.timer.stop()
 ```
 
+## Record URLs
+
+Domain namespaces build links to record form views without making an additional request:
+
+```python
+project = client.create("project.project", {"name": "Launch"})
+print(client.projects.url(project))
+# Odoo 19: https://my.odoo.com/odoo/project.project/42
+# Odoo 17–18: https://my.odoo.com/web#id=42&model=project.project&view_type=form
+```
+
+After JSON-2 is explicitly selected or detected, `url()` uses Odoo 19's canonical path format. Legacy JSON-RPC retains the hash format. An async auto-detecting client used before any awaited operation also returns the legacy URL because URL generation remains synchronous and never performs a network request. Knowledge articles use their server-provided `article_url` when available and this transport-aware URL as a fallback.
+
 ## Transport Layer
 
 Vodoo auto-detects the Odoo version and selects the right transport:

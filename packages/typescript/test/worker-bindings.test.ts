@@ -25,6 +25,12 @@ describe("OdooClient.fromBindings", () => {
       fetch: mock.fetch,
     });
 
+    expect(client.isJson2).toBe(true);
+    expect(client.projects.url(7)).toBe(
+      "https://odoo.example.com/odoo/project.project/7",
+    );
+    expect(mock.requests).toHaveLength(0);
+
     await expect(
       client.searchRead("res.partner", { fields: ["id", "name"] }),
     ).resolves.toEqual([{ id: 11, name: "Partner" }]);
@@ -60,9 +66,17 @@ describe("OdooClient.fromBindings", () => {
       fetch: mock.fetch,
     });
 
+    expect(client.projects.url(7)).toBe(
+      "https://odoo.example.com/web#id=7&model=project.project&view_type=form",
+    );
+    expect(mock.requests).toHaveLength(0);
+
     await expect(client.searchRead("res.partner")).resolves.toEqual([
       { id: 11 },
     ]);
+    expect(client.projects.url(7)).toBe(
+      "https://odoo.example.com/odoo/project.project/7",
+    );
     expect(mock.requests.map((request) => request.url)).toEqual([
       "https://odoo.example.com/json/2/res.users/search_read",
       "https://odoo.example.com/json/2/res.partner/search_read",
@@ -87,6 +101,9 @@ describe("OdooClient.fromBindings", () => {
       { id: 11 },
     ]);
     expect(client.isJson2).toBe(false);
+    expect(client.projects.url(7)).toBe(
+      "https://odoo.example.com/web#id=7&model=project.project&view_type=form",
+    );
     expect(mock.requests).toHaveLength(2);
     expect(
       mock.requests.every(

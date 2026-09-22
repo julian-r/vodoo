@@ -31,6 +31,7 @@ import type {
   RetryConfig,
   Sleep,
 } from "./types.js";
+import { buildRecordUrl } from "./urls.js";
 
 export type OdooProtocol = "auto" | "json2" | "jsonrpc";
 
@@ -166,7 +167,19 @@ export class OdooClient implements OdooClientApi {
   }
 
   get isJson2(): boolean {
-    return this.transportValue?.dialect === "json2";
+    return (
+      this.transportValue?.dialect === "json2" ||
+      (this.transportValue === null && this.protocol === "json2")
+    );
+  }
+
+  recordUrl(model: string, recordId: number): string {
+    return buildRecordUrl(
+      this.url,
+      model,
+      recordId,
+      this.isJson2 ? "json2" : "jsonrpc",
+    );
   }
 
   async getUid(): Promise<number> {

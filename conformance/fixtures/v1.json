@@ -139,6 +139,32 @@
     {"id": "float", "wire": 4.5, "expectError": true},
     {"id": "string", "wire": "42", "expectError": true}
   ],
+  "recordUrls": [
+    {
+      "id": "legacy-record",
+      "dialect": "jsonrpc",
+      "baseUrl": "https://odoo.example.test/",
+      "model": "project.project",
+      "recordId": 7,
+      "expect": "https://odoo.example.test/web#id=7&model=project.project&view_type=form"
+    },
+    {
+      "id": "json2-record",
+      "dialect": "json2",
+      "baseUrl": "https://odoo.example.test/",
+      "model": "project.project",
+      "recordId": 7,
+      "expect": "https://odoo.example.test/odoo/project.project/7"
+    },
+    {
+      "id": "json2-undotted-model",
+      "dialect": "json2",
+      "baseUrl": "https://odoo.example.test/",
+      "model": "fixture",
+      "recordId": 8,
+      "expect": "https://odoo.example.test/odoo/m-fixture/8"
+    }
+  ],
   "transports": [
     {
       "id": "json2-search-read",
