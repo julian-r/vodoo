@@ -137,9 +137,6 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: validate-release
     runs-on: ubuntu-latest
-    environment:
-      name: npm
-      url: https://www.npmjs.com/package/vodoo
     permissions:
       contents: read
       id-token: write
