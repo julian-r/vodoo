@@ -137,9 +137,6 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: validate-release
     runs-on: ubuntu-latest
-    environment:
-      name: npm
-      url: https://www.npmjs.com/package/vodoo
     permissions:
       contents: read
       id-token: write
@@ -187,8 +184,6 @@ jobs:
 
     - name: Stage npm package for 2FA approval
       working-directory: dist/npm
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       run: npm stage publish --access public --provenance
 
   publish-to-testpypi:

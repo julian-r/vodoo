@@ -54,4 +54,6 @@ def test_npm_release_uses_staging_and_requires_manual_2fa_approval() -> None:
 
     assert npm_install["run"] == "npm install --global npm@12.0.2"
     assert staging["run"] == "npm stage publish --access public --provenance"
-    assert staging["env"]["NODE_AUTH_TOKEN"] == "${{ secrets.NPM_TOKEN }}"
+    assert "env" not in staging
+    assert "environment" not in npm_job
+    assert npm_job["permissions"]["id-token"] == "write"
