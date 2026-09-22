@@ -125,6 +125,7 @@ nav:
       - config: cli/config.md
   - Library Guide:
       - Using as a Library: guide/library.md
+      - Cloudflare Workers: guide/cloudflare-workers.md
       - AI Assistant Integration: guide/ai-assistants.md
   - API Reference:
       - Overview: api/index.md

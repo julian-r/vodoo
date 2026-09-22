@@ -6,23 +6,19 @@ Typed namespaces are available for projects, tasks, CRM, helpdesk, knowledge, do
 
 ## Cloudflare Worker
 
+`OdooClient.fromBindings` accepts any generated Worker `Env` with the four standard Vodoo bindings. `OdooWorkerBindings` is only the minimum structural contract; keep the complete `Env` definition owned by your Worker and regenerate it with `wrangler types`.
+
 ```ts
 import { OdooClient } from "vodoo";
 
-interface Env {
-  ODOO_URL: string;
-  ODOO_DATABASE: string;
-  ODOO_USERNAME: string;
-  ODOO_PASSWORD: string;
-}
-
 export default {
   async fetch(_request: Request, env: Env): Promise<Response> {
-    const client = new OdooClient({
-      url: env.ODOO_URL,
-      database: env.ODOO_DATABASE,
-      username: env.ODOO_USERNAME,
-      password: env.ODOO_PASSWORD,
+    const client = OdooClient.fromBindings(env, {
+      protocol: "json2",
+      headers: {
+        "CF-Access-Client-Id": env.CF_ACCESS_CLIENT_ID,
+        "CF-Access-Client-Secret": env.CF_ACCESS_CLIENT_SECRET,
+      },
     });
 
     const projects = await client.projects.list({ limit: 10 });
@@ -38,11 +34,34 @@ export default {
 };
 ```
 
-Credentials belong in Worker secret bindings, never in source or `wrangler.jsonc`.
+Store non-sensitive configuration as Worker vars:
+
+```jsonc
+{
+  "vars": {
+    "ODOO_URL": "https://my-instance.odoo.com",
+    "ODOO_DATABASE": "production",
+    "ODOO_USERNAME": "worker@example.com",
+  },
+}
+```
+
+Store passwords, API keys, and Cloudflare Access credentials as secrets, never in source or `wrangler.jsonc`:
+
+```bash
+npx wrangler secret put ODOO_PASSWORD
+npx wrangler secret put CF_ACCESS_CLIENT_ID
+npx wrangler secret put CF_ACCESS_CLIENT_SECRET
+npx wrangler types
+```
+
+Use separate secrets for each Wrangler environment. Bindings are not inherited between environments.
 
 ## Transport behavior
 
-The client lazily tries Odoo 19 JSON-2 authentication and falls back to legacy JSON-RPC under the same conditions as the Python async client. It uses a 30-second timeout and retries only idempotent read operations after network failures (two retries with exponential backoff by default). Provide `autoDetect: false` to force legacy JSON-RPC or inject a transport for tests.
+The default `protocol: "auto"` lazily tries Odoo 19 JSON-2 authentication and falls back to legacy JSON-RPC under the same conditions as the Python async client. Use `protocol: "json2"` for Odoo 19 to send the requested operation directly, without a detection/authentication request first. Use `protocol: "jsonrpc"` for Odoo 17–18. Custom `headers` are included on every request for all protocols.
+
+The client uses a 30-second timeout and retries only idempotent read operations after network failures (two retries with exponential backoff by default). The older `autoDetect: false` constructor option remains as a compatibility alias for `protocol: "jsonrpc"`; new code should use `protocol` or `fromBindings`.
 
 Known date and datetime fields exposed by typed namespaces are JavaScript `Date` values interpreted in UTC. Generic model operations preserve raw Odoo wire values because arbitrary model field types are not known.
 
