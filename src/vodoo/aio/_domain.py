@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from vodoo._domain import _convert_to_html, _NamespaceBase
 from vodoo.aio.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.exceptions import RecordNotFoundError
+from vodoo.urls import build_record_url
 
 if TYPE_CHECKING:
     from vodoo.aio.client import AsyncOdooClient
@@ -282,8 +283,12 @@ class AsyncDomainNamespace(_NamespaceBase):
 
     def url(self, record_id: int) -> str:
         """Return the Odoo web URL for a record."""
-        base_url = self._client.config.url.rstrip("/")
-        return f"{base_url}/web#id={record_id}&model={self._model}&view_type=form"
+        return build_record_url(
+            self._client.config.url,
+            self._model,
+            record_id,
+            "json2" if self._client.is_json2 else "jsonrpc",
+        )
 
 
 # ---------------------------------------------------------------------------

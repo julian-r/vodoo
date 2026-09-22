@@ -259,9 +259,7 @@ open class DomainNamespace: @unchecked Sendable {
     }
 
     public func url(_ recordID: Int) -> URL {
-        var base = client.baseURL.absoluteString
-        while base.hasSuffix("/") { base.removeLast() }
-        return URL(string: "\(base)/web#id=\(recordID)&model=\(model)&view_type=form")!
+        client.recordURL(model: model, recordID: recordID)
     }
 
     private func postMessage(

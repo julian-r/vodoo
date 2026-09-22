@@ -49,7 +49,7 @@ try {
   assert.ok(response, `workerd did not become ready:\n${output}`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    url: "https://odoo.example.test/web#id=7&model=project.project&view_type=form",
+    url: "https://odoo.example.test/odoo/project.project/7",
     command: [6, 0, [2, 3]],
     date: "2026-09-20",
   });

@@ -71,7 +71,7 @@ Filesystem paths are intentionally absent from the Worker API. `attach` and `doc
 
 The documents namespace probes the running server's legacy `documents.folder` versus modern folder-record schema. The timer namespace similarly selects legacy `timer.timer` behavior or Odoo 19 analytic-line timers and handles stop-confirmation wizards. Security password generation uses the Web Crypto API. These paths use only Worker-native globals (`fetch`, `Blob`, `Uint8Array`, `atob`/`btoa`, and `crypto`) and do not import Node runtime modules.
 
-`url(recordId)` remains synchronous and builds the standard Odoo form URL. Knowledge articles additionally expose `resolveUrl(recordId)` for the asynchronous `article_url` lookup with standard-URL fallback.
+`url(recordId)` remains synchronous. It builds the canonical `/odoo/{model}/{id}` form URL when JSON-2 is explicitly selected or has been selected by an earlier operation, and retains the legacy `/web#...` URL for JSON-RPC or an uninitialized auto-detecting client. URL generation never performs a detection request. Knowledge articles additionally expose `resolveUrl(recordId)` for the asynchronous `article_url` lookup with this transport-aware fallback.
 
 ## Development
 

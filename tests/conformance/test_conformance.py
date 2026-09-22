@@ -27,6 +27,7 @@ from vodoo.transport import (
     _parse_json2_response,
     _parse_name_search,
 )
+from vodoo.urls import build_record_url
 
 FIXTURE_PATH = Path(__file__).parents[2] / "conformance" / "fixtures" / "v1.json"
 FIXTURE: dict[str, Any] = json.loads(FIXTURE_PATH.read_text())
@@ -165,6 +166,19 @@ def _canonical_request(request: httpx.Request, expected: dict[str, Any]) -> dict
         "headers": {name: request.headers[name] for name in expected["headers"]},
         "json": json.loads(request.content),
     }
+
+
+@pytest.mark.parametrize("scenario", FIXTURE["recordUrls"], ids=_ids(FIXTURE["recordUrls"]))
+def test_record_url_contract(scenario: dict[str, Any]) -> None:
+    assert (
+        build_record_url(
+            scenario["baseUrl"],
+            scenario["model"],
+            scenario["recordId"],
+            scenario["dialect"],
+        )
+        == scenario["expect"]
+    )
 
 
 @pytest.mark.parametrize("scenario", FIXTURE["transports"], ids=_ids(FIXTURE["transports"]))

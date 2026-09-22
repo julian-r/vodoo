@@ -42,6 +42,24 @@ private actor QueueTransport: OdooTransportProtocol {
 }
 
 final class ConformanceTests: XCTestCase {
+    func testRecordURLsFollowSharedFixture() throws {
+        let rows = try XCTUnwrap(fixture()["recordUrls"] as? [[String: Any]])
+        for row in rows {
+            let dialect = try XCTUnwrap(
+                TransportDialect(rawValue: try XCTUnwrap(row["dialect"] as? String))
+            )
+            XCTAssertEqual(
+                buildRecordURL(
+                    baseURL: try XCTUnwrap(URL(string: try XCTUnwrap(row["baseUrl"] as? String))),
+                    model: try XCTUnwrap(row["model"] as? String),
+                    recordID: try XCTUnwrap(row["recordId"] as? Int),
+                    dialect: dialect
+                ).absoluteString,
+                try XCTUnwrap(row["expect"] as? String)
+            )
+        }
+    }
+
     func testBinaryCodecFollowsSharedFixture() throws {
         let rows = try XCTUnwrap(fixture()["binary"] as? [[String: Any]])
         for row in rows {
@@ -312,7 +330,7 @@ final class ConformanceTests: XCTestCase {
         XCTAssertNotNil(projectFields["name"])
         XCTAssertEqual(
             client.projects.url(7).absoluteString,
-            "https://odoo.example.test/web#id=7&model=project.project&view_type=form"
+            "https://odoo.example.test/odoo/project.project/7"
         )
     }
 

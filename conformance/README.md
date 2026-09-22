@@ -6,7 +6,7 @@ The fixture covers:
 
 - JSON-2 positional-to-named body mapping and response normalization
 - JSON-RPC authentication and `execute_kw` envelopes
-- canonical request paths, headers, and decoded JSON bodies
+- canonical request paths, headers, decoded JSON bodies, and transport-aware record URLs
 - `name_search` result filtering and typed Odoo errors
 - every ORM/x2many command and retry-policy decision
 - client-level false/null normalization and create-result validation

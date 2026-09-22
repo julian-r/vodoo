@@ -174,3 +174,4 @@ export type {
   Sleep,
 } from "./types.js";
 export { DEFAULT_RETRY } from "./types.js";
+export { buildRecordUrl, type RecordUrlDialect } from "./urls.js";

@@ -31,6 +31,7 @@ from vodoo.base import (
     _TAG_FIELDS as _TAG_FIELDS,
 )
 from vodoo.exceptions import RecordNotFoundError
+from vodoo.urls import build_record_url
 
 if TYPE_CHECKING:
     from vodoo.client import OdooClient
@@ -423,8 +424,12 @@ class DomainNamespace(_NamespaceBase):
         Returns:
             Full URL to the record form view.
         """
-        base_url = self._client.config.url.rstrip("/")
-        return f"{base_url}/web#id={record_id}&model={self._model}&view_type=form"
+        return build_record_url(
+            self._client.config.url,
+            self._model,
+            record_id,
+            "json2" if self._client.is_json2 else "jsonrpc",
+        )
 
 
 # ---------------------------------------------------------------------------

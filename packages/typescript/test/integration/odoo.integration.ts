@@ -31,6 +31,13 @@ function relationId(value: unknown): number | null {
   return null;
 }
 
+function expectedRecordUrl(model: string, recordId: number): string {
+  const base = config.url.replace(/\/+$/u, "");
+  return majorVersion >= 19
+    ? `${base}/odoo/${model}/${recordId}`
+    : `${base}/web#id=${recordId}&model=${model}&view_type=form`;
+}
+
 const majorVersion = Number(requiredEnvironment("ODOO_MAJOR_VERSION"));
 const enterprise = process.env.ODOO_ENTERPRISE === "1";
 const config: OdooConfig = {
@@ -339,7 +346,9 @@ describe.sequential(`Odoo ${majorVersion} TypeScript SDK integration`, () => {
 
   it("projects: builds a project URL", () => {
     const id = requiredId(projectId, "project");
-    expect(client.projects.url(id)).toContain(`id=${id}&model=project.project`);
+    expect(client.projects.url(id)).toBe(
+      expectedRecordUrl("project.project", id),
+    );
   });
 
   it("projects: posts and lists a comment", async () => {
@@ -434,7 +443,7 @@ describe.sequential(`Odoo ${majorVersion} TypeScript SDK integration`, () => {
 
   it("tasks: builds a task URL", () => {
     const id = requiredId(taskId, "task");
-    expect(client.tasks.url(id)).toContain(`id=${id}&model=project.task`);
+    expect(client.tasks.url(id)).toBe(expectedRecordUrl("project.task", id));
   });
 
   it("tasks: posts a comment and returns its message ID", async () => {
@@ -644,7 +653,7 @@ describe.sequential(`Odoo ${majorVersion} TypeScript SDK integration`, () => {
 
   it("crm: builds an opportunity URL", () => {
     const id = requiredId(leadId, "lead");
-    expect(client.crm.url(id)).toContain(`id=${id}&model=crm.lead`);
+    expect(client.crm.url(id)).toBe(expectedRecordUrl("crm.lead", id));
   });
 
   it("crm: posts and lists a comment", async () => {
@@ -769,8 +778,8 @@ describe.sequential(`Odoo ${majorVersion} TypeScript SDK integration`, () => {
 
   it("account moves: builds a form URL", () => {
     const id = requiredId(accountMoveId, "account move");
-    expect(client.accountMoves.url(id)).toContain(
-      `id=${id}&model=account.move`,
+    expect(client.accountMoves.url(id)).toBe(
+      expectedRecordUrl("account.move", id),
     );
   });
 
@@ -874,8 +883,8 @@ describe.sequential(`Odoo ${majorVersion} TypeScript SDK integration`, () => {
 
     it("helpdesk: builds a ticket URL", () => {
       const id = requiredId(ticketId, "ticket");
-      expect(client.helpdesk.url(id)).toContain(
-        `id=${id}&model=helpdesk.ticket`,
+      expect(client.helpdesk.url(id)).toBe(
+        expectedRecordUrl("helpdesk.ticket", id),
       );
     });
 

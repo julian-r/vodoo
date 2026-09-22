@@ -16,6 +16,7 @@ export interface OdooClientApi {
   readonly username: string;
   readonly defaultUserId: number | undefined;
   readonly isJson2: boolean;
+  recordUrl?(model: string, recordId: number): string;
   getUid(): Promise<number>;
   execute(
     model: string,

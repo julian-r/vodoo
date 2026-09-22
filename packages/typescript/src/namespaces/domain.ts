@@ -7,6 +7,7 @@ import type { RichText } from "../content.js";
 import { decodeRecordDates } from "../dates.js";
 import { RecordNotFoundError, VodooError } from "../errors.js";
 import type { OdooRecord } from "../types.js";
+import { buildRecordUrl } from "../urls.js";
 
 const TAG_FIELDS = ["id", "name", "color"] as const;
 const MESSAGE_FIELDS = [
@@ -308,7 +309,15 @@ export class DomainNamespace {
   }
 
   url(recordId: number): string {
-    return `${this.client.url.replace(/\/+$/u, "")}/web#id=${recordId}&model=${this.metadata.model}&view_type=form`;
+    return (
+      this.client.recordUrl?.(this.metadata.model, recordId) ??
+      buildRecordUrl(
+        this.client.url,
+        this.metadata.model,
+        recordId,
+        this.client.isJson2 ? "json2" : "jsonrpc",
+      )
+    );
   }
 
   private async postMessage(

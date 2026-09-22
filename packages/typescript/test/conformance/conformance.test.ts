@@ -23,6 +23,7 @@ import {
   retryDelayMs,
 } from "../../src/transport.js";
 import type { Domain, FetchLike, JsonObject } from "../../src/types.js";
+import { buildRecordUrl, type RecordUrlDialect } from "../../src/urls.js";
 
 interface Json2BodyScenario {
   readonly id: string;
@@ -114,6 +115,15 @@ interface CreateResultScenario {
   readonly expectError?: boolean;
 }
 
+interface RecordUrlScenario {
+  readonly id: string;
+  readonly dialect: RecordUrlDialect;
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly recordId: number;
+  readonly expect: string;
+}
+
 interface TransportScenario {
   readonly id: string;
   readonly dialect: "json2" | "jsonrpc";
@@ -155,6 +165,7 @@ interface Fixture {
   readonly normalization: readonly NormalizationScenario[];
   readonly operations: readonly OperationScenario[];
   readonly createResults: readonly CreateResultScenario[];
+  readonly recordUrls: readonly RecordUrlScenario[];
   readonly transports: readonly TransportScenario[];
 }
 
@@ -331,6 +342,19 @@ describe("shared cross-language conformance fixture", () => {
           args: [scenario.expectedModel, scenario.expectedValues, undefined],
         },
       ]);
+    });
+  }
+
+  for (const scenario of fixture.recordUrls) {
+    it(`builds record URLs: ${scenario.id}`, () => {
+      expect(
+        buildRecordUrl(
+          scenario.baseUrl,
+          scenario.model,
+          scenario.recordId,
+          scenario.dialect,
+        ),
+      ).toBe(scenario.expect);
     });
   }
 

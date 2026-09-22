@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from vodoo.auth import message_post_sudo
 from vodoo.client import OdooClient
 from vodoo.exceptions import RecordNotFoundError
+from vodoo.urls import build_record_url
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -1192,8 +1193,9 @@ def create_attachment(
 def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
     """Get the web URL for a record.
 
-    Works with both sync ``OdooClient`` and async ``AsyncOdooClient`` —
-    only ``client.config.url`` is accessed.
+    Uses the canonical path URL for a selected JSON-2 transport and the
+    legacy hash URL otherwise. Works with sync and async clients without
+    making an additional request.
 
     Args:
         client: Odoo client (sync or async)
@@ -1208,5 +1210,9 @@ def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
         'https://odoo.example.com/web#id=42&model=helpdesk.ticket&view_type=form'
 
     """
-    base_url = client.config.url.rstrip("/")
-    return f"{base_url}/web#id={record_id}&model={model}&view_type=form"
+    return build_record_url(
+        client.config.url,
+        model,
+        record_id,
+        "json2" if getattr(client, "is_json2", False) else "jsonrpc",
+    )
