@@ -100,6 +100,7 @@ GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
             AccessDefinition("project.project", True, True, True, False),
             AccessDefinition("project.task", True, True, True, False),
             AccessDefinition("project.task.type", True, False, False, False),
+            AccessDefinition("project.role", True, False, False, False),
             AccessDefinition("project.tags", True, True, True, False),
             AccessDefinition("project.milestone", True, True, True, False),
         ),

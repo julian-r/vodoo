@@ -94,6 +94,7 @@ export const GROUP_DEFINITIONS: readonly GroupDefinition[] = Object.freeze([
       access("project.project",true,true,true,false),
       access("project.task",true,true,true,false),
       access("project.task.type",true,false,false,false),
+      access("project.role",true,false,false,false),
       access("project.tags",true,true,true,false),
       access("project.milestone",true,true,true,false),
     ],

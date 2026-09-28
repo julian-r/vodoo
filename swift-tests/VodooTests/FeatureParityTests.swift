@@ -775,6 +775,18 @@ final class SecurityFeatureTests: XCTestCase {
         )
     }
 
+    func testAPIProjectCanReadProjectRolesWithoutModifyingThem() throws {
+        let project = try XCTUnwrap(SECURITY_GROUP_DEFINITIONS.first { $0.name == "API Project" })
+        let role = try XCTUnwrap(project.access.first { $0.model == "project.role" })
+
+        XCTAssertEqual(
+            role,
+            SecurityAccessDefinition(
+                model: "project.role", read: true, write: false, create: false, unlink: false
+            )
+        )
+    }
+
     func testCreateUserUsesOdoo19GroupField() async throws {
         let transport = FeatureTransport([
             .object(["group_ids": .object(["type": .string("many2many")])]), .integer(71),

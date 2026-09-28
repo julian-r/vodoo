@@ -194,6 +194,11 @@ groups:
     perm_write: false
     perm_create: false
     perm_unlink: false
+  - model: project.role
+    perm_read: true
+    perm_write: false
+    perm_create: false
+    perm_unlink: false
   - model: project.tags
     perm_read: true
     perm_write: true
