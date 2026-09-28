@@ -28,6 +28,18 @@ def test_api_base_can_resolve_stable_message_subtype_external_ids() -> None:
     assert model_data.perm_write is False
 
 
+def test_api_project_can_read_project_roles_without_modifying_them() -> None:
+    project_group = next(group for group in GROUP_DEFINITIONS if group.name == "API Project")
+    role_access = next(access for access in project_group.access if access.model == "project.role")
+
+    assert (
+        role_access.perm_read,
+        role_access.perm_write,
+        role_access.perm_create,
+        role_access.perm_unlink,
+    ) == (True, False, False, False)
+
+
 def test_project_milestone_rule_uses_project_follower_boundary() -> None:
     project_group = next(group for group in GROUP_DEFINITIONS if group.name == "API Project")
     milestone_rule = next(rule for rule in project_group.rules if rule.model == "project.milestone")

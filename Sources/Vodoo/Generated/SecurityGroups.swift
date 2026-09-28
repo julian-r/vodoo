@@ -65,6 +65,7 @@ public let SECURITY_GROUP_DEFINITIONS: [SecurityGroupDefinition] = [
             SecurityAccessDefinition(model: "project.project", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "project.task", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "project.task.type", read: true, write: false, create: false, unlink: false),
+            SecurityAccessDefinition(model: "project.role", read: true, write: false, create: false, unlink: false),
             SecurityAccessDefinition(model: "project.tags", read: true, write: true, create: true, unlink: false),
             SecurityAccessDefinition(model: "project.milestone", read: true, write: true, create: true, unlink: false),
         ],

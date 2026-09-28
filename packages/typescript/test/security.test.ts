@@ -18,6 +18,23 @@ describe("SecurityNamespace", () => {
     ]);
   });
 
+  it("grants API Project read-only access to project roles", () => {
+    const project = GROUP_DEFINITIONS.find(
+      (group) => group.name === "API Project",
+    );
+    const role = project?.access.find(
+      (definition) => definition.model === "project.role",
+    );
+
+    expect(role).toEqual({
+      model: "project.role",
+      permRead: true,
+      permWrite: false,
+      permCreate: false,
+      permUnlink: false,
+    });
+  });
+
   it("idempotently provisions every available access and rule", async () => {
     const responses: unknown[] = [];
     let nextId = 100;
