@@ -197,12 +197,13 @@ Temporary build contexts are removed on success, failure, and interruption. The 
 
 ## API Key Creation
 
-API keys cannot be created via JSON-RPC (Odoo's `@check_identity` wizard blocks it). Instead, `setup_odoo.py` runs `odoo shell` inside the Docker container to call `_generate()` directly. Key differences by version:
+Initial API keys cannot be created remotely: Odoo's `@check_identity` wizard blocks JSON-RPC automation, JSON-2 already requires a key, and private `_generate()` calls are not remotely callable. Instead, `setup_odoo.py` runs `odoo shell` inside the Docker container and calls `_generate()` directly. Key differences by version:
 
 - **Odoo 17**: `_generate(scope, name)` — 2 args
 - **Odoo 18+**: `_generate(scope, name, expiration_date)` — 3 args
+- **Odoo 19**: expiration is additionally bounded by the user's groups through `api_key_duration`; zero-valued groups default to one day
 
-The key is bound to the admin user (not `__system__`) via `with_user(admin).sudo()`.
+The test key is bound to the admin user (not `__system__`) through `with_user(admin).sudo()`. For a service account, the same ordering is important: `with_user(service_user)` selects the key owner and `sudo()` authorizes a reviewed lifetime beyond the group default. Production scripts must capture the returned plaintext key directly into a secrets manager instead of printing it in logs.
 
 ## Environment Files
 

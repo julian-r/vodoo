@@ -98,6 +98,20 @@ vodoo security set-password --user-id 42
 
 **Note:** Requires admin credentials.
 
+## Passwords, API Keys, and Transport Selection
+
+`ODOO_PASSWORD` accepts either the account password or an API key, but they are not transport-equivalent:
+
+- An account password authenticates through JSON-RPC, including on Odoo 19.
+- An API key is required as the bearer credential for Odoo 19 JSON-2.
+- Password rotation does not rotate or revoke an API key, and API-key rotation does not change the login password.
+
+The initial API key cannot be generated through JSON-RPC or JSON-2. Odoo protects the interactive API-key wizard with an identity check and rejects remote calls to the private `_generate()` method. Create the initial key through the Odoo UI or a controlled server-side `odoo shell`, and write the returned value directly to a secrets manager without logging it.
+
+For Odoo 18 and later, `_generate()` requires an expiration date. Odoo 19 additionally limits the expiration to the largest `api_key_duration` configured on the user's groups, defaulting to one day when every value is zero. A reviewed, root-only bootstrap may use `with_user(service_user).sudo()._generate(...)`: `with_user()` binds the key to the service account, while `sudo()` permits the approved longer lifetime. Do not expose this privileged path through an application API.
+
+After storing the key, validate the service-account identity and require Vodoo to report `transport: json-2`. Preserve a separate random account password only when interactive login or recovery is required.
+
 ## Modular Permission Architecture
 
 ```
