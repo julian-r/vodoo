@@ -5,8 +5,8 @@
 Vodoo follows a layered architecture where domain modules delegate shared operations to a base layer, and the transport layer handles protocol differences between Odoo versions. The entire stack is available in both sync and async variants.
 
 ```
-│                    CLI (main.py)                     │
-│              Typer subcommands + Rich UI             │
+│                 CLI (vodoo.cli)                      │
+│       Typer commands + centralized renderers          │
 ├──────────────────────────────────────────────────────┤
 │              Domain Namespaces                        │
 │  client.helpdesk │ .crm │ .tasks │ .projects │ ...   │
@@ -103,9 +103,29 @@ This is handled by `transport_error_from_data()` using `ODOO_EXCEPTION_MAP` in `
 
 The version is derived from git tags via `hatch-vcs` — no hardcoded version string. `__init__.py` reads it at runtime via `importlib.metadata.version("vodoo")`.
 
+### Library and CLI Boundary
+
+Reusable clients, transports, namespaces, and domain helpers never import Typer or Rich and never
+write to stdout or stderr. All command definitions and terminal presentation live under
+`vodoo.cli`:
+
+- `cli/app.py` owns the Typer command tree.
+- `cli/output.py` selects the active renderer.
+- `cli/rich.py` provides interactive Rich output.
+- `cli/simple.py` provides deterministic plain/TSV output.
+- `cli/structured.py` provides JSON and TOON output.
+- `cli/display.py` contains record-, message-, attachment-, and domain-specific presentation.
+
+Historical display-helper imports from modules such as `vodoo.base`, `vodoo.crm`,
+`vodoo.knowledge`, and `vodoo.projects` remain as compatibility shims. New code should import
+presentation helpers from `vodoo.cli` and keep reusable operations in the core modules.
+
 ## Module Responsibilities
+
+| Module | Responsibility |
 |--------|---------------|
-| `main.py` | CLI commands via Typer, output formatting |
+| `cli/` | CLI commands, renderer selection, and terminal presentation |
+| `main.py` | Compatibility alias for `vodoo.cli.app` |
 | `client.py` | Sync client, transport auto-detection, namespace wiring |
 | `aio/client.py` | Async client, lazy transport init, context manager, namespace wiring |
 | `transport.py` | Sync HTTP (`httpx2`) |

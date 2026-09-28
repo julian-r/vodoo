@@ -2,13 +2,6 @@
 
 from typing import Any
 
-from vodoo.base import (
-    _get_console,
-    _html_to_markdown,
-    _is_simple_output,
-    is_structured_output,
-    structured_print,
-)
 from vodoo.content import Markdown
 from vodoo.generated.knowledge import GeneratedKnowledgeNamespace
 
@@ -83,36 +76,7 @@ class KnowledgeNamespace(GeneratedKnowledgeNamespace):
 
 
 def display_article_detail(article: dict[str, Any], show_html: bool = False) -> None:
-    """Display detailed knowledge article information with body content."""
-    if is_structured_output():
-        structured_print(article)
-        return
+    """Deprecated compatibility shim for CLI article rendering."""
+    from vodoo.cli.display import display_article_detail as render
 
-    if _is_simple_output():
-        print(f"id: {article['id']}")
-        print(f"name: {article.get('icon', '')} {article['name']}")
-        if article.get("parent_id"):
-            print(f"parent: {article['parent_id'][1]}")
-        if article.get("category"):
-            print(f"category: {article['category']}")
-        if article.get("body"):
-            body = article["body"] if show_html else _html_to_markdown(article["body"])
-            print(f"body: {body}")
-    else:
-        console = _get_console()
-        console.print(f"\n[bold cyan]Article #{article['id']}[/bold cyan]")
-        console.print(f"[bold]Title:[/bold] {article.get('icon', '')} {article['name']}")
-
-        if article.get("parent_id"):
-            console.print(f"[bold]Parent:[/bold] {article['parent_id'][1]}")
-
-        if article.get("category"):
-            console.print(f"[bold]Category:[/bold] {article['category']}")
-
-        if article.get("body"):
-            body = article["body"]
-            if show_html:
-                console.print(f"\n[bold]Content:[/bold]\n{body}")
-            else:
-                markdown_text = _html_to_markdown(body)
-                console.print(f"\n[bold]Content:[/bold]\n{markdown_text}")
+    render(article, show_html)

@@ -72,42 +72,10 @@ class ProjectNamespace(GeneratedProjectNamespace):
 
 
 def display_stages(stages: list[dict[str, Any]]) -> None:
-    """Display stages in a table, TSV, or JSON format.
+    """Deprecated compatibility shim for CLI stage rendering."""
+    from vodoo.cli.display import display_stages as render
 
-    Args:
-        stages: List of stage dictionaries
-
-    """
-    from vodoo.base import _get_console, _is_simple_output, is_structured_output, structured_print
-
-    if is_structured_output():
-        structured_print(stages)
-        return
-
-    if _is_simple_output():
-        print("id\tname\tsequence\tfold")
-        for stage in stages:
-            fold = "true" if stage.get("fold") else "false"
-            print(f"{stage['id']}\t{stage['name']}\t{stage.get('sequence', '')}\t{fold}")
-    else:
-        from rich.table import Table
-
-        console = _get_console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("ID", style="cyan", justify="right")
-        table.add_column("Name", style="green")
-        table.add_column("Sequence", justify="right")
-        table.add_column("Folded", justify="center")
-
-        for stage in stages:
-            table.add_row(
-                str(stage["id"]),
-                stage["name"],
-                str(stage.get("sequence", "")),
-                "✓" if stage.get("fold") else "",
-            )
-
-        console.print(table)
+    render(stages)
 
 
 __all__ = [

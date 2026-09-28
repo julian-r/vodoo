@@ -393,7 +393,13 @@ src/vodoo/
 ├── config.py             # Pydantic configuration from env/.env files
 ├── auth.py               # Authentication and author-attribution utilities
 ├── _domain.py            # DomainNamespace base — shared CRUD, messaging, attachments
-├── main.py               # CLI entry point (Typer) — not loaded by library imports
+├── main.py               # Deprecated compatibility alias for vodoo.cli.app
+├── cli/                  # Typer commands and all terminal presentation
+│   ├── app.py            # CLI command tree and console entry point
+│   ├── output.py         # Renderer protocol and mode selection
+│   ├── rich.py           # Interactive Rich renderer
+│   ├── simple.py         # Stable plain/TSV renderer
+│   └── structured.py     # JSON and TOON renderers
 ├── helpdesk.py           # Helpdesk ticket operations (enterprise)
 ├── project_tasks.py      # Project task operations
 ├── projects.py           # Project operations

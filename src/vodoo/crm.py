@@ -5,12 +5,6 @@ from __future__ import annotations
 import datetime as _dt
 from typing import Any
 
-from vodoo.base import (
-    _get_console,
-    _is_simple_output,
-    is_structured_output,
-    structured_print,
-)
 from vodoo.generated.crm import STAGE_FIELDS, GeneratedCRMNamespace
 
 _PIPELINE_FIELDS = [
@@ -378,57 +372,11 @@ def compute_health_flags(
     return flags
 
 
-# ---------------------------------------------------------------------------
-# Display functions
-# ---------------------------------------------------------------------------
-
-
 def display_crm_stages(stages: list[dict[str, Any]]) -> None:
-    """Display CRM pipeline stages in a table, TSV, or structured format."""
-    if is_structured_output():
-        structured_print(stages)
-        return
+    """Deprecated compatibility shim for CLI stage rendering."""
+    from vodoo.cli.display import display_crm_stages as render
 
-    if _is_simple_output():
-        print("id\tname\tsequence\tis_won\tfold")
-        for s in stages:
-            won = "true" if s.get("is_won") else "false"
-            fold = "true" if s.get("fold") else "false"
-            print(f"{s['id']}\t{s['name']}\t{s.get('sequence', '')}\t{won}\t{fold}")
-    else:
-        from rich.table import Table
-
-        console = _get_console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("ID", style="cyan", justify="right")
-        table.add_column("Name", style="green")
-        table.add_column("Sequence", justify="right")
-        table.add_column("Won", justify="center")
-        table.add_column("Folded", justify="center")
-
-        for s in stages:
-            table.add_row(
-                str(s["id"]),
-                s["name"],
-                str(s.get("sequence", "")),
-                "✓" if s.get("is_won") else "",
-                "✓" if s.get("fold") else "",
-            )
-
-        console.print(table)
-
-
-def _fmt_currency(value: float) -> str:
-    """Format a number as currency-like string."""
-    if value >= 1_000_000:
-        return f"{value / 1_000_000:,.1f}M"
-    if value >= 1_000:
-        return f"{value:,.0f}"
-    return f"{value:,.0f}"
-
-
-def _fmt_days(days: int) -> str:
-    return f"{days}d"
+    render(stages)
 
 
 def display_pipeline(
@@ -438,151 +386,12 @@ def display_pipeline(
     show_health: bool = False,
     health_flags: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Display pipeline summary in table, TSV, or structured format."""
-    if is_structured_output():
-        output: dict[str, Any] = {
-            "team": summary["team"],
-            "date": summary["date"],
-            "stages": summary["stages"],
-            "totals": summary["totals"],
-        }
-        if show_deals:
-            output["deals"] = summary["deals"]
-        if show_health and health_flags:
-            output["health"] = health_flags
-        structured_print(output)
-        return
+    """Deprecated compatibility shim for CLI pipeline rendering."""
+    from vodoo.cli.display import display_pipeline as render
 
-    if _is_simple_output():
-        _display_pipeline_simple(summary, show_deals, show_health, health_flags)
-        return
-
-    _display_pipeline_rich(summary, show_deals, show_health, health_flags)
-
-
-def _display_pipeline_simple(
-    summary: dict[str, Any],
-    show_deals: bool,
-    show_health: bool,
-    health_flags: list[dict[str, Any]] | None,
-) -> None:
-    print(f"# Pipeline: {summary['team']}  {summary['date']}")
-    print("stage\tdeals\trevenue\tweighted\tavg_age\toldest")
-    for s in summary["stages"]:
-        print(
-            f"{s['name']}\t{s['deals']}\t{s['revenue']}\t{s['weighted']}"
-            f"\t{s['avg_age_days']}\t{s['oldest_days']}"
-        )
-    t = summary["totals"]
-    print(f"TOTAL\t{t['deals']}\t{t['revenue']}\t{t['weighted']}\t\t")
-
-    if show_deals:
-        print("\n# Deals")
-        print("id\tname\tstage\trevenue\tprobability\tage\tuser")
-        for d in summary["deals"]:
-            print(
-                f"{d['id']}\t{d['name']}\t{d['stage_name']}"
-                f"\t{d['expected_revenue']}\t{d['probability']}"
-                f"\t{d['age_days']}\t{d.get('user', '')}"
-            )
-
-    if show_health and health_flags:
-        print("\n# Health")
-        print("severity\trule\tdeal_id\tdeal_name\tdetail")
-        for f in health_flags:
-            print(f"{f['severity']}\t{f['rule']}\t{f['deal_id']}\t{f['deal_name']}\t{f['detail']}")
-
-
-def _display_pipeline_rich(
-    summary: dict[str, Any],
-    show_deals: bool,
-    show_health: bool,
-    health_flags: list[dict[str, Any]] | None,
-) -> None:
-    from rich.table import Table
-
-    console = _get_console()
-
-    console.print(f"\n[bold]Pipeline: {summary['team']}[/bold]  [dim]{summary['date']}[/dim]\n")
-
-    table = Table(show_header=True, header_style="bold magenta", show_footer=True)
-    table.add_column("Stage", style="green", footer_style="bold")
-    table.add_column("Deals", justify="right", footer_style="bold")
-    table.add_column("Revenue", justify="right", footer_style="bold")
-    table.add_column("Weighted", justify="right", footer_style="bold")
-    table.add_column("Avg Age", justify="right")
-    table.add_column("Oldest", justify="right")
-
-    for s in summary["stages"]:
-        table.add_row(
-            s["name"],
-            str(s["deals"]),
-            _fmt_currency(s["revenue"]),
-            _fmt_currency(s["weighted"]),
-            _fmt_days(s["avg_age_days"]),
-            _fmt_days(s["oldest_days"]),
-        )
-
-    t = summary["totals"]
-    table.columns[0].footer = "Total"
-    table.columns[1].footer = str(t["deals"])
-    table.columns[2].footer = _fmt_currency(t["revenue"])
-    table.columns[3].footer = _fmt_currency(t["weighted"])
-
-    console.print(table)
-
-    # --deals: individual deals under each stage
-    if show_deals:
-        console.print()
-        stage_deals: dict[int, list[dict[str, Any]]] = {}
-        for d in summary["deals"]:
-            stage_deals.setdefault(d["stage_id"], []).append(d)
-
-        for s in summary["stages"]:
-            sid = s["stage_id"]
-            deals = stage_deals.get(sid, [])
-            console.print(
-                f"\n[bold]{s['name']}[/bold]"
-                f" [dim]({s['deals']} deals, {_fmt_currency(s['revenue'])})[/dim]"
-            )
-            for d in deals:
-                flags = ""
-                if d["expected_revenue"] == 0 and s != summary["stages"][0]:
-                    flags += " [yellow]NO-REV[/yellow]"
-                if d["probability"] == 0:
-                    flags += " [red]0-PROB[/red]"
-                user = d.get("user") or "[dim]unassigned[/dim]"
-                console.print(
-                    f"  [cyan]#{d['id']}[/cyan]  {d['name']:<30}"
-                    f"  {_fmt_currency(d['expected_revenue']):>10}"
-                    f"  {d['probability']:>3.0f}%"
-                    f"  {_fmt_days(d['age_days']):>5}"
-                    f"  {user}{flags}"
-                )
-
-    # --health: flagged issues
-    if show_health and health_flags:
-        console.print("\n[bold]Health Flags[/bold]\n")
-        htable = Table(show_header=True, header_style="bold")
-        htable.add_column("Severity")
-        htable.add_column("Rule")
-        htable.add_column("Deal")
-        htable.add_column("Detail")
-
-        severity_styles = {
-            "critical": "bold red",
-            "warning": "yellow",
-            "info": "dim",
-        }
-        for f in health_flags:
-            style = severity_styles.get(f["severity"], "")
-            htable.add_row(
-                f"[{style}]{f['severity'].upper()}[/{style}]",
-                f["rule"],
-                f"#{f['deal_id']} {f['deal_name']}",
-                f["detail"],
-            )
-
-        console.print(htable)
-    elif show_health:
-        console.print("\n[green]No health issues found.[/green]")
+    render(
+        summary,
+        show_deals=show_deals,
+        show_health=show_health,
+        health_flags=health_flags,
+    )

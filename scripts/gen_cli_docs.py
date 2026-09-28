@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate CLI reference documentation from the Typer app.
 
-Introspects the vodoo.main Typer application and generates Markdown pages
+Introspects the vodoo.cli.app Typer application and generates Markdown pages
 for each subcommand group under docs/cli/.
 
 Usage:
@@ -16,7 +16,7 @@ from pathlib import Path
 import click
 import typer.main
 
-from vodoo.main import app
+from vodoo.cli.app import app
 
 DOCS_DIR = Path(__file__).parent.parent / "docs" / "cli"
 
