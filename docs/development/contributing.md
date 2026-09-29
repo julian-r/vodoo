@@ -43,7 +43,8 @@ uv run mypy src/vodoo
 - **ruff** for linting and formatting (line length: 100)
 - All functions must have **type hints**
 - Use `Path` objects for file operations
-- Use **Rich** for terminal output
+- Keep reusable library modules free of Typer, Rich, and direct stdout/stderr writes
+- Put terminal output in `vodoo.cli` and route it through the renderer boundary
 - **Google-style docstrings** for all public functions
 
 ## Project Structure
@@ -52,14 +53,21 @@ uv run mypy src/vodoo
 vodoo/
 ├── src/vodoo/
 │   ├── __init__.py           # Public API exports
-│   ├── main.py               # CLI entry point (Typer)
+│   ├── main.py               # Compatibility alias for vodoo.cli.app
+│   ├── cli/                  # Typer commands and terminal presentation
+│   │   ├── app.py            # CLI command tree and entry point
+│   │   ├── output.py         # Renderer protocol and selection
+│   │   ├── rich.py           # Interactive Rich output
+│   │   ├── simple.py         # Stable plain/TSV output
+│   │   ├── structured.py     # JSON and TOON output
+│   │   └── display.py        # Domain-specific presentation helpers
 │   ├── client.py             # OdooClient (sync) + namespace wiring
 │   ├── transport.py          # Sync transport (JSON-RPC / JSON-2, HTTPX2)
 │   ├── config.py             # Pydantic configuration
 │   ├── exceptions.py         # Exception hierarchy (incl. Odoo server errors)
 │   ├── auth.py               # Authentication / sudo
 │   ├── _domain.py            # DomainNamespace base class (CRUD, messaging, tags, attachments)
-│   ├── base.py               # Field constants, display helpers
+│   ├── base.py               # Shared reusable field and record helpers
 │   ├── helpdesk.py           # HelpdeskNamespace (DomainNamespace subclass)
 │   ├── project_tasks.py      # TaskNamespace
 │   ├── projects.py           # ProjectNamespace

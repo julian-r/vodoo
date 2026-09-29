@@ -5,27 +5,12 @@ from __future__ import annotations
 import base64
 import html.parser as _html_parser_mod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from vodoo.auth import message_post_sudo
 from vodoo.client import OdooClient
 from vodoo.exceptions import RecordNotFoundError
 from vodoo.urls import build_record_url
-
-if TYPE_CHECKING:
-    from rich.console import Console
-
-# ---------------------------------------------------------------------------
-# Output configuration
-# ---------------------------------------------------------------------------
-# The CLI layer (main.py) calls ``configure_output()`` to set the active
-# console and simple-output flag.  When Vodoo is used as a library these
-# defaults are used instead, so no import of main.py is needed.
-#
-# These are module-level globals rather than contextvars.  Concurrent output
-# configurations in the same process would stomp each other, but that scenario
-# is unrealistic: the Odoo server itself is the shared mutable state, so tests
-# and CLI sessions are inherently sequential.
 
 # Field lists shared with aio.base
 _TAG_FIELDS: list[str] = ["id", "name", "color"]
@@ -56,101 +41,6 @@ def _decode_attachment_record(att: dict[str, Any], att_id: int) -> tuple[int, st
         return None
     filename = att.get("name", f"attachment_{att_id}")
     return (att_id, filename, base64.b64decode(att["datas"]))
-
-
-_output_console: Console | None = None
-_output_simple: bool = False
-_output_json: bool = False
-_output_toon: bool = False
-
-
-def configure_output(
-    *,
-    console: Console | None = None,
-    simple: bool = False,
-    json_mode: bool = False,
-    toon_mode: bool = False,
-) -> None:
-    """Configure the output console and mode.
-
-    Called by the CLI layer.  Library users may call this to customise
-    display behaviour, or simply ignore it (sensible defaults apply).
-
-    Requires the ``cli`` extra (``rich``) when *console* is provided or
-    *simple* is ``False`` and display functions are subsequently called.
-
-    Args:
-        console: Rich Console instance to use for output.
-        simple: If ``True``, display functions emit plain TSV instead of
-            rich tables.
-        json_mode: If ``True``, display functions emit JSON output.
-        toon_mode: If ``True``, display functions emit TOON output.
-
-    """
-    global _output_console, _output_simple, _output_json, _output_toon  # noqa: PLW0603
-    if console is not None:
-        _output_console = console
-    _output_simple = simple
-    _output_json = json_mode
-    _output_toon = toon_mode
-
-
-def _get_console() -> Console:
-    """Return the currently configured console, creating one if needed."""
-    global _output_console  # noqa: PLW0603
-    if _output_console is None:
-        from rich.console import Console as _Console
-
-        _output_console = _Console()
-    return _output_console
-
-
-def _is_simple_output() -> bool:
-    """Return ``True`` when plain/TSV output is requested."""
-    return _output_simple
-
-
-def is_json_output() -> bool:
-    """Return ``True`` when JSON output is requested."""
-    return _output_json
-
-
-def is_toon_output() -> bool:
-    """Return ``True`` when TOON output is requested."""
-    return _output_toon
-
-
-def is_structured_output() -> bool:
-    """Return ``True`` when any structured output (JSON or TOON) is requested."""
-    return _output_json or _output_toon
-
-
-def json_print(data: Any) -> None:
-    """Print data as JSON to stdout.
-
-    Used by display functions and CLI commands when ``--json`` is active.
-    """
-    import json
-
-    print(json.dumps(data, default=str, ensure_ascii=False))
-
-
-def toon_print(data: Any) -> None:
-    """Print data as TOON to stdout.
-
-    Used by display functions and CLI commands when ``--toon`` is active.
-    """
-    from toon_format import encode
-
-    print(encode(data))
-
-
-def structured_print(data: Any) -> None:
-    """Print data in the active structured format (JSON or TOON)."""
-    if _output_toon:
-        toon_print(data)
-    else:
-        json_print(data)
 
 
 def mask_binary_fields(
@@ -250,82 +140,6 @@ def list_records(
     )
 
 
-def _format_field_value(value: Any) -> str:
-    """Format a field value for display.
-
-    Args:
-        value: Field value from Odoo
-
-    Returns:
-        Formatted string
-
-    """
-    if value is False or value is None:
-        return ""
-    if isinstance(value, list) and len(value) == 2 and isinstance(value[0], int):
-        # Many2one field [id, name]
-        return str(value[1])
-    if isinstance(value, list):
-        # Many2many or one2many field
-        return ",".join(str(v) for v in value)
-    return str(value)
-
-
-def display_records(records: list[dict[str, Any]], title: str = "Records") -> None:
-    """Display records in a table, TSV, or JSON format.
-
-    Args:
-        records: List of record dictionaries
-        title: Table title
-
-    """
-    if is_structured_output():
-        structured_print(records)
-        return
-
-    if not records:
-        if _is_simple_output():
-            print("No records found")
-        else:
-            _get_console().print("[yellow]No records found[/yellow]")
-        return
-
-    field_names = list(records[0].keys())
-
-    if _is_simple_output():
-        # Simple TSV output for LLMs
-        print("\t".join(field_names))
-        for record in records:
-            row = [_format_field_value(record.get(f)) for f in field_names]
-            print("\t".join(row))
-    else:
-        # Rich table output
-        from rich.table import Table
-
-        console = _get_console()
-        table = Table(title=title)
-
-        field_styles = {
-            "id": "cyan",
-            "name": "green",
-            "partner_id": "yellow",
-            "stage_id": "blue",
-            "user_id": "magenta",
-            "priority": "red",
-            "project_id": "blue",
-        }
-
-        for field_name in field_names:
-            style = field_styles.get(field_name, "white")
-            table.add_column(field_name, style=style)
-
-        for record in records:
-            row_values = [_format_field_value(record.get(f)) or "N/A" for f in field_names]
-            table.add_row(*row_values)
-
-        console.print(table)
-
-
 def get_record(
     client: OdooClient,
     model: str,
@@ -390,77 +204,6 @@ def set_record_fields(
 
     """
     return client.write(model, [record_id], values)
-
-
-def display_record_detail(  # noqa: PLR0912
-    record: dict[str, Any],
-    *,
-    show_html: bool = False,
-    record_type: str = "Record",
-) -> None:
-    """Display detailed record information.
-
-    Args:
-        record: Record dictionary
-        show_html: If True, show raw HTML description, else convert to markdown
-        record_type: Human-readable record type (e.g., "Ticket", "Task")
-
-    """
-    if is_structured_output():
-        structured_print(record)
-        return
-
-    if _is_simple_output():
-        # Simple key: value format
-        print(f"id: {record['id']}")
-        print(f"name: {record['name']}")
-        if record.get("partner_id"):
-            print(f"partner: {record['partner_id'][1]}")
-        if record.get("stage_id"):
-            print(f"stage: {record['stage_id'][1]}")
-        if record.get("user_id"):
-            print(f"assigned_to: {record['user_id'][1]}")
-        if record.get("project_id"):
-            print(f"project: {record['project_id'][1]}")
-        if "priority" in record:
-            print(f"priority: {record.get('priority', '0')}")
-        if record.get("description"):
-            desc = record["description"]
-            if not show_html:
-                desc = _html_to_markdown(desc)
-            print(f"description: {desc}")
-        if record.get("tag_ids"):
-            print(f"tags: {','.join(map(str, record['tag_ids']))}")
-    else:
-        console = _get_console()
-        console.print(f"\n[bold cyan]{record_type} #{record['id']}[/bold cyan]")
-        console.print(f"[bold]Name:[/bold] {record['name']}")
-
-        if record.get("partner_id"):
-            console.print(f"[bold]Partner:[/bold] {record['partner_id'][1]}")
-
-        if record.get("stage_id"):
-            console.print(f"[bold]Stage:[/bold] {record['stage_id'][1]}")
-
-        if record.get("user_id"):
-            console.print(f"[bold]Assigned To:[/bold] {record['user_id'][1]}")
-
-        if record.get("project_id"):
-            console.print(f"[bold]Project:[/bold] {record['project_id'][1]}")
-
-        if "priority" in record:
-            console.print(f"[bold]Priority:[/bold] {record.get('priority', '0')}")
-
-        if record.get("description"):
-            description = record["description"]
-            if show_html:
-                console.print(f"\n[bold]Description:[/bold]\n{description}")
-            else:
-                markdown_text = _html_to_markdown(description)
-                console.print(f"\n[bold]Description:[/bold]\n{markdown_text}")
-
-        if record.get("tag_ids"):
-            console.print(f"\n[bold]Tags:[/bold] {', '.join(map(str, record['tag_ids']))}")
 
 
 def add_comment(
@@ -679,41 +422,6 @@ def list_tags(client: OdooClient, model: str) -> list[dict[str, Any]]:
     return client.search_read(model, fields=fields, order="name")
 
 
-def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
-    """Display tags in a table, TSV, or JSON format.
-
-    Args:
-        tags: List of tag dictionaries
-        title: Table title
-
-    """
-    if is_structured_output():
-        structured_print(tags)
-        return
-
-    if _is_simple_output():
-        print("id\tname\tcolor")
-        for tag in tags:
-            print(f"{tag['id']}\t{tag['name']}\t{tag.get('color', '')}")
-    else:
-        from rich.table import Table
-
-        console = _get_console()
-        table = Table(title=title)
-        table.add_column("ID", style="cyan")
-        table.add_column("Name", style="green")
-        table.add_column("Color", style="yellow")
-
-        for tag in tags:
-            table.add_row(
-                str(tag["id"]),
-                tag["name"],
-                str(tag.get("color", "N/A")),
-            )
-
-        console.print(table)
-
-
 def add_tag_to_record(
     client: OdooClient,
     model: str,
@@ -780,96 +488,6 @@ def list_messages(
     )
 
 
-def display_messages(messages: list[dict[str, Any]], show_html: bool = False) -> None:  # noqa: PLR0912
-    """Display messages in a formatted list or simple format.
-
-    Args:
-        messages: List of message dictionaries
-        show_html: Whether to show raw HTML body
-
-    """
-    from html import unescape
-    from html.parser import HTMLParser
-
-    class HTMLToText(HTMLParser):
-        """Simple HTML to text converter."""
-
-        def __init__(self) -> None:
-            super().__init__()
-            self.text: list[str] = []
-
-        def handle_data(self, data: str) -> None:
-            self.text.append(data)
-
-        def get_text(self) -> str:
-            return "".join(self.text).strip()
-
-    def get_body_text(body: str) -> str:
-        if show_html:
-            return body
-        parser = HTMLToText()
-        parser.feed(unescape(body))
-        return parser.get_text()
-
-    if is_structured_output():
-        structured_print(messages)
-        return
-
-    if not messages:
-        print("No messages found") if _is_simple_output() else _get_console().print(
-            "[yellow]No messages found[/yellow]"
-        )
-        return
-
-    if _is_simple_output():
-        # Simple format: date, author, type, body (one line per message)
-        print("date\tauthor\ttype\tbody")
-        for msg in messages:
-            date = msg.get("date", "")
-            author = msg.get("author_id")
-            author_name = (
-                author[1] if author and isinstance(author, list) else msg.get("email_from", "")
-            )
-            subtype = msg.get("subtype_id")
-            if subtype and isinstance(subtype, list):
-                subtype_name = subtype[1]
-            else:
-                subtype_name = msg.get("message_type", "")
-            body = get_body_text(msg.get("body", "")).replace("\t", " ").replace("\n", " ")
-            print(f"{date}\t{author_name}\t{subtype_name}\t{body}")
-    else:
-        console = _get_console()
-        console.print(f"\n[bold cyan]Message History ({len(messages)} messages)[/bold cyan]\n")
-
-        for i, msg in enumerate(messages, 1):
-            date = msg.get("date", "N/A")
-            author = msg.get("author_id")
-            if author and isinstance(author, list):
-                author_name = author[1]
-            else:
-                author_name = msg.get("email_from", "Unknown")
-
-            message_type = msg.get("message_type", "comment")
-            subtype = msg.get("subtype_id")
-            subtype_name = subtype[1] if subtype and isinstance(subtype, list) else message_type
-
-            console.print(f"[bold]Message #{i}[/bold] [dim]({date})[/dim]")
-            console.print(f"[cyan]From:[/cyan] {author_name}")
-            console.print(f"[cyan]Type:[/cyan] {subtype_name}")
-
-            if msg.get("subject"):
-                console.print(f"[cyan]Subject:[/cyan] {msg['subject']}")
-
-            body = msg.get("body", "")
-            if body:
-                text = get_body_text(body)
-                if text:
-                    console.print(f"\n{text}\n")
-
-            if i < len(messages):
-                console.print("[dim]" + "─" * 80 + "[/dim]\n")
-
-
 def list_attachments(
     client: OdooClient,
     model: str,
@@ -893,52 +511,6 @@ def list_attachments(
     fields = _ATTACHMENT_LIST_FIELDS
 
     return client.search_read("ir.attachment", domain=domain, fields=fields)
-
-
-def display_attachments(attachments: list[dict[str, Any]]) -> None:
-    """Display attachments in a table, TSV, or JSON format.
-
-    Args:
-        attachments: List of attachment dictionaries
-
-    """
-    if is_structured_output():
-        structured_print(attachments)
-        return
-
-    if _is_simple_output():
-        print("id\tname\tsize_kb\tmimetype\tcreate_date")
-        for att in attachments:
-            size = att.get("file_size", 0)
-            size_kb = f"{size / 1024:.1f}" if size else ""
-            name = att.get("name", "")
-            mime = att.get("mimetype", "")
-            created = att.get("create_date", "")
-            print(f"{att['id']}\t{name}\t{size_kb}\t{mime}\t{created}")
-    else:
-        from rich.table import Table
-
-        console = _get_console()
-        table = Table(title="Attachments")
-        table.add_column("ID", style="cyan")
-        table.add_column("Name", style="green")
-        table.add_column("Size", style="yellow")
-        table.add_column("Type", style="blue")
-        table.add_column("Created", style="magenta")
-
-        for att in attachments:
-            size = att.get("file_size", 0)
-            size_str = f"{size / 1024:.1f} KB" if size else "N/A"
-
-            table.add_row(
-                str(att["id"]),
-                att.get("name", "N/A"),
-                size_str,
-                att.get("mimetype", "N/A"),
-                str(att.get("create_date", "N/A")),
-            )
-
-        console.print(table)
 
 
 def download_attachment(
@@ -1216,3 +788,113 @@ def get_record_url(client: OdooClient | Any, model: str, record_id: int) -> str:
         record_id,
         "json2" if getattr(client, "is_json2", False) else "jsonrpc",
     )
+
+
+# Deprecated presentation compatibility shims. Importing ``vodoo.base`` remains
+# terminal-independent; the CLI presentation package is loaded only when one
+# of these historical helpers is called.
+def _cli_output() -> Any:
+    from vodoo.cli import output
+
+    return output
+
+
+def _cli_display() -> Any:
+    from vodoo.cli import display
+
+    return display
+
+
+def configure_output(
+    *,
+    console: Any = None,
+    simple: bool = False,
+    json_mode: bool = False,
+    toon_mode: bool = False,
+) -> None:
+    """Deprecated compatibility shim for :func:`vodoo.cli.output.configure_output`."""
+    _cli_output().configure_output(
+        console=console,
+        simple=simple,
+        json_mode=json_mode,
+        toon_mode=toon_mode,
+    )
+
+
+def _get_console() -> Any:
+    """Deprecated compatibility shim for the active CLI console."""
+    return _cli_output().get_console()
+
+
+def _is_simple_output() -> bool:
+    """Deprecated compatibility shim for the active CLI mode."""
+    return bool(_cli_output().is_simple_output())
+
+
+def is_json_output() -> bool:
+    """Deprecated compatibility shim for the active CLI mode."""
+    return bool(_cli_output().is_json_output())
+
+
+def is_toon_output() -> bool:
+    """Deprecated compatibility shim for the active CLI mode."""
+    return bool(_cli_output().is_toon_output())
+
+
+def is_structured_output() -> bool:
+    """Deprecated compatibility shim for the active CLI mode."""
+    return bool(_cli_output().is_structured_output())
+
+
+def json_print(data: Any) -> None:
+    """Deprecated compatibility shim for JSON rendering."""
+    _cli_output().json_print(data)
+
+
+def toon_print(data: Any) -> None:
+    """Deprecated compatibility shim for TOON rendering."""
+    _cli_output().toon_print(data)
+
+
+def structured_print(data: Any) -> None:
+    """Deprecated compatibility shim for structured rendering."""
+    _cli_output().structured_print(data)
+
+
+def _format_field_value(value: Any) -> str:
+    """Deprecated compatibility shim for CLI field formatting."""
+    return str(_cli_display()._format_field_value(value))
+
+
+def display_records(records: list[dict[str, Any]], title: str = "Records") -> None:
+    """Deprecated compatibility shim for CLI record rendering."""
+    _cli_display().display_records(records, title)
+
+
+def display_record_detail(
+    record: dict[str, Any],
+    *,
+    show_html: bool = False,
+    record_type: str = "Record",
+) -> None:
+    """Deprecated compatibility shim for CLI record-detail rendering."""
+    _cli_display().display_record_detail(
+        record,
+        show_html=show_html,
+        record_type=record_type,
+    )
+
+
+def display_tags(tags: list[dict[str, Any]], title: str = "Tags") -> None:
+    """Deprecated compatibility shim for CLI tag rendering."""
+    _cli_display().display_tags(tags, title)
+
+
+def display_messages(messages: list[dict[str, Any]], show_html: bool = False) -> None:
+    """Deprecated compatibility shim for CLI message rendering."""
+    _cli_display().display_messages(messages, show_html)
+
+
+def display_attachments(attachments: list[dict[str, Any]]) -> None:
+    """Deprecated compatibility shim for CLI attachment rendering."""
+    _cli_display().display_attachments(attachments)
