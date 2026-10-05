@@ -12,6 +12,7 @@ from rich.console import Console
 from vodoo.cli.rich import RichRenderer
 from vodoo.cli.simple import SimpleRenderer
 from vodoo.cli.structured import StructuredRenderer
+from vodoo.exceptions import StaleRevisionError
 
 
 class Renderer(Protocol):
@@ -131,7 +132,17 @@ def render_error(
         get_console().print(f"[red]{label}:[/red] {error}")
         return
 
-    payload = {"error": str(error), "type": error_type}
+    payload: dict[str, Any] = {"error": str(error), "type": error_type}
+    if isinstance(error, StaleRevisionError):
+        payload.update(
+            code=error.code,
+            model=error.model,
+            id=error.record_id,
+            expected=error.expected,
+            current=error.current,
+            mutation_attempted=False,
+            best_effort=True,
+        )
     try:
         (formatter or structured_print)(payload)
     except Exception:

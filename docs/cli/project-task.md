@@ -268,6 +268,7 @@ Set field values on a task.
 |--------|------|-------------|
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion for HTML fields |
 | `--html` | BOOL | Show raw HTML updated values instead of markdown (markdown is the default) |
+| `--check-write-date` | TEXT | Best-effort, non-atomic freshness check (UTC YYYY-MM-DD HH:MM:SS). Concurrent changes after the read or within the same second can be missed. |
 
 ### attach
 

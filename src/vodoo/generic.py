@@ -28,13 +28,23 @@ class GenericNamespace:
         """
         return self._client.create(model, values)
 
-    def update(self, model: str, record_id: int, values: dict[str, Any]) -> bool:
+    def update(
+        self,
+        model: str,
+        record_id: int,
+        values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
+    ) -> bool:
         """Update a record.
 
         Args:
             model: Model name
             record_id: Record ID
             values: Dictionary of field values to update
+            check_write_date: Optional best-effort, non-atomic UTC seconds
+                freshness check. Changes after the read or within the same
+                second can be missed; this is not compare-and-set.
 
         Returns:
             True if successful
@@ -44,6 +54,8 @@ class GenericNamespace:
             True
 
         """
+        if check_write_date is not None:
+            return self._client.write(model, [record_id], values, check_write_date=check_write_date)
         return self._client.write(model, [record_id], values)
 
     def delete(self, model: str, record_id: int) -> bool:

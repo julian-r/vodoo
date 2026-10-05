@@ -61,8 +61,17 @@ class AsyncDomainNamespace(_NamespaceBase):
         self,
         record_id: int,
         values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
     ) -> bool:
-        """Update fields on a record."""
+        """Update fields with an optional best-effort, non-atomic preflight.
+
+        Changes after the read or within the same second can be missed.
+        """
+        if check_write_date is not None:
+            return await self._client.write(
+                self._model, [record_id], values, check_write_date=check_write_date
+            )
         return await self._client.write(self._model, [record_id], values)
 
     async def fields(self) -> dict[str, Any]:

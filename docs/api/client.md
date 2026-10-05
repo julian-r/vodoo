@@ -2,6 +2,10 @@
 
 The main entry point for interacting with Odoo. Domain operations are available as namespace properties on the client instance.
 
+`write(..., check_write_date=expected)` offers a **best-effort, non-atomic**
+freshness preflight, not compare-and-set. Changes after the read or within the
+same second can be missed. See [freshness checks and errors](../guide/library.md#best-effort-freshness-checks).
+
 ## Domain Namespaces
 
 | Property | Class | Description |

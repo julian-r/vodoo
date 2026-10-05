@@ -18,6 +18,9 @@ Hierarchy overview::
     ├── AuthenticationError
     ├── RecordNotFoundError
     ├── RecordOperationError
+    ├── RevisionInputError
+    ├── UnverifiableRevisionError
+    ├── StaleRevisionError
     ├── TransportError
     │   └── OdooUserError           ← odoo.exceptions.UserError
     │       ├── OdooAccessDeniedError    ← odoo.exceptions.AccessDenied
@@ -59,6 +62,30 @@ class RecordNotFoundError(VodooError):
 
 class RecordOperationError(VodooError):
     """Raised when a write/create/unlink operation fails."""
+
+
+class RevisionInputError(VodooError):
+    """An expected write_date is not a canonical UTC seconds timestamp."""
+
+
+class UnverifiableRevisionError(VodooError):
+    """A requested best-effort freshness check cannot verify the revision."""
+
+
+class StaleRevisionError(VodooError):
+    """A non-atomic preflight observed a stale revision; no mutation was sent."""
+
+    code = "stale_preflight_conflict"
+
+    def __init__(self, model: str, record_id: int, expected: str, current: str) -> None:
+        self.model = model
+        self.record_id = record_id
+        self.expected = expected
+        self.current = current
+        super().__init__(
+            f"Stale preflight revision for {model} {record_id}: "
+            f"expected {expected!r}, current {current!r}; mutation not attempted"
+        )
 
 
 # -- Transport -----------------------------------------------------------------

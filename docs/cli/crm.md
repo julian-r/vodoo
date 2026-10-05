@@ -185,6 +185,7 @@ HTML fields automatically convert markdown to HTML.
 | Option | Type | Description |
 |--------|------|-------------|
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion for HTML fields |
+| `--check-write-date` | TEXT | Best-effort, non-atomic freshness check (UTC YYYY-MM-DD HH:MM:SS). Concurrent changes after the read or within the same second can be missed. |
 
 ### attach
 

@@ -59,6 +59,66 @@ results = client.name_search("res.partner", "Acme", limit=5)
 # Returns: [(42, "Acme Corp"), (43, "Acme Inc")]
 ```
 
+## Best-effort freshness checks
+
+`client.write`, `client.generic.update`, and domain `.set` methods (also async)
+accept the optional keyword `check_write_date`:
+
+```python
+from vodoo import StaleRevisionError
+
+observed = client.tasks.get(42, fields=["write_date"])
+try:
+    client.tasks.set(42, {"name": "Reviewed"}, check_write_date=observed["write_date"])
+except StaleRevisionError as error:
+    print(error.expected, error.current)  # Mutation was not attempted.
+
+# Generic and low-level equivalents:
+client.generic.update("project.task", 42, {"name": "Reviewed"}, check_write_date="2026-10-03 13:00:20")
+client.write("project.task", [42], {"name": "Reviewed"}, check_write_date="2026-10-03 13:00:20")
+# Async: await client.tasks.set(..., check_write_date=expected)
+```
+
+CLI field-update commands expose the same check:
+
+```bash
+vodoo project-task set 42 --check-write-date '2026-10-03 13:00:20' name=Reviewed
+vodoo --json model update project.task 42 --check-write-date '2026-10-03 13:00:20' name=Reviewed
+```
+
+Available on `project-task set`, `project set`, `helpdesk set`, `crm set`, and
+`model update`. The timestamp must use the exact UTC `YYYY-MM-DD HH:MM:SS` format
+returned by ordinary Odoo reads; fractional seconds, timezone suffixes, and
+invalid dates are rejected, not silently normalized. For a low-level bulk write,
+every requested record must match the same supplied timestamp before any write
+is attempted. Without this option, existing unguarded behavior is unchanged.
+
+!!! warning "Non-atomic preflight, not compare-and-set"
+    Values are prepared first, then Vodoo reads the current revision and immediately
+    attempts an ordinary write if it matches. **Another writer can commit between
+    that read and write.** Odoo serializes ordinary datetime values to whole seconds,
+    so **same-second changes can go undetected**. Appending zeros cannot recover
+    missing fractional precision. Successful mutation is not proof that no change
+    intervened; audit timestamps are not unique monotonic revision tokens.
+
+    Odoo can retry a failed ordinary write transaction server-side without repeating
+    the client's preflight. The client does not automatically resend writes after
+    transport failure, but the mutation outcome may already be unknown. A post-write
+    read cannot prove absence of a lost update or safely undo one. True atomic
+    protection requires a separately provisioned server capability.
+
+A stale observation raises `StaleRevisionError` (model, record ID, expected/current
+revision); CLI exit **3** and JSON `type`/`code` **`stale_preflight_conflict`** distinguish
+it from other failures. JSON also includes `expected`, `current`, `model`, `id`,
+`mutation_attempted: false`, and `best_effort: true`. Malformed expected timestamps
+raise `RevisionInputError` (CLI exit 2 / `invalid_revision`). Missing records raise
+`RecordNotFoundError` (exit 1 / `not_found`); absent, false, or malformed observed
+revisions raise `UnverifiableRevisionError` (exit 1 / `unverifiable_revision`).
+All prevent a mutation attempt. Read permission errors and server errors (including
+models rejecting a `write_date` read) remain their original errors, not conflicts
+or proof of deletion. No check failure falls back to an unguarded write, refreshes
+the expected timestamp, or retries a mutation.
+
 ## Domain Namespaces
 
 Each domain module provides a namespace on the client with high-level methods:
