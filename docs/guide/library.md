@@ -94,6 +94,8 @@ client.crm.set(15, values={"expected_revenue": 50000})
 ```python
 tasks = client.tasks.list(domain=[["project_id.name", "=", "Website"]], limit=10)
 task = client.tasks.get(7)
+# Composite read-only context; inspect complete/errors/pagination before acting.
+context = client.tasks.context(7)
 client.tasks.comment(7, message="Deployed to staging")
 
 # All fields are sent in one create request, never a placeholder plus updates.

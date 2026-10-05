@@ -292,6 +292,14 @@
       "generatedOperations": [],
       "customOperations": [
         {
+          "name": "context",
+          "description": "Read composite task context with explicit completeness and section errors.",
+          "targets": [
+            "python",
+            "asyncPython"
+          ]
+        },
+        {
           "name": "create",
           "description": "Create a project task.",
           "targets": [

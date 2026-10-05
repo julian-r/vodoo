@@ -69,6 +69,24 @@ Examples:
 | `--depends-on` | INT | Blocking task ID (can repeat) |
 | `--no-markdown` | BOOL | Send description as raw HTML without conversion |
 
+### context
+
+Read complete task context. Incomplete context is emitted with exit status 1.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--field` / `-f` | TEXT | Additional task fields (repeatable) |
+| `--page-size` | INTEGER RANGE | Chatter/attachment page size (default: 100) |
+| `--max-pages` | INTEGER RANGE | Cap pages per section; report continuation |
+
 ### show
 
 Show detailed task information.

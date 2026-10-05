@@ -49,7 +49,11 @@ def test_swift_claims_every_declared_namespace_workflow() -> None:
     for path in sorted((root / SPEC_DIR).glob("*.yaml")):
         spec = yaml.safe_load(path.read_text(encoding="utf-8"))
         for operation in spec.get("customOperations", []):
-            assert "swift" in operation["targets"], f"{path}:{operation['name']}"
+            if spec["namespace"] == "project_tasks" and operation["name"] == "context":
+                # Context is intentionally Python/CLI-only in this increment.
+                assert set(operation["targets"]) == {"python", "asyncPython"}
+            else:
+                assert "swift" in operation["targets"], f"{path}:{operation['name']}"
 
     manifest = json.loads((root / API_MANIFEST_PATH).read_text(encoding="utf-8"))
     for service in ("auth", "generic", "security", "timer"):

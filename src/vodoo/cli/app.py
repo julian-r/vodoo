@@ -1215,6 +1215,35 @@ def project_task_create(
             console.print(f"\n[cyan]View task:[/cyan] {url}")
 
 
+@project_task_app.command("context")
+def project_context(
+    task_id: Annotated[int, typer.Argument(help="Task ID")],
+    fields: Annotated[
+        list[str] | None,
+        typer.Option("--field", "-f", help="Additional task fields (repeatable)"),
+    ] = None,
+    page_size: Annotated[
+        int,
+        typer.Option("--page-size", min=1, help="Chatter/attachment page size"),
+    ] = 100,
+    max_pages: Annotated[
+        int | None,
+        typer.Option("--max-pages", min=1, help="Cap pages per section; report continuation"),
+    ] = None,
+) -> None:
+    """Read complete task context. Incomplete context is emitted with exit status 1."""
+    from vodoo.cli.task_context import display_task_context
+
+    client = get_client()
+    with _handle_errors():
+        context = client.tasks.context(
+            task_id, fields=fields, page_size=page_size, max_pages=max_pages
+        )
+        display_task_context(context)
+    if not context["complete"]:
+        raise typer.Exit(1)
+
+
 @project_task_app.command("show")
 def project_show(
     task_id: Annotated[int, typer.Argument(help="Task ID")],

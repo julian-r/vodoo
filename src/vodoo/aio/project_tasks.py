@@ -10,10 +10,24 @@ from vodoo.project_tasks import (
     _project_id,
     _validate_schedule_values,
 )
+from vodoo.task_context import async_get_task_context
 
 
 class AsyncTaskNamespace(GeneratedAsyncTaskNamespace):
     """Async project task namespace."""
+
+    async def context(
+        self,
+        task_id: int,
+        fields: list[str] | None = None,
+        *,
+        page_size: int = 100,
+        max_pages: int | None = None,
+    ) -> dict[str, Any]:
+        """Read task context; same contract and completeness checks as sync context."""
+        return await async_get_task_context(
+            self._client, task_id, fields, page_size=page_size, max_pages=max_pages
+        )
 
     async def create(
         self,

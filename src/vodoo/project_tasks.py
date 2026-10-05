@@ -7,6 +7,7 @@ from vodoo.cmd import Cmd
 from vodoo.content import HTML, Markdown
 from vodoo.exceptions import RecordNotFoundError, RecordOperationError
 from vodoo.generated.project_tasks import GeneratedTaskNamespace
+from vodoo.task_context import get_task_context
 
 _START_FORMAT = "%Y-%m-%d %H:%M:%S"
 _END_FORMAT = "%Y-%m-%d"
@@ -115,6 +116,24 @@ def _project_id(record: dict[str, Any]) -> int | None:
 
 class TaskNamespace(GeneratedTaskNamespace):
     """Project task namespace."""
+
+    def context(
+        self,
+        task_id: int,
+        fields: list[str] | None = None,
+        *,
+        page_size: int = 100,
+        max_pages: int | None = None,
+    ) -> dict[str, Any]:
+        """Read task fields, resolved relations, chatter, attachments and URL.
+
+        See ``spec/v1/task-context.schema.json`` for the stable response contract.
+        Reads are not an atomic snapshot. Check ``complete``, ``errors`` and
+        ``pagination`` before acting on the returned information.
+        """
+        return get_task_context(
+            self._client, task_id, fields, page_size=page_size, max_pages=max_pages
+        )
 
     def create(
         self,
