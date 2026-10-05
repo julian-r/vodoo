@@ -11,14 +11,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from vodoo.exceptions import RecordNotFoundError
+from vodoo.task_relations import async_resolve_task_relations, resolve_task_relations
 from vodoo.urls import build_record_url
 
 if TYPE_CHECKING:
     from vodoo.aio.client import AsyncOdooClient
     from vodoo.client import OdooClient
 
-# Provisional resolver seam: replace private resolver calls with
-# vodoo.task_relations.resolve_task_relations / async_resolve_task_relations.
 _RELATION_MODELS = {
     "stage_id": "project.task.type",
     "project_id": "project.project",
@@ -53,69 +52,6 @@ MESSAGE_FIELDS = [
     "tracking_value_ids",
 ]
 ATTACHMENT_FIELDS = ["id", "name", "file_size", "mimetype", "create_date", "type", "url"]
-
-
-def _relation_ids(task: dict[str, Any], name: str) -> list[int]:
-    value = task[name]
-    if value is None or value is False or value == []:
-        return []
-    if name in {"stage_id", "project_id", "parent_id"}:
-        ids = [value[0] if isinstance(value, (list, tuple)) else value]
-    elif isinstance(value, (list, tuple)):
-        ids = list(value)
-    else:
-        raise ValueError(f"Malformed relation field: {name}")
-    if any(type(record_id) is not int or record_id <= 0 for record_id in ids):
-        raise ValueError(f"Malformed relation IDs: {name}")
-    return sorted(set(ids))
-
-
-def _resolved_records(
-    model: str, ids: list[int], records: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    by_id = {record["id"]: record for record in records}
-    for record_id in ids:
-        if record_id not in by_id:
-            raise RecordNotFoundError(model, record_id)
-    if any(not isinstance(by_id[record_id].get("display_name"), str) for record_id in ids):
-        raise ValueError(f"Missing display_name in {model} response")
-    return [{"id": record_id, "name": by_id[record_id]["display_name"]} for record_id in ids]
-
-
-def _resolve_context_relations(
-    client: OdooClient,
-    task: dict[str, Any],
-    *,
-    fields_info: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Private provisional implementation of the #89 resolver contract."""
-    result: dict[str, Any] = {}
-    for name, model in _RELATION_MODELS.items():
-        if name in task:
-            if fields_info is not None and name not in fields_info:
-                raise ValueError(f"Unsupported relation: {name}")
-            ids = _relation_ids(task, name)
-            records = client.read(model, ids, fields=["display_name"]) if ids else []
-            result[name] = _resolved_records(model, ids, records)
-    return result
-
-
-async def _async_resolve_context_relations(
-    client: AsyncOdooClient,
-    task: dict[str, Any],
-    *,
-    fields_info: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Private provisional implementation of the async #89 resolver contract."""
-    result: dict[str, Any] = {}
-    for name, model in _RELATION_MODELS.items():
-        if name in task:
-            if fields_info is not None and name not in fields_info:
-                raise ValueError(f"Unsupported relation: {name}")
-            ids = _relation_ids(task, name)
-            records = await client.read(model, ids, fields=["display_name"]) if ids else []
-            result[name] = _resolved_records(model, ids, records)
-    return result
 
 
 @dataclass
@@ -351,7 +287,7 @@ def get_task_context(
     while True:
         try:
             if request.method == "relations":
-                response = _resolve_context_relations(client, *request.args, **request.kwargs)
+                response = resolve_task_relations(client, *request.args, **request.kwargs)
             elif request.method == "url":
                 response = _url(client, *request.args)
             else:
@@ -383,7 +319,7 @@ async def async_get_task_context(
     while True:
         try:
             if request.method == "relations":
-                response = await _async_resolve_context_relations(
+                response = await async_resolve_task_relations(
                     client, *request.args, **request.kwargs
                 )
             elif request.method == "url":

@@ -1,5 +1,6 @@
 """Main CLI application for Vodoo."""
 
+import json
 import re
 import sys
 from collections.abc import Callable
@@ -38,6 +39,7 @@ from vodoo.cli.output import (
     render_error,
     structured_print,
 )
+from vodoo.cli.task_input import load_description
 from vodoo.client import OdooClient
 from vodoo.config import (
     detect_config_file,
@@ -47,8 +49,10 @@ from vodoo.config import (
     resolve_instance,
     write_default_instance,
 )
+from vodoo.content import HTML
 from vodoo.exceptions import (
     AuthenticationError,
+    FieldParsingError,
     OdooAccessDeniedError,
     OdooAccessError,
     RecordNotFoundError,
@@ -57,10 +61,11 @@ from vodoo.exceptions import (
     VodooError,
 )
 from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
-from vodoo.project_tasks import _validate_schedule_values
+from vodoo.project_tasks import _validate_schedule_values, _validate_task_relation_ids
 from vodoo.security import (
     GROUP_DEFINITIONS,
 )
+from vodoo.task_relations import resolve_task_relations
 
 
 def _print_error(error: Exception, error_type: str, label: str) -> None:
@@ -1112,13 +1117,20 @@ def project_list(
 
 @project_task_app.command("create")
 def project_task_create(
-    name: Annotated[str, typer.Argument(help="Task name")],
     project_id: Annotated[int, typer.Option("--project", "-p", help="Project ID (required)")],
+    name: Annotated[str | None, typer.Argument(help="Task name (or use --name/--title)")] = None,
+    title: Annotated[
+        str | None, typer.Option("--name", "--title", help="Task name instead of positional name")
+    ] = None,
     description: Annotated[
-        str | None, typer.Option("--desc", "-d", help="Task description")
+        str | None,
+        typer.Option(
+            "--description", "--desc", "-d", help="Task description (Markdown by default)"
+        ),
     ] = None,
     user_id: Annotated[
-        list[int] | None, typer.Option("--user", "-u", help="Assigned user ID (can repeat)")
+        list[int] | None,
+        typer.Option("--assignee", "--user", "-u", help="Assigned user ID (can repeat)"),
     ] = None,
     tag_id: Annotated[
         list[int] | None, typer.Option("--tag", "-t", help="Tag ID (can repeat)")
@@ -1126,29 +1138,78 @@ def project_task_create(
     parent_id: Annotated[
         int | None, typer.Option("--parent", help="Parent task ID for subtask")
     ] = None,
+    stage_id: Annotated[int | None, typer.Option("--stage", help="Stage ID")] = None,
+    depend_on_ids: Annotated[
+        list[int] | None,
+        typer.Option("--depends-on", help="Blocking task ID (can repeat)"),
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Send description as raw HTML without conversion")
+    ] = False,
 ) -> None:
-    """Create a new project task.
+    r"""Create a complete task in one atomic request. Relation IDs must be positive.
+
+    Supply either a positional name or --name/--title, not both.
 
     Examples:
         vodoo project-task create "Fix login bug" --project 10
-        vodoo project-task create "Review PR" -p 10 --user 5 --tag 1 --tag 2
-        vodoo project-task create "Subtask" -p 10 --parent 42
+        vodoo project-task create --project 2 --name "Task title" --desc "**Details**" \
+            --stage 15 --tag 2 --tag 5 --assignee 5 --assignee 6 \
+            --parent 100 --depends-on 90 --depends-on 91
     """
+    try:
+        if name is not None and title is not None:
+            raise ValueError("Supply either a positional name or --name/--title, not both")
+        task_name = name if name is not None else title
+        if task_name is None or not task_name.strip():
+            raise ValueError("Task name is required (positional name or --name/--title)")
+        _validate_task_relation_ids(
+            project_id,
+            user_id,
+            tag_id,
+            parent_id,
+            stage_id=stage_id,
+            depend_on_ids=depend_on_ids,
+        )
+    except ValueError as exc:
+        if is_structured_output():
+            structured_print({"error": str(exc), "type": "validation"})
+            raise typer.Exit(2) from exc
+        raise typer.BadParameter(str(exc)) from exc
+
+    requested: dict[str, Any] = {"name": task_name, "project_id": project_id}
+    for field, value in (
+        ("description", description),
+        ("user_ids", user_id),
+        ("tag_ids", tag_id),
+        ("parent_id", parent_id),
+        ("stage_id", stage_id),
+        ("depend_on_ids", depend_on_ids),
+    ):
+        if value is not None:
+            requested[field] = value
+
     client = get_client()
 
     with _handle_errors():
         task_id = client.tasks.create(
-            name=name,
+            name=task_name,
             project_id=project_id,
-            description=description,
+            description=HTML(description)
+            if no_markdown and description is not None
+            else description,
             user_ids=user_id,
             tag_ids=tag_id,
             parent_id=parent_id,
+            stage_id=stage_id,
+            depend_on_ids=depend_on_ids,
         )
         if is_structured_output():
-            structured_print({"ok": True, "id": task_id, "name": name})
+            structured_print({"ok": True, "id": task_id, **requested})
         else:
-            console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
+            console.print(
+                f"[green]Successfully created task '{task_name}' with ID {task_id}[/green]"
+            )
             # Show the URL
             url = client.tasks.url(task_id)
             console.print(f"\n[cyan]View task:[/cyan] {url}")
@@ -1195,14 +1256,19 @@ def project_show(
         typer.Option("--html", help="Show raw HTML description instead of markdown"),
     ] = False,
 ) -> None:
-    """Show detailed task information."""
+    """Show detailed task information.
+
+    JSON/TOON preserve raw task fields and add a relations mapping with lists of
+    {id, name} objects, sorted by numeric ID (including many2one fields).
+    --field projects raw fields and resolves only supplied relation fields.
+    """
     client = get_client()
 
     with _handle_errors():
         task = client.tasks.get(task_id, fields=fields)
 
         if is_structured_output():
-            structured_print(task)
+            structured_print({**task, "relations": resolve_task_relations(client, task)})
         elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Task #{task_id}[/bold cyan]\n")
@@ -1490,9 +1556,13 @@ def project_fields(
 def project_set(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     fields: Annotated[
-        list[str],
+        list[str] | None,
         typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
-    ],
+    ] = None,
+    description_file: Annotated[
+        Path | None,
+        typer.Option("--description-file", help="UTF-8 description file; '-' reads standard input"),
+    ] = None,
     no_markdown: Annotated[
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
@@ -1509,6 +1579,9 @@ def project_set(
 
     Supports operators: =, +=, -=, *=, /=
     HTML fields (like description) accept markdown input and display markdown by default.
+    --description-file reads verbatim UTF-8 text (or stdin with '-'), using the same
+    conversion rules. It cannot be combined with an inline description assignment.
+    --no-markdown disables conversion; --html only changes displayed output.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -1516,7 +1589,27 @@ def project_set(
         vodoo project-task set 42 project_id=10
         vodoo project-task set 42 priority+=1
         vodoo project-task set 42 'description=# Task Details\n\n- Item 1\n- Item 2'
+        vodoo project-task set 42 --description-file task.md
+        cat task.md | vodoo project-task set 42 --description-file -
     """
+    # Validate and read local input before even constructing a client.
+    with _handle_errors():
+        inline_description = next(
+            (
+                assignment
+                for assignment in fields or []
+                if re.match(r"^\s*description\s*[+\-*/]?=", assignment)
+            ),
+            None,
+        )
+        description_text = load_description(inline_description, description_file)
+        if not fields and description_file is None:
+            raise FieldParsingError("Provide field assignments or --description-file")
+        if description_file is not None:
+            # JSON quoting keeps file content a verbatim string (including empty
+            # text), while reusing the existing inline Markdown/HTML pipeline.
+            fields = [*(fields or []), f"description=json:{json.dumps(description_text)}"]
+
     client = get_client()
 
     # Parse field assignments, reusing metadata for input conversion and output formatting.
@@ -1525,7 +1618,7 @@ def project_set(
 
     with _handle_errors():
         fields_info = list_fields(client, "project.task")
-        for field_assignment in fields:
+        for field_assignment in fields or []:
             parsed = _parse_field_assignment_details(
                 client,
                 "project.task",

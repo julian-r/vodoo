@@ -281,6 +281,35 @@ def test_async_uninitialized_transport_has_explicit_url_error() -> None:
     asyncio.run(client.close())
 
 
+def test_shared_relation_reads_are_batched(run_context: Any) -> None:
+    client = _Client(True)
+    result = run_context(client)
+    assert result["complete"] is True
+    relation_reads = [
+        args
+        for method, args in client.calls
+        if method == "read" and not (args[0] == "project.task" and args[1] == [42])
+    ]
+    assert len(relation_reads) == 5
+    assert len({args[0] for args in relation_reads}) == 5
+    task_reads = [args for args in relation_reads if args[0] == "project.task"]
+    assert task_reads == [("project.task", [6, 7, 8], ["id", "display_name"])]
+    assert all(args[2] == ["id", "display_name"] for args in relation_reads)
+
+
+def test_shared_relation_errors_preserve_other_sections(run_context: Any) -> None:
+    client = _Client(True)
+    client.task["stage_id"] = [True, "Malformed"]
+    result = run_context(client)
+    assert result["complete"] is False
+    assert result["errors"][0]["section"] == "relations"
+    assert result["errors"][0]["type"] == "TaskRelationError"
+    assert result["task"]["stage_id"] == [True, "Malformed"]
+    assert result["messages"] == client.data["mail.message"]
+    assert result["attachments"] == client.data["ir.attachment"]
+    assert result["url"] is not None
+
+
 def test_short_server_pages_are_exhausted(run_context: Any) -> None:
     client = _Client(True)
     client.short_pages = True
