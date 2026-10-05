@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/julian-r/vodoo/spec/v1/task-context.schema.json",
+  "title": "Vodoo project task context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task", "relations", "messages", "attachments", "url", "write_date", "pagination", "errors", "complete"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "task": {"type": ["object", "null"]},
+    "relations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/relation"},
+        "project_id": {"$ref": "#/$defs/relation"},
+        "tag_ids": {"$ref": "#/$defs/relation"},
+        "user_ids": {"$ref": "#/$defs/relation"},
+        "parent_id": {"$ref": "#/$defs/relation"},
+        "depend_on_ids": {"$ref": "#/$defs/relation"},
+        "dependent_ids": {"$ref": "#/$defs/relation"}
+      }
+    },
+    "messages": {"type": "array", "items": {"type": "object"}},
+    "attachments": {"type": "array", "items": {"type": "object"}},
+    "url": {"type": ["string", "null"]},
+    "write_date": {"type": ["string", "null", "boolean"]},
+    "pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["messages", "attachments"],
+      "properties": {
+        "messages": {"$ref": "#/$defs/page"},
+        "attachments": {"$ref": "#/$defs/page"}
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["section", "type", "message"],
+        "properties": {
+          "section": {"enum": ["task", "relations", "messages", "attachments", "url"]},
+          "type": {"type": "string"},
+          "message": {"type": "string"},
+          "fields": {"type": "array", "items": {"type": "string"}},
+          "operation": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "complete": {"type": "boolean"}
+  },
+  "$defs": {
+    "relation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "additionalProperties": false,
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}
+      }
+    },
+    "page": {
+      "type": "object",
+      "required": ["complete", "count", "continuation"],
+      "additionalProperties": false,
+      "properties": {
+        "complete": {"type": "boolean"},
+        "count": {"type": "integer", "minimum": 0},
+        "continuation": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["model", "domain", "fields", "order", "after_id", "page_size"],
+              "additionalProperties": false,
+              "properties": {
+                "model": {"type": "string"},
+                "domain": {"type": "array"},
+                "fields": {"type": "array", "items": {"type": "string"}},
+                "order": {"const": "id asc"},
+                "after_id": {"type": "integer", "minimum": 0},
+                "page_size": {"type": "integer", "minimum": 1}
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

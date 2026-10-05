@@ -62,6 +62,24 @@ Examples:
 | `--tag` / `-t` | INT | Tag ID (can repeat) |
 | `--parent` | INT | Parent task ID for subtask |
 
+### context
+
+Read complete task context. Incomplete context is emitted with exit status 1.
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `task_id` | INT | Task ID |
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--field` / `-f` | TEXT | Additional task fields (repeatable) |
+| `--page-size` | INTEGER RANGE | Chatter/attachment page size (default: 100) |
+| `--max-pages` | INTEGER RANGE | Cap pages per section; report continuation |
+
 ### show
 
 Show detailed task information.
