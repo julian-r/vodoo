@@ -66,6 +66,10 @@ Examples:
 
 Show detailed task information.
 
+JSON/TOON preserve raw task fields and add a relations mapping with lists of
+{id, name} objects, sorted by numeric ID (including many2one fields).
+--field projects raw fields and resolves only supplied relation fields.
+
 **Arguments:**
 
 | Argument | Type | Description |
@@ -244,6 +248,9 @@ Set field values on a task.
 
     Supports operators: =, +=, -=, *=, /=
     HTML fields (like description) accept markdown input and display markdown by default.
+    --description-file reads verbatim UTF-8 text (or stdin with '-'), using the same
+    conversion rules. It cannot be combined with an inline description assignment.
+    --no-markdown disables conversion; --html only changes displayed output.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -254,6 +261,8 @@ Set field values on a task.
 
 - Item 1
 - Item 2'
+        vodoo project-task set 42 --description-file task.md
+        cat task.md | vodoo project-task set 42 --description-file -
 
 **Arguments:**
 
@@ -266,6 +275,7 @@ Set field values on a task.
 
 | Option | Type | Description |
 |--------|------|-------------|
+| `--description-file` | PATH | UTF-8 description file; '-' reads standard input |
 | `--no-markdown` | BOOL | Disable markdown to HTML conversion for HTML fields |
 | `--html` | BOOL | Show raw HTML updated values instead of markdown (markdown is the default) |
 

@@ -1,5 +1,6 @@
 """Main CLI application for Vodoo."""
 
+import json
 import re
 import sys
 from collections.abc import Callable
@@ -38,6 +39,7 @@ from vodoo.cli.output import (
     render_error,
     structured_print,
 )
+from vodoo.cli.task_input import load_description
 from vodoo.client import OdooClient
 from vodoo.config import (
     detect_config_file,
@@ -49,6 +51,7 @@ from vodoo.config import (
 )
 from vodoo.exceptions import (
     AuthenticationError,
+    FieldParsingError,
     OdooAccessDeniedError,
     OdooAccessError,
     RecordNotFoundError,
@@ -61,6 +64,7 @@ from vodoo.project_tasks import _validate_schedule_values
 from vodoo.security import (
     GROUP_DEFINITIONS,
 )
+from vodoo.task_relations import resolve_task_relations
 
 
 def _print_error(error: Exception, error_type: str, label: str) -> None:
@@ -1166,14 +1170,19 @@ def project_show(
         typer.Option("--html", help="Show raw HTML description instead of markdown"),
     ] = False,
 ) -> None:
-    """Show detailed task information."""
+    """Show detailed task information.
+
+    JSON/TOON preserve raw task fields and add a relations mapping with lists of
+    {id, name} objects, sorted by numeric ID (including many2one fields).
+    --field projects raw fields and resolves only supplied relation fields.
+    """
     client = get_client()
 
     with _handle_errors():
         task = client.tasks.get(task_id, fields=fields)
 
         if is_structured_output():
-            structured_print(task)
+            structured_print({**task, "relations": resolve_task_relations(client, task)})
         elif fields:
             # If specific fields requested, show them directly
             console.print(f"\n[bold cyan]Task #{task_id}[/bold cyan]\n")
@@ -1461,9 +1470,13 @@ def project_fields(
 def project_set(
     task_id: Annotated[int, typer.Argument(help="Task ID")],
     fields: Annotated[
-        list[str],
+        list[str] | None,
         typer.Argument(help="Field assignments in format 'field=value' or 'field+=amount'"),
-    ],
+    ] = None,
+    description_file: Annotated[
+        Path | None,
+        typer.Option("--description-file", help="UTF-8 description file; '-' reads standard input"),
+    ] = None,
     no_markdown: Annotated[
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
@@ -1480,6 +1493,9 @@ def project_set(
 
     Supports operators: =, +=, -=, *=, /=
     HTML fields (like description) accept markdown input and display markdown by default.
+    --description-file reads verbatim UTF-8 text (or stdin with '-'), using the same
+    conversion rules. It cannot be combined with an inline description assignment.
+    --no-markdown disables conversion; --html only changes displayed output.
 
     Examples:
         vodoo project-task set 42 priority=1 name="New Task Title"
@@ -1487,7 +1503,27 @@ def project_set(
         vodoo project-task set 42 project_id=10
         vodoo project-task set 42 priority+=1
         vodoo project-task set 42 'description=# Task Details\n\n- Item 1\n- Item 2'
+        vodoo project-task set 42 --description-file task.md
+        cat task.md | vodoo project-task set 42 --description-file -
     """
+    # Validate and read local input before even constructing a client.
+    with _handle_errors():
+        inline_description = next(
+            (
+                assignment
+                for assignment in fields or []
+                if re.match(r"^\s*description\s*[+\-*/]?=", assignment)
+            ),
+            None,
+        )
+        description_text = load_description(inline_description, description_file)
+        if not fields and description_file is None:
+            raise FieldParsingError("Provide field assignments or --description-file")
+        if description_file is not None:
+            # JSON quoting keeps file content a verbatim string (including empty
+            # text), while reusing the existing inline Markdown/HTML pipeline.
+            fields = [*(fields or []), f"description=json:{json.dumps(description_text)}"]
+
     client = get_client()
 
     # Parse field assignments, reusing metadata for input conversion and output formatting.
@@ -1496,7 +1532,7 @@ def project_set(
 
     with _handle_errors():
         fields_info = list_fields(client, "project.task")
-        for field_assignment in fields:
+        for field_assignment in fields or []:
             parsed = _parse_field_assignment_details(
                 client,
                 "project.task",
