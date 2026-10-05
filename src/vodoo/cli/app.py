@@ -1156,6 +1156,10 @@ def project_task_create(
             "--description", "--desc", "-d", help="Task description (Markdown by default)"
         ),
     ] = None,
+    description_file: Annotated[
+        Path | None,
+        typer.Option("--description-file", help="Read UTF-8 description from a file or '-' stdin"),
+    ] = None,
     user_id: Annotated[
         list[int] | None,
         typer.Option("--assignee", "--user", "-u", help="Assigned user ID (can repeat)"),
@@ -1181,7 +1185,7 @@ def project_task_create(
 
     Examples:
         vodoo project-task create "Fix login bug" --project 10
-        vodoo project-task create --project 2 --name "Task title" --desc "**Details**" \
+        vodoo project-task create --project 2 --name "Task title" --description-file task.md \
             --stage 15 --tag 2 --tag 5 --assignee 5 --assignee 6 \
             --parent 100 --depends-on 90 --depends-on 91
     """
@@ -1204,6 +1208,9 @@ def project_task_create(
             structured_print({"error": str(exc), "type": "validation"})
             raise typer.Exit(2) from exc
         raise typer.BadParameter(str(exc)) from exc
+
+    with _handle_errors():
+        description = load_description(description, description_file)
 
     requested: dict[str, Any] = {"name": task_name, "project_id": project_id}
     for field, value in (

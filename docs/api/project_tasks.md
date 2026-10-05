@@ -87,13 +87,16 @@ these reads.
 Use a UTF-8 file or stdin instead of shell-escaped multiline arguments:
 
 ```bash
+vodoo project-task create --project 2 --name 'Task' --description-file task.md
+cat task.md | vodoo project-task create --project 2 --name 'Task' --description-file -
 vodoo project-task set 42 --description-file task.md
 cat task.md | vodoo project-task set 42 --description-file -
 ```
 
 Files are loaded verbatim, including whitespace and line endings, before client
 construction. Missing/unreadable files, invalid UTF-8, and combining a file with
-an inline `description=...` assignment fail before mutation. The content uses the
+an inline `--description`/`--desc` value (create) or `description=...` assignment (set)
+fail before mutation. The content uses the
 existing inline Markdown conversion pipeline; `--no-markdown` disables conversion
 and `--html` changes only displayed output. Empty files clear the description.
 

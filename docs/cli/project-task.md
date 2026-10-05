@@ -45,7 +45,7 @@ Supply either a positional name or --name/--title, not both.
 
 Examples:
     vodoo project-task create "Fix login bug" --project 10
-    vodoo project-task create --project 2 --name "Task title" --desc "**Details**" \
+    vodoo project-task create --project 2 --name "Task title" --description-file task.md \
         --stage 15 --tag 2 --tag 5 --assignee 5 --assignee 6 \
         --parent 100 --depends-on 90 --depends-on 91
 
@@ -62,6 +62,7 @@ Examples:
 | `--project` / `-p` | INT | Project ID (required) |
 | `--name` / `--title` | TEXT | Task name instead of positional name |
 | `--description` / `--desc` / `-d` | TEXT | Task description (Markdown by default) |
+| `--description-file` | PATH | Read UTF-8 description from a file or '-' stdin |
 | `--assignee` / `--user` / `-u` | INT | Assigned user ID (can repeat) |
 | `--tag` / `-t` | INT | Tag ID (can repeat) |
 | `--parent` | INT | Parent task ID for subtask |
