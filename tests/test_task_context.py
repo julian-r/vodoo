@@ -8,17 +8,19 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import jsonschema
 import pytest
 from typer.testing import CliRunner
 
+from vodoo.aio.client import AsyncOdooClient
 from vodoo.aio.project_tasks import AsyncTaskNamespace
+from vodoo.config import OdooConfig
 from vodoo.exceptions import RecordNotFoundError
 from vodoo.main import app
 from vodoo.project_tasks import TaskNamespace
-from vodoo.task_context import _RELATION_MODELS, CORE_FIELDS
+from vodoo.task_context import _RELATION_MODELS, ATTACHMENT_FIELDS, CORE_FIELDS, MESSAGE_FIELDS
 
 
 def _task(full: bool = False) -> dict[str, Any]:
@@ -45,20 +47,56 @@ class _Client:
         self.task = _task(full)
         self.config = SimpleNamespace(url="https://odoo.example/")
         self.is_json2 = True
+        self.transport = object()
         self.calls: list[tuple[str, Any]] = []
         self.data: dict[str, list[dict[str, Any]]] = {
             "mail.message": [
-                {"id": i, "body": "[red]\ttext\nnext", "attachment_ids": [20]} for i in range(1, 4)
+                {
+                    "id": i,
+                    "date": "2026-04-01 00:00:00",
+                    "author_id": [5, "Author"],
+                    "body": "[red]\ttext\nnext",
+                    "subject": None,
+                    "message_type": "comment",
+                    "subtype_id": [2, "Discussions"],
+                    "email_from": None,
+                    "attachment_ids": [20],
+                    "tracking_value_ids": [],
+                }
+                for i in range(1, 4)
             ]
             if full
             else [],
-            "ir.attachment": [{"id": 20, "name": "file.pdf"}] if full else [],
+            "ir.attachment": [
+                {
+                    "id": 20,
+                    "name": "file.pdf",
+                    "file_size": 123,
+                    "mimetype": "application/pdf",
+                    "create_date": "2026-04-01 00:00:00",
+                    "type": "binary",
+                    "url": None,
+                }
+            ]
+            if full
+            else [],
         }
         self.failure: tuple[str, int] | None = None
         self.short_pages = False
         self.unordered = False
         self.missing_relation = False
         self.definitions = {name: {"type": "char"} for name in self.task}
+        self.definitions.update(
+            {
+                name: {
+                    "type": "many2one"
+                    if name in {"stage_id", "project_id", "parent_id"}
+                    else "many2many",
+                    "relation": model,
+                }
+                for name, model in _RELATION_MODELS.items()
+            }
+        )
 
     def fields_get(self, model: str, **_kwargs: Any) -> dict[str, Any]:
         self.calls.append(("fields_get", model))
@@ -83,7 +121,8 @@ class _Client:
         if self.failure == (model, after_id):
             raise PermissionError("section forbidden")
         if self.unordered and model == "mail.message":
-            return [{"id": 1}, {"id": 1}]
+            record = copy.deepcopy(self.data[model][0])
+            return [record, copy.deepcopy(record)]
         limit = 1 if self.short_pages else kwargs["limit"]
         return copy.deepcopy([row for row in self.data[model] if row["id"] > after_id][:limit])
 
@@ -102,6 +141,16 @@ class _AsyncClient:
         self.client = client
         self.config = client.config
         self.is_json2 = client.is_json2
+        self.transport = client.transport
+
+    async def create(self, *args: Any, **kwargs: Any) -> None:
+        self.client.create(*args, **kwargs)
+
+    async def write(self, *args: Any, **kwargs: Any) -> None:
+        self.client.write(*args, **kwargs)
+
+    async def unlink(self, *args: Any, **kwargs: Any) -> None:
+        self.client.unlink(*args, **kwargs)
 
     async def read(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return self.client.read(*args, **kwargs)
@@ -147,6 +196,8 @@ def test_empty_and_full_context(run_context: Any, full: bool) -> None:
         assert all(result["relations"].values())
         assert len(result["messages"]) == 3
         assert len(result["attachments"]) == 1
+        assert all(set(record) == set(MESSAGE_FIELDS) for record in result["messages"])
+        assert all(set(record) == set(ATTACHMENT_FIELDS) for record in result["attachments"])
         attachment_calls = [
             args
             for method, args in client.calls
@@ -157,6 +208,77 @@ def test_empty_and_full_context(run_context: Any, full: bool) -> None:
         assert not any(result["relations"].values())
         assert result["messages"] == result["attachments"] == []
     assert all(status["continuation"] is None for status in result["pagination"].values())
+
+
+@pytest.mark.parametrize(
+    ("model", "section", "missing_fields"),
+    [
+        ("mail.message", "messages", ["attachment_ids"]),
+        ("mail.message", "messages", ["date", "author_id", "body"]),
+        ("ir.attachment", "attachments", ["file_size", "mimetype", "url"]),
+    ],
+)
+def test_missing_page_fields_are_explicit_and_records_retained(
+    run_context: Any,
+    model: str,
+    section: str,
+    missing_fields: list[str],
+) -> None:
+    client = _Client(True)
+    for name in missing_fields:
+        del client.data[model][0][name]
+    original = copy.deepcopy(client.data)
+    result = run_context(client, page_size=1)
+    assert result["complete"] is False
+    assert result["errors"] == [
+        {
+            "section": section,
+            "type": "ValueError",
+            "message": f"Requested fields missing from {model} record {original[model][0]['id']}",
+            "fields": missing_fields,
+        }
+    ]
+    assert result["messages"] == original["mail.message"]
+    assert result["attachments"] == original["ir.attachment"]
+    assert client.data == original
+    assert all(status["complete"] for status in result["pagination"].values())
+    assert all(status["continuation"] is None for status in result["pagination"].values())
+    assert result["pagination"][section]["count"] == len(original[model])
+    assert result["url"] == "https://odoo.example/odoo/project.task/42"
+
+
+def test_async_uninitialized_transport_has_explicit_url_error() -> None:
+    config = OdooConfig(
+        url="https://odoo.example",
+        database="test",
+        username="test",
+        password="test",
+        _env_file=None,
+    )
+    client = AsyncOdooClient(config)
+    detection = AsyncMock(side_effect=ConnectionError("offline fixture"))
+    mutations = [
+        AsyncMock(side_effect=AssertionError("context must never mutate")) for _ in range(3)
+    ]
+    with (
+        patch.object(client, "_detect_transport", detection),
+        patch.object(client, "create", mutations[0]),
+        patch.object(client, "write", mutations[1]),
+        patch.object(client, "unlink", mutations[2]),
+    ):
+        result = asyncio.run(client.tasks.context(42))
+    assert result["complete"] is False
+    assert result["url"] is None
+    assert result["errors"][-1]["section"] == "url"
+    assert result["errors"][-1]["type"] == "RuntimeError"
+    assert "Transport not initialised" in result["errors"][-1]["message"]
+    # Only metadata/task/chatter/attachments attempt initialization; URL never probes.
+    assert detection.await_count == 4
+    for mutation in mutations:
+        mutation.assert_not_called()
+    schema = json.loads(Path("spec/v1/task-context.schema.json").read_text())
+    jsonschema.validate(result, schema)
+    asyncio.run(client.close())
 
 
 def test_short_server_pages_are_exhausted(run_context: Any) -> None:

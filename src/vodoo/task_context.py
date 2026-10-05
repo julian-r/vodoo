@@ -216,6 +216,15 @@ def _pages(
             return
         result[section].extend(records)
         status["count"] = len(result[section])
+        for record in records:
+            missing = [name for name in fields if name not in record]
+            if missing:
+                _error(
+                    result,
+                    section,
+                    ValueError(f"Requested fields missing from {model} record {record['id']}"),
+                    fields=missing,
+                )
         after_id = ids[-1]
         pages += 1
 
@@ -317,6 +326,8 @@ def _context_plan(
 
 
 def _url(client: OdooClient | AsyncOdooClient, task_id: int) -> str:
+    # The accessor rejects uninitialized async clients without probing the server.
+    _ = client.transport
     return build_record_url(
         client.config.url,
         "project.task",
