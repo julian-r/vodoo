@@ -15,8 +15,22 @@ class AsyncGenericNamespace:
         """Create a new record."""
         return await self._client.create(model, values)
 
-    async def update(self, model: str, record_id: int, values: dict[str, Any]) -> bool:
-        """Update a record."""
+    async def update(
+        self,
+        model: str,
+        record_id: int,
+        values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
+    ) -> bool:
+        """Update with an optional best-effort, non-atomic freshness check.
+
+        Changes after the read or within the same second can be missed.
+        """
+        if check_write_date is not None:
+            return await self._client.write(
+                model, [record_id], values, check_write_date=check_write_date
+            )
         return await self._client.write(model, [record_id], values)
 
     async def delete(self, model: str, record_id: int) -> bool:

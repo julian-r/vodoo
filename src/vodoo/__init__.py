@@ -55,7 +55,10 @@ from vodoo.exceptions import (
     OdooValidationError,
     RecordNotFoundError,
     RecordOperationError,
+    RevisionInputError,
+    StaleRevisionError,
     TransportError,
+    UnverifiableRevisionError,
     VodooError,
 )
 from vodoo.transport import RetryConfig
@@ -78,6 +81,9 @@ __all__ = [
     "RecordNotFoundError",
     "RecordOperationError",
     "RetryConfig",
+    "RevisionInputError",
+    "StaleRevisionError",
     "TransportError",
+    "UnverifiableRevisionError",
     "VodooError",
 ]

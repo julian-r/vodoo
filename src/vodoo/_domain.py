@@ -117,16 +117,25 @@ class DomainNamespace(_NamespaceBase):
         self,
         record_id: int,
         values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
     ) -> bool:
         """Update fields on a record.
 
         Args:
             record_id: Record ID.
             values: Field names → new values.
+            check_write_date: Optional UTC seconds timestamp for a best-effort,
+                non-atomic preflight. Changes after the read or within the same
+                second can be missed; this is not compare-and-set.
 
         Returns:
             ``True`` on success.
         """
+        if check_write_date is not None:
+            return self._client.write(
+                self._model, [record_id], values, check_write_date=check_write_date
+            )
         return self._client.write(self._model, [record_id], values)
 
     def fields(self) -> dict[str, Any]:

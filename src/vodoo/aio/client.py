@@ -6,6 +6,7 @@ Mirrors :class:`vodoo.client.OdooClient` with async methods.
 import asyncio
 from typing import Any
 
+from vodoo._freshness import check_observations, validate_write_date
 from vodoo.aio.transport import (
     AsyncJSON2Transport,
     AsyncLegacyTransport,
@@ -254,10 +255,23 @@ class AsyncOdooClient:
         model: str,
         ids: list[int],
         values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
     ) -> bool:
-        """Update records."""
+        """Update records with an optional best-effort, non-atomic freshness check.
+
+        All IDs must match the supplied UTC seconds timestamp. Another writer
+        can change records after the read; same-second changes may be missed.
+        Stale or unusable observations prevent the mutation attempt.
+        """
+        prepared = process_values(values)
+        if check_write_date is not None:
+            validate_write_date(check_write_date)
         transport = await self._ensure_transport()
-        return await transport.write(model, ids, process_values(values))
+        if check_write_date is not None:
+            records = await transport.read(model, ids, ["write_date"])
+            check_observations(model, ids, check_write_date, records)
+        return await transport.write(model, ids, prepared)
 
     async def unlink(
         self,

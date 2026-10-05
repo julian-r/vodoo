@@ -57,7 +57,10 @@ from vodoo.exceptions import (
     OdooAccessError,
     RecordNotFoundError,
     RecordOperationError,
+    RevisionInputError,
+    StaleRevisionError,
     TransportError,
+    UnverifiableRevisionError,
     VodooError,
 )
 from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
@@ -66,6 +69,17 @@ from vodoo.security import (
     GROUP_DEFINITIONS,
 )
 from vodoo.task_relations import resolve_task_relations
+
+_CheckWriteDate = Annotated[
+    str | None,
+    typer.Option(
+        "--check-write-date",
+        help=(
+            "Best-effort, non-atomic freshness check (UTC YYYY-MM-DD HH:MM:SS). "
+            "Concurrent changes after the read or within the same second can be missed."
+        ),
+    ),
+]
 
 
 def _print_error(error: Exception, error_type: str, label: str) -> None:
@@ -78,6 +92,15 @@ def _handle_errors() -> Any:
     """Catch Vodoo/Odoo exceptions and exit with a formatted error message."""
     try:
         yield
+    except StaleRevisionError as e:
+        _print_error(e, e.code, "Stale preflight revision")
+        raise typer.Exit(3) from e
+    except RevisionInputError as e:
+        _print_error(e, "invalid_revision", "Invalid revision")
+        raise typer.Exit(2) from e
+    except UnverifiableRevisionError as e:
+        _print_error(e, "unverifiable_revision", "Unverifiable revision")
+        raise typer.Exit(1) from e
     except RecordNotFoundError as e:
         _print_error(e, "not_found", "Not found")
         raise typer.Exit(1) from e
@@ -910,6 +933,7 @@ def helpdesk_set(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    check_write_date: _CheckWriteDate = None,
 ) -> None:
     """Set field values on a ticket.
 
@@ -934,7 +958,11 @@ def helpdesk_set(
                 client, "helpdesk.ticket", ticket_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = client.helpdesk.set(ticket_id, values)
+        success = client.helpdesk.set(
+            ticket_id,
+            values,
+            **({"check_write_date": check_write_date} if check_write_date is not None else {}),
+        )
         if success:
             if is_structured_output():
                 structured_print({"ok": True, "id": ticket_id, "updated": values})
@@ -1574,6 +1602,7 @@ def project_set(
             help="Show raw HTML updated values instead of markdown (markdown is the default)",
         ),
     ] = False,
+    check_write_date: _CheckWriteDate = None,
 ) -> None:
     """Set field values on a task.
 
@@ -1635,7 +1664,11 @@ def project_set(
                 and fields_info.get(parsed.field, {}).get("type") == "html"
             ):
                 markdown_values[parsed.field] = parsed.source_value
-        success = client.tasks.set(task_id, values)
+        success = client.tasks.set(
+            task_id,
+            values,
+            **({"check_write_date": check_write_date} if check_write_date is not None else {}),
+        )
         if success:
             display_values = values.copy()
             if not show_html:
@@ -1936,6 +1969,7 @@ def project_project_set(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    check_write_date: _CheckWriteDate = None,
 ) -> None:
     """Set field values on a project.
 
@@ -1957,7 +1991,11 @@ def project_project_set(
                 client, "project.project", project_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = client.projects.set(project_id, values)
+        success = client.projects.set(
+            project_id,
+            values,
+            **({"check_write_date": check_write_date} if check_write_date is not None else {}),
+        )
         if success:
             if is_structured_output():
                 structured_print({"ok": True, "id": project_id, "updated": values})
@@ -2837,6 +2875,7 @@ def model_update(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    check_write_date: _CheckWriteDate = None,
 ) -> None:
     """Update a record in any model.
 
@@ -2857,7 +2896,12 @@ def model_update(
                 client, model, record_id, field_assignment, no_markdown=no_markdown
             )
             values[field] = value
-        success = client.generic.update(model, record_id, values)
+        success = client.generic.update(
+            model,
+            record_id,
+            values,
+            **({"check_write_date": check_write_date} if check_write_date is not None else {}),
+        )
         if success:
             if is_structured_output():
                 structured_print({"ok": True, "id": record_id, "model": model, "updated": values})
@@ -3294,6 +3338,7 @@ def crm_set(
         bool,
         typer.Option("--no-markdown", help="Disable markdown to HTML conversion for HTML fields"),
     ] = False,
+    check_write_date: _CheckWriteDate = None,
 ) -> None:
     """Set field values on a lead.
 
@@ -3308,7 +3353,11 @@ def crm_set(
                 client, "crm.lead", lead_id, fa, no_markdown=no_markdown
             )
             values[field] = value
-        success = client.crm.set(lead_id, values)
+        success = client.crm.set(
+            lead_id,
+            values,
+            **({"check_write_date": check_write_date} if check_write_date is not None else {}),
+        )
         if success:
             if is_structured_output():
                 structured_print({"ok": True, "id": lead_id, "updated": values})

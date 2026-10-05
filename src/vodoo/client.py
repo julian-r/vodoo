@@ -8,6 +8,7 @@ with ``client.transport.search()`` would be a confusing API surface.
 
 from typing import Any
 
+from vodoo._freshness import check_observations, validate_write_date
 from vodoo.config import OdooConfig
 from vodoo.content import process_values
 from vodoo.exceptions import VodooError
@@ -239,9 +240,22 @@ class OdooClient:
         model: str,
         ids: list[int],
         values: dict[str, Any],
+        *,
+        check_write_date: str | None = None,
     ) -> bool:
-        """Update records."""
-        return self._transport.write(model, ids, process_values(values))
+        """Update records, optionally checking freshness immediately beforehand.
+
+        ``check_write_date`` is a best-effort, non-atomic preflight: another
+        writer can change records between the read and write, and same-second
+        changes can be invisible. All IDs must match the supplied timestamp.
+        An unusable or stale observation prevents the mutation attempt.
+        """
+        prepared = process_values(values)
+        if check_write_date is not None:
+            validate_write_date(check_write_date)
+            records = self._transport.read(model, ids, ["write_date"])
+            check_observations(model, ids, check_write_date, records)
+        return self._transport.write(model, ids, prepared)
 
     def unlink(
         self,
