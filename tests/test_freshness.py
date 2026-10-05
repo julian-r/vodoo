@@ -7,8 +7,10 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
+import click
 import httpx2 as httpx
 import pytest
+from typer import rich_utils
 from typer.testing import CliRunner
 
 import vodoo.main as main_module
@@ -302,11 +304,17 @@ def test_cli_non_conflict_revision_errors(
 
 
 @pytest.mark.parametrize("command", COMMANDS)
-def test_cli_help_advertises_non_atomic_limitations(command: tuple[str, ...]) -> None:
-    result = CliRunner().invoke(main_module.app, [*command[:2], "--help"])
+@pytest.mark.parametrize("color", [False, True])
+def test_cli_help_advertises_non_atomic_limitations(
+    monkeypatch: pytest.MonkeyPatch, command: tuple[str, ...], color: bool
+) -> None:
+    monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", color)
+    result = CliRunner().invoke(main_module.app, [*command[:2], "--help"], color=True)
     assert result.exit_code == 0
-    assert "--check-write-date" in result.output
-    assert "non-atomic" in result.output
+    assert ("\x1b[" in result.output) is color
+    output = click.unstyle(result.output)
+    assert "--check-write-date" in output
+    assert "non-atomic" in output
 
 
 @pytest.mark.parametrize(
