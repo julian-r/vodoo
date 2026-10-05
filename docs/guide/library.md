@@ -95,7 +95,32 @@ client.crm.set(15, values={"expected_revenue": 50000})
 tasks = client.tasks.list(domain=[["project_id.name", "=", "Website"]], limit=10)
 task = client.tasks.get(7)
 client.tasks.comment(7, message="Deployed to staging")
+
+# All fields are sent in one create request, never a placeholder plus updates.
+task_id = client.tasks.create(
+    "Task title",
+    project_id=2,
+    description="**Details**",  # Markdown by default; use HTML(...) for raw HTML
+    stage_id=15,
+    tag_ids=[2, 5],
+    user_ids=[5, 6],
+    parent_id=100,
+    depend_on_ids=[90, 91],
+)
 ```
+
+The async namespace accepts the same arguments: `await client.tasks.create(...)`.
+All relation IDs must be positive integers and are validated before creation.
+`user_ids`, `tag_ids`, and `depend_on_ids` are ordinary ID lists; Vodoo converts them
+to Odoo relation commands. Omitted relations retain Odoo defaults; an explicit empty
+list requests an empty relation. The server validates record existence and access
+rights as part of the single create operation.
+
+The CLI accepts a positional title or `--name`/`--title` (not both), repeated
+`--assignee`/`--user`, `--tag`, and `--depends-on` flags, plus `--stage` and `--parent`.
+`--project` is required. `--description`/`--desc` accepts Markdown by default;
+`--no-markdown` sends raw HTML instead. JSON output includes the created ID and
+requested field values, including the description as supplied, without a follow-up read.
 
 ### Timers
 

@@ -47,6 +47,7 @@ from vodoo.config import (
     resolve_instance,
     write_default_instance,
 )
+from vodoo.content import HTML
 from vodoo.exceptions import (
     AuthenticationError,
     OdooAccessDeniedError,
@@ -57,7 +58,7 @@ from vodoo.exceptions import (
     VodooError,
 )
 from vodoo.fields import _parse_field_assignment_details, parse_field_assignment
-from vodoo.project_tasks import _validate_schedule_values
+from vodoo.project_tasks import _validate_schedule_values, _validate_task_relation_ids
 from vodoo.security import (
     GROUP_DEFINITIONS,
 )
@@ -1112,13 +1113,20 @@ def project_list(
 
 @project_task_app.command("create")
 def project_task_create(
-    name: Annotated[str, typer.Argument(help="Task name")],
     project_id: Annotated[int, typer.Option("--project", "-p", help="Project ID (required)")],
+    name: Annotated[str | None, typer.Argument(help="Task name (or use --name/--title)")] = None,
+    title: Annotated[
+        str | None, typer.Option("--name", "--title", help="Task name instead of positional name")
+    ] = None,
     description: Annotated[
-        str | None, typer.Option("--desc", "-d", help="Task description")
+        str | None,
+        typer.Option(
+            "--description", "--desc", "-d", help="Task description (Markdown by default)"
+        ),
     ] = None,
     user_id: Annotated[
-        list[int] | None, typer.Option("--user", "-u", help="Assigned user ID (can repeat)")
+        list[int] | None,
+        typer.Option("--assignee", "--user", "-u", help="Assigned user ID (can repeat)"),
     ] = None,
     tag_id: Annotated[
         list[int] | None, typer.Option("--tag", "-t", help="Tag ID (can repeat)")
@@ -1126,29 +1134,78 @@ def project_task_create(
     parent_id: Annotated[
         int | None, typer.Option("--parent", help="Parent task ID for subtask")
     ] = None,
+    stage_id: Annotated[int | None, typer.Option("--stage", help="Stage ID")] = None,
+    depend_on_ids: Annotated[
+        list[int] | None,
+        typer.Option("--depends-on", help="Blocking task ID (can repeat)"),
+    ] = None,
+    no_markdown: Annotated[
+        bool, typer.Option("--no-markdown", help="Send description as raw HTML without conversion")
+    ] = False,
 ) -> None:
-    """Create a new project task.
+    r"""Create a complete task in one atomic request. Relation IDs must be positive.
+
+    Supply either a positional name or --name/--title, not both.
 
     Examples:
         vodoo project-task create "Fix login bug" --project 10
-        vodoo project-task create "Review PR" -p 10 --user 5 --tag 1 --tag 2
-        vodoo project-task create "Subtask" -p 10 --parent 42
+        vodoo project-task create --project 2 --name "Task title" --desc "**Details**" \
+            --stage 15 --tag 2 --tag 5 --assignee 5 --assignee 6 \
+            --parent 100 --depends-on 90 --depends-on 91
     """
+    try:
+        if name is not None and title is not None:
+            raise ValueError("Supply either a positional name or --name/--title, not both")
+        task_name = name if name is not None else title
+        if task_name is None or not task_name.strip():
+            raise ValueError("Task name is required (positional name or --name/--title)")
+        _validate_task_relation_ids(
+            project_id,
+            user_id,
+            tag_id,
+            parent_id,
+            stage_id=stage_id,
+            depend_on_ids=depend_on_ids,
+        )
+    except ValueError as exc:
+        if is_structured_output():
+            structured_print({"error": str(exc), "type": "validation"})
+            raise typer.Exit(2) from exc
+        raise typer.BadParameter(str(exc)) from exc
+
+    requested: dict[str, Any] = {"name": task_name, "project_id": project_id}
+    for field, value in (
+        ("description", description),
+        ("user_ids", user_id),
+        ("tag_ids", tag_id),
+        ("parent_id", parent_id),
+        ("stage_id", stage_id),
+        ("depend_on_ids", depend_on_ids),
+    ):
+        if value is not None:
+            requested[field] = value
+
     client = get_client()
 
     with _handle_errors():
         task_id = client.tasks.create(
-            name=name,
+            name=task_name,
             project_id=project_id,
-            description=description,
+            description=HTML(description)
+            if no_markdown and description is not None
+            else description,
             user_ids=user_id,
             tag_ids=tag_id,
             parent_id=parent_id,
+            stage_id=stage_id,
+            depend_on_ids=depend_on_ids,
         )
         if is_structured_output():
-            structured_print({"ok": True, "id": task_id, "name": name})
+            structured_print({"ok": True, "id": task_id, **requested})
         else:
-            console.print(f"[green]Successfully created task '{name}' with ID {task_id}[/green]")
+            console.print(
+                f"[green]Successfully created task '{task_name}' with ID {task_id}[/green]"
+            )
             # Show the URL
             url = client.tasks.url(task_id)
             console.print(f"\n[cyan]View task:[/cyan] {url}")

@@ -23,11 +23,25 @@ class AsyncTaskNamespace(GeneratedAsyncTaskNamespace):
         user_ids: list[int] | None = None,
         tag_ids: list[int] | None = None,
         parent_id: int | None = None,
+        *,
+        stage_id: int | None = None,
+        depend_on_ids: list[int] | None = None,
         **kwargs: Any,
     ) -> int:
-        """Create a new project task."""
+        """Create a task atomically; relation IDs must be positive integers.
+
+        Descriptions use Markdown by default; wrap in HTML to bypass conversion.
+        """
         values, context = _build_task_values(
-            name, project_id, description, user_ids, tag_ids, parent_id, **kwargs
+            name,
+            project_id,
+            description,
+            user_ids,
+            tag_ids,
+            parent_id,
+            stage_id=stage_id,
+            depend_on_ids=depend_on_ids,
+            **kwargs,
         )
         return await self._client.create(self._model, values, context=context)
 

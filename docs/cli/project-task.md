@@ -39,28 +39,35 @@ List project tasks.
 
 ### create
 
-Create a new project task.
+Create a complete task in one atomic request. Relation IDs must be positive.
+
+Supply either a positional name or --name/--title, not both.
 
 Examples:
     vodoo project-task create "Fix login bug" --project 10
-    vodoo project-task create "Review PR" -p 10 --user 5 --tag 1 --tag 2
-    vodoo project-task create "Subtask" -p 10 --parent 42
+    vodoo project-task create --project 2 --name "Task title" --desc "**Details**" \
+        --stage 15 --tag 2 --tag 5 --assignee 5 --assignee 6 \
+        --parent 100 --depends-on 90 --depends-on 91
 
 **Arguments:**
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `name` | TEXT | Task name |
+| `name` | TEXT | Task name (or use --name/--title) |
 
 **Options:**
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `--project` / `-p` | INT | Project ID (required) |
-| `--desc` / `-d` | TEXT | Task description |
-| `--user` / `-u` | INT | Assigned user ID (can repeat) |
+| `--name` / `--title` | TEXT | Task name instead of positional name |
+| `--description` / `--desc` / `-d` | TEXT | Task description (Markdown by default) |
+| `--assignee` / `--user` / `-u` | INT | Assigned user ID (can repeat) |
 | `--tag` / `-t` | INT | Tag ID (can repeat) |
 | `--parent` | INT | Parent task ID for subtask |
+| `--stage` | INT | Stage ID |
+| `--depends-on` | INT | Blocking task ID (can repeat) |
+| `--no-markdown` | BOOL | Send description as raw HTML without conversion |
 
 ### show
 
