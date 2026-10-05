@@ -329,7 +329,7 @@ def test_cli_project_is_still_required() -> None:
         result = CliRunner().invoke(main_module.app, ["project-task", "create", "Task"])
 
     assert result.exit_code == 2
-    assert "--project" in result.output
+    assert "--project" in click.unstyle(result.output)
     get_client.assert_not_called()
 
 
