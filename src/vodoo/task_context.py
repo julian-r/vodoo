@@ -165,6 +165,22 @@ def _pages(
         pages += 1
 
 
+def _message_fields(result: dict[str, Any]) -> Generator[_Request, Any, list[str]]:
+    # Group-restricted fields are omitted by fields_get. Do not let one denied
+    # field discard otherwise readable chatter (or its attachment references).
+    try:
+        definitions = yield _Request("fields_get", ("mail.message",), {"attributes": ["type"]})
+        _unsupported(
+            result, "messages", [name for name in MESSAGE_FIELDS if name not in definitions]
+        )
+        return [name for name in MESSAGE_FIELDS if name in definitions]
+    except Exception as exc:
+        # Without metadata, keep the historically readable projection, but never
+        # guess that tracking is allowed. The metadata error prevents completeness.
+        _error(result, "messages", exc, operation="fields_get")
+        return [name for name in MESSAGE_FIELDS if name != "tracking_value_ids"]
+
+
 def _context_plan(
     task_id: int,
     fields: list[str] | None,
@@ -223,12 +239,13 @@ def _context_plan(
             _error(result, "relations", exc)
     else:
         _error(result, "relations", ValueError("Task read failed; relations unavailable"))
+    message_fields = yield from _message_fields(result)
     yield from _pages(
         result,
         "messages",
         "mail.message",
         [("model", "=", "project.task"), ("res_id", "=", task_id)],
-        MESSAGE_FIELDS,
+        message_fields,
         page_size,
         max_pages,
     )

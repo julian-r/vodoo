@@ -39,7 +39,7 @@ content as markup.
 | `schema_version` | Always `1`. |
 | `task` | Raw task fields; `null` if the task read failed. |
 | `relations` | Mapping keyed by `stage_id`, `project_id`, `tag_ids`, `user_ids`, `parent_id`, `depend_on_ids` (Blocked By), `dependent_ids` (Block). Each present key contains a list of `{id: int, name: str}` sorted by ID, even for many2one. Empty lists mean no relation; absent keys plus errors mean unavailable coverage. |
-| `messages` | Chatter records, ordered by ascending ID, with raw HTML bodies, author, date, subject/type/subtype, email source, attachment IDs and tracking-value IDs. |
+| `messages` | Chatter records, ordered by ascending ID, with raw HTML bodies, author, date, subject/type/subtype, email source, attachment IDs and tracking-value IDs when accessible. |
 | `attachments` | Metadata (ID, name, size, MIME type, creation date, type and URL) for task-linked attachments and attachments referenced by fetched chatter. No binary contents. |
 | `url` | Canonical URL for the selected transport, without an extra version probe; `null` on failure. |
 | `write_date` | Task's fetched `write_date`, also preserved in `task`; `null` if unavailable. |
@@ -55,6 +55,22 @@ version/module/access-dependent fields) are explicitly reported as
 `unsupported_fields`; missing values in a projected response are a separate
 error, not proof that the server lacks the field. No absent reverse dependency
 field is interpreted as an empty dependent list.
+
+Message fields are also checked with `mail.message.fields_get`. Unavailable
+fields are omitted from the read and reported as `unsupported_fields` in the
+`messages` section. In particular, Odoo restricts `tracking_value_ids` to
+administrators: readable chatter (including empty-body change messages) and its
+attachment references are still fetched, but `complete` remains false and the
+CLI exits with status 1. Message pagination can be exhausted even when field
+coverage is incomplete. If message metadata fails, the error is retained and
+chatter is attempted without `tracking_value_ids`; completeness remains false.
+Other message access failures remain explicit, with no permission escalation.
+
+Accessible tracking-value IDs are **raw references, not resolved old/new values**.
+Even `complete=true` means coverage of this v1 projection, not full structured
+change history. Context does not read `mail.tracking.value` or invoke chatter
+routes that mark messages read/done. Full permission-filtered tracking history
+requires a separate read-only API design.
 
 ### Completeness, continuation and concurrency
 
