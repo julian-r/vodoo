@@ -165,6 +165,26 @@ def _pages(
         pages += 1
 
 
+def _projection(
+    result: dict[str, Any],
+    section: str,
+    model: str,
+    requested: list[str],
+    *,
+    fallback: list[str] | None = None,
+) -> Generator[_Request, Any, tuple[list[str], dict[str, Any] | None]]:
+    """Negotiate a projection without confusing denied fields with empty values."""
+    try:
+        definitions = yield _Request("fields_get", (model,), {"attributes": ["type"]})
+        _unsupported(result, section, [name for name in requested if name not in definitions])
+        # Never send an empty projection: Odoo can interpret it as all fields.
+        selected = list(dict.fromkeys(["id", *(name for name in requested if name in definitions)]))
+        return selected, definitions
+    except Exception as exc:
+        _error(result, section, exc, operation="fields_get")
+        return list(requested if fallback is None else fallback), None
+
+
 def _context_plan(
     task_id: int,
     fields: list[str] | None,
@@ -186,14 +206,7 @@ def _context_plan(
         "complete": False,
     }
     requested = list(dict.fromkeys([*CORE_FIELDS, *(fields or []), *_RELATION_MODELS]))
-    selected = requested
-    definitions: dict[str, Any] | None = None
-    try:
-        definitions = yield _Request("fields_get", ("project.task",), {"attributes": ["type"]})
-        selected = [name for name in requested if name in definitions]
-        _unsupported(result, "task", [name for name in requested if name not in definitions])
-    except Exception as exc:
-        _error(result, "task", exc, operation="fields_get")
+    selected, definitions = yield from _projection(result, "task", "project.task", requested)
     task = None
     try:
         records = yield _Request("read", ("project.task", [task_id]), {"fields": selected})
@@ -223,12 +236,20 @@ def _context_plan(
             _error(result, "relations", exc)
     else:
         _error(result, "relations", ValueError("Task read failed; relations unavailable"))
+    # Without metadata, never guess that raw administrator-only tracking is allowed.
+    message_fields, _ = yield from _projection(
+        result,
+        "messages",
+        "mail.message",
+        MESSAGE_FIELDS,
+        fallback=[name for name in MESSAGE_FIELDS if name != "tracking_value_ids"],
+    )
     yield from _pages(
         result,
         "messages",
         "mail.message",
         [("model", "=", "project.task"), ("res_id", "=", task_id)],
-        MESSAGE_FIELDS,
+        message_fields,
         page_size,
         max_pages,
     )
@@ -242,12 +263,15 @@ def _context_plan(
     )
     if message_attachment_ids:
         attachment_domain = ["|", "&", *attachment_domain, ("id", "in", message_attachment_ids)]
+    attachment_fields, _ = yield from _projection(
+        result, "attachments", "ir.attachment", ATTACHMENT_FIELDS
+    )
     yield from _pages(
         result,
         "attachments",
         "ir.attachment",
         attachment_domain,
-        ATTACHMENT_FIELDS,
+        attachment_fields,
         page_size,
         max_pages,
     )

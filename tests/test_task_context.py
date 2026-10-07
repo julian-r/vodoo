@@ -81,6 +81,11 @@ class _Client:
             if full
             else [],
         }
+        self.message_definitions = {name: {"type": "char"} for name in MESSAGE_FIELDS}
+        self.message_metadata_failure = False
+        self.attachment_definitions = {name: {"type": "char"} for name in ATTACHMENT_FIELDS}
+        self.attachment_metadata_failure = False
+        self.attachment_links = {20: ("project.task", 42)}
         self.failure: tuple[str, int] | None = None
         self.short_pages = False
         self.unordered = False
@@ -102,6 +107,14 @@ class _Client:
         self.calls.append(("fields_get", model))
         if self.failure == ("fields_get", 0):
             raise PermissionError("metadata forbidden")
+        if model == "mail.message":
+            if self.message_metadata_failure:
+                raise PermissionError("message metadata forbidden")
+            return self.message_definitions
+        if model == "ir.attachment":
+            if self.attachment_metadata_failure:
+                raise PermissionError("attachment metadata forbidden")
+            return self.attachment_definitions
         return self.definitions
 
     def read(self, model: str, ids: list[int], fields: list[str]) -> list[dict[str, Any]]:
@@ -120,11 +133,36 @@ class _Client:
         after_id = kwargs["domain"][-1][2]
         if self.failure == (model, after_id):
             raise PermissionError("section forbidden")
+        if model == "mail.message":
+            denied = set(kwargs["fields"]) - self.message_definitions.keys()
+            if denied:
+                raise PermissionError("message field forbidden")
         if self.unordered and model == "mail.message":
             record = copy.deepcopy(self.data[model][0])
             return [record, copy.deepcopy(record)]
+        data = self.data[model]
+        if model == "ir.attachment":
+            denied = set(kwargs["fields"]) - self.attachment_definitions.keys()
+            if denied:
+                raise PermissionError("attachment field forbidden")
+            references = {
+                record_id
+                for term in kwargs["domain"]
+                if isinstance(term, tuple) and term[:2] == ("id", "in")
+                for record_id in term[2]
+            }
+            data = [
+                row
+                for row in data
+                if self.attachment_links.get(row["id"]) == ("project.task", 42)
+                or row["id"] in references
+            ]
         limit = 1 if self.short_pages else kwargs["limit"]
-        return copy.deepcopy([row for row in self.data[model] if row["id"] > after_id][:limit])
+        return [
+            {name: copy.deepcopy(row[name]) for name in kwargs["fields"] if name in row}
+            for row in data
+            if row["id"] > after_id
+        ][:limit]
 
     def create(self, *_args: Any, **_kwargs: Any) -> None:
         pytest.fail("context must never create")
@@ -273,12 +311,138 @@ def test_async_uninitialized_transport_has_explicit_url_error() -> None:
     assert result["errors"][-1]["type"] == "RuntimeError"
     assert "Transport not initialised" in result["errors"][-1]["message"]
     # Only metadata/task/chatter/attachments attempt initialization; URL never probes.
-    assert detection.await_count == 4
+    assert detection.await_count == 6
     for mutation in mutations:
         mutation.assert_not_called()
     schema = json.loads(Path("spec/v1/task-context.schema.json").read_text())
     jsonschema.validate(result, schema)
     asyncio.run(client.close())
+
+
+def test_unavailable_tracking_preserves_readable_chatter(run_context: Any) -> None:
+    client = _Client(True)
+    del client.message_definitions["tracking_value_ids"]
+    client.data["mail.message"][0]["body"] = ""
+    result = run_context(client, page_size=1)
+    assert result["complete"] is False
+    assert result["errors"] == [
+        {
+            "section": "messages",
+            "type": "unsupported_fields",
+            "message": "Fields unavailable on this server or to this user",
+            "fields": ["tracking_value_ids"],
+        }
+    ]
+    assert [row["id"] for row in result["messages"]] == [1, 2, 3]
+    assert result["messages"][0]["body"] == ""
+    assert all(row["attachment_ids"] == [20] for row in result["messages"])
+    assert all("tracking_value_ids" not in row for row in result["messages"])
+    assert result["attachments"] == client.data["ir.attachment"]
+    assert all(status["complete"] for status in result["pagination"].values())
+
+
+def test_unavailable_attachment_field_preserves_chatter_only_attachment(run_context: Any) -> None:
+    client = _Client(True)
+    del client.attachment_definitions["url"]
+    attachment = copy.deepcopy(client.data["ir.attachment"][0])
+    attachment["id"] = 21
+    client.data["ir.attachment"].append(attachment)
+    client.attachment_links[21] = ("res.partner", 99)
+    client.data["mail.message"][0]["attachment_ids"] = [21]
+    del client.message_definitions["tracking_value_ids"]
+    result = run_context(client, page_size=1)
+    assert result["complete"] is False
+    assert [row["id"] for row in result["attachments"]] == [20, 21]
+    assert all("url" not in row for row in result["attachments"])
+    assert result["errors"][-1] == {
+        "section": "attachments",
+        "type": "unsupported_fields",
+        "message": "Fields unavailable on this server or to this user",
+        "fields": ["url"],
+    }
+    assert result["pagination"]["attachments"]["complete"] is True
+
+
+def test_attachment_metadata_failure_is_explicit(run_context: Any) -> None:
+    client = _Client(True)
+    client.attachment_metadata_failure = True
+    result = run_context(client)
+    assert result["complete"] is False
+    assert result["attachments"] == client.data["ir.attachment"]
+    assert result["errors"] == [
+        {
+            "section": "attachments",
+            "type": "PermissionError",
+            "message": "attachment metadata forbidden",
+            "operation": "fields_get",
+        }
+    ]
+
+
+def test_empty_attachment_metadata_never_requests_all_fields(run_context: Any) -> None:
+    client = _Client(True)
+    client.attachment_definitions = {"id": {"type": "integer"}}
+    result = run_context(client)
+    assert result["complete"] is False
+    assert result["attachments"] == [{"id": 20}]
+    assert result["errors"][0]["fields"] == ATTACHMENT_FIELDS[1:]
+
+
+def test_unavailable_tracking_continuation_uses_readable_fields(run_context: Any) -> None:
+    client = _Client(True)
+    del client.message_definitions["tracking_value_ids"]
+    result = run_context(client, page_size=1, max_pages=1)
+    assert result["complete"] is False
+    assert [row["id"] for row in result["messages"]] == [1]
+    continuation = result["pagination"]["messages"]["continuation"]
+    assert continuation["after_id"] == 1
+    assert continuation["fields"] == [
+        name for name in MESSAGE_FIELDS if name != "tracking_value_ids"
+    ]
+    assert result["errors"][0]["fields"] == ["tracking_value_ids"]
+    assert result["attachments"] == client.data["ir.attachment"]
+
+
+def test_tracking_ids_remain_available_to_supported_users(run_context: Any) -> None:
+    client = _Client(True)
+    client.data["mail.message"][0]["tracking_value_ids"] = [99]
+    result = run_context(client)
+    assert result["complete"] is True
+    assert result["messages"][0]["tracking_value_ids"] == [99]
+
+
+def test_message_metadata_failure_keeps_safe_chatter(run_context: Any) -> None:
+    client = _Client(True)
+    client.message_metadata_failure = True
+    del client.message_definitions["tracking_value_ids"]
+    result = run_context(client, page_size=1)
+    assert result["complete"] is False
+    assert result["errors"] == [
+        {
+            "section": "messages",
+            "type": "PermissionError",
+            "message": "message metadata forbidden",
+            "operation": "fields_get",
+        }
+    ]
+    assert len(result["messages"]) == 3
+    assert all("tracking_value_ids" not in row for row in result["messages"])
+    assert result["attachments"] == client.data["ir.attachment"]
+
+
+def test_unavailable_tracking_with_message_access_failure(run_context: Any) -> None:
+    client = _Client(True)
+    del client.message_definitions["tracking_value_ids"]
+    client.failure = ("mail.message", 0)
+    result = run_context(client)
+    assert result["complete"] is False
+    assert result["messages"] == []
+    assert [error["type"] for error in result["errors"]] == [
+        "unsupported_fields",
+        "PermissionError",
+    ]
+    assert result["pagination"]["messages"]["complete"] is False
+    assert "tracking_value_ids" not in result["pagination"]["messages"]["continuation"]["fields"]
 
 
 def test_shared_relation_reads_are_batched(run_context: Any) -> None:

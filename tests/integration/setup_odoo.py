@@ -20,6 +20,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from vodoo.client import OdooClient
+from vodoo.config import OdooConfig
+
+if __package__:
+    from .service_account import provision_service_account, write_field_access_audit
+else:
+    from service_account import provision_service_account, write_field_access_audit
+
 MASTER_PASSWORD = "vodoo-test-master"
 ADMIN_LOGIN = "admin"
 ADMIN_PASSWORD = "admin"
@@ -195,7 +203,9 @@ def enable_features(url: str, db_name: str, uid: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def create_api_key_via_shell(docker_project: str, db_name: str, odoo_major: int) -> str:
+def create_api_key_via_shell(
+    docker_project: str, db_name: str, odoo_major: int, *, user_id: int | None = None
+) -> str:
     """Run ``odoo shell`` inside the container to call ``_generate`` on the
     ``res.users.apikeys`` model and capture the returned key.
     """
@@ -207,8 +217,8 @@ def create_api_key_via_shell(docker_project: str, db_name: str, odoo_major: int)
     # _generate signature changed between 17 and 18:
     #   17: _generate(scope, name)
     #   18+: _generate(scope, name, expiration_date)
-    admin_ref = "env.ref('base.user_admin')"
-    apikeys = f"env['res.users.apikeys'].with_user({admin_ref}).sudo()"
+    user_ref = str(user_id) if user_id is not None else "env.ref('base.user_admin')"
+    apikeys = f"env['res.users.apikeys'].with_user({user_ref}).sudo()"
     if odoo_major <= 17:
         generate_call = f"{apikeys}._generate('rpc', 'vodoo-integration-test')"
     else:
@@ -255,7 +265,7 @@ print('VODOO_API_KEY=' + k)
     for line in result.stdout.splitlines():
         if line.startswith("VODOO_API_KEY="):
             key = line.split("=", 1)[1].strip()
-            print(f"  API key created: {key[:8]}…")
+            print("  API key created (value not logged).")
             return key
 
     print(f"  STDOUT: {result.stdout[:500]}")
@@ -283,12 +293,22 @@ def _odoo_container_name(docker_project: str) -> str:
 
 
 def write_env(
-    path: str, url: str, db_name: str, password: str, odoo_major: int, enterprise: bool
+    path: str,
+    url: str,
+    db_name: str,
+    password: str,
+    odoo_major: int,
+    enterprise: bool,
+    *,
+    login: str = ADMIN_LOGIN,
 ) -> None:
-    with Path(path).open("w") as fh:
+    target = Path(path)
+    target.touch(mode=0o600, exist_ok=True)
+    target.chmod(0o600)
+    with target.open("w") as fh:
         fh.write(f"ODOO_URL={url}\n")
         fh.write(f"ODOO_DATABASE={db_name}\n")
-        fh.write(f"ODOO_USERNAME={ADMIN_LOGIN}\n")
+        fh.write(f"ODOO_USERNAME={login}\n")
         fh.write(f"ODOO_PASSWORD={password}\n")
         fh.write(f"ODOO_MAJOR_VERSION={odoo_major}\n")
         fh.write(f"ODOO_ENTERPRISE={'1' if enterprise else '0'}\n")
@@ -357,12 +377,33 @@ def main() -> None:
 
     write_env(env_file, base_url, db_name, api_key, args.version, args.enterprise)
 
+    # Provision a separate share/API user, never repurpose the admin test client.
+    with OdooClient(
+        OdooConfig(
+            url=base_url, database=db_name, username=ADMIN_LOGIN, password=api_key, _env_file=None
+        )
+    ) as client:
+        service_id, service_login = provision_service_account(client, enterprise=args.enterprise)
+    service_key = create_api_key_via_shell(args.project, db_name, args.version, user_id=service_id)
+    write_env(
+        env_file + ".service",
+        base_url,
+        db_name,
+        service_key,
+        args.version,
+        args.enterprise,
+        login=service_login,
+    )
+    write_field_access_audit(
+        Path(env_file + ".audit.json"), _odoo_container_name(args.project), db_name, service_id
+    )
+
     edition = "Enterprise" if args.enterprise else "Community"
     print(f"\n✅  Odoo {args.version} {edition} test environment ready!")
     print(f"    URL      : {base_url}")
     print(f"    Database : {db_name}")
     print(f"    Login    : {ADMIN_LOGIN}")
-    print(f"    API Key  : {api_key[:8]}…")
+    print("    API keys: stored in private test env files (values not logged)")
 
 
 if __name__ == "__main__":
