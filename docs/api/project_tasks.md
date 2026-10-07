@@ -56,9 +56,10 @@ version/module/access-dependent fields) are explicitly reported as
 error, not proof that the server lacks the field. No absent reverse dependency
 field is interpreted as an empty dependent list.
 
-Message fields are also checked with `mail.message.fields_get`. Unavailable
-fields are omitted from the read and reported as `unsupported_fields` in the
-`messages` section. In particular, Odoo restricts `tracking_value_ids` to
+Task, message, and attachment projections are checked with user-sensitive
+`fields_get` metadata for their respective models. Unavailable fields are
+omitted from the read and reported as `unsupported_fields` in the corresponding
+section. Absence can mean unsupported **or inaccessible**, not just uninstalled. In particular, Odoo restricts `tracking_value_ids` to
 administrators: readable chatter (including empty-body change messages) and its
 attachment references are still fetched, but `complete` remains false and the
 CLI exits with status 1. Message pagination can be exhausted even when field
@@ -71,6 +72,35 @@ Even `complete=true` means coverage of this v1 projection, not full structured
 change history. Context does not read `mail.tracking.value` or invoke chatter
 routes that mark messages read/done. Full permission-filtered tracking history
 requires a separate read-only API design.
+
+### Least-privilege access and projection policy
+
+Model ACLs authorize operations on a model; they do **not** override field-level
+group restrictions. Granting `base.group_system` (Settings/Administrator) or
+`base.group_erp_manager` to satisfy a read is not an acceptable workaround.
+Context never changes rights or uses elevated access. Record-rule, computed-field,
+transport, and business errors remain explicit; metadata is not a guarantee that
+a later read will succeed.
+
+The same projection negotiation is used for task, chatter, and attachment fields.
+If metadata fails, the original task/attachment projection is attempted and the
+error prevents completeness; only the known privileged tracking field is excluded
+from the message fallback. Further denied fields can still fail the read rather
+than being silently swallowed. At least `id` is always requested, preventing an
+empty field list from accidentally requesting every field.
+
+Relation lookups request only `id` and `display_name`; task relation fields are
+negotiated first, and failed name lookups remain explicit. Future relation or
+Enterprise context sections must negotiate any additional fields and use the same
+strict missing-field/error/completeness contract. Enterprise context APIs are not
+currently implemented; generic namespace reads do not silently change user-requested
+projections or claim this composite context contract.
+
+[Integration coverage](../development/integration-tests.md#least-privilege-context-and-field-audit)
+uses provisioned share/API accounts, not just administrators, and distinguishes
+model ACL failures from administrative, feature-group, and internal-user field
+restrictions. Licensed Enterprise registries are audited separately, including
+inherited overrides.
 
 ### Completeness, continuation and concurrency
 

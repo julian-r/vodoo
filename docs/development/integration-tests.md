@@ -74,6 +74,8 @@ tests/integration/
 ├── conftest.py             # pytest fixtures and markers
 ├── test_suite.py           # Synchronous Python live scenarios
 ├── test_async_suite.py     # Async Python live scenarios
+├── test_field_access.py    # Share/API-account sync, async, CLI and registry audit
+├── service_account.py     # Least-privilege provisioning and inherited-field audit
 ├── docker-compose.yml      # Parameterized compose file
 ├── Dockerfile.enterprise   # Builds a local image from validated Enterprise source
 ├── fetch_enterprise.py     # Secure official-download client and archive validator
@@ -195,6 +197,66 @@ docker builder prune
 
 Temporary build contexts are removed on success, failure, and interruption. The supported stable matrix is currently Odoo 17–19. There is no official `odoo:20.0` image yet, so Odoo 20 is not included.
 
+## Least-privilege context and field audit
+
+`setup_odoo.py` provisions a **separate share/API service account** alongside the
+admin fixture. It replaces the account's groups with Vodoo's `API Base` and
+`API Project` groups (plus `API Knowledge`/`API Helpdesk` in Enterprise). No
+`base.group_user`, `base.group_system`, or `base.group_erp_manager` is granted;
+the effective group audit verifies this even in reused databases. Existing
+admin-backed CRUD suites keep their admin client.
+
+`test_field_access.py` runs on Community and Enterprise 17–19 through both the
+local runner and CI. It reproduces the rejected raw tracking read, then verifies
+sync/async context and CLI behavior: readable comments and empty-body messages,
+attachment references including a chatter-only attachment, exhausted pagination,
+explicit unavailable tracking, `complete=false`, and CLI exit status 1. Test
+records are seeded and cleaned up by the admin **only in disposable test databases**.
+The two attachment fixtures are public so attachment record rules do not confound
+this field-access regression; production record rules are never relaxed.
+
+Provisioning also inspects the **loaded Odoo registry** with the service user.
+This audits effective `_fields` declarations, including installed inherited
+Enterprise overrides, rather than assuming that Community declarations apply.
+The metadata-only `.env.test.<suffix>.audit.json` report records:
+
+- Odoo version, immutable image ID, and Enterprise source provenance labels;
+- model installation and model read ACL status, separately from field access;
+- the explicit task, message, attachment, relation-name, Knowledge, Helpdesk, and
+  Documents default projections;
+- missing/inaccessible requested fields and all effective group-restricted fields;
+- `system_admin_only` for exactly `base.group_system`, `administrative_access`
+  for expressions mentioning `base.group_erp_manager`, and `other_field_groups`
+  for internal-user, feature, accounting, or other restrictions.
+
+These classifications describe declarations; metadata availability reflects the
+actual user's groups. A model ACL denial is **not** evidence of an admin-only
+field. No Documents API group is invented merely to make an audit pass. Reports
+contain no records, API keys, or proprietary source. CI uploads only the exact
+`.audit.json` file, never the credential-bearing env files.
+
+Community validation on Odoo 17.0-20260908, 18.0-20260926, and 19.0-20260926 found
+`tracking_value_ids` to be the only unavailable field intersecting the explicit
+context/relation projections. Attachment `access_token` is internal-user-only
+and not requested; other mail administrative fields are likewise not requested.
+This is **not** an exhaustive audit of custom addons, computed-field permissions,
+record rules, or arbitrary user-selected fields.
+
+Enterprise Knowledge/Helpdesk/Documents and their inherited fields are audited
+when licensed sources are installed. Without those sources the report marks
+these models uninstalled; that is not an Enterprise validation result. The
+protected Enterprise CI job runs after pushes to `main`, not on fork PRs. Obtain
+authorized sources via the workflow above to validate before merge. Future
+composite contexts must negotiate projections and explicitly report unavailable
+coverage rather than changing rights or fabricating empty values.
+
+Run just this coverage against an already provisioned test database:
+
+```bash
+VODOO_TEST_ENV=tests/integration/.env.test.19 \
+uv run pytest tests/integration/test_field_access.py --odoo-version 19 -v
+```
+
 ## API Key Creation
 
 Initial API keys cannot be created remotely: Odoo's `@check_identity` wizard blocks JSON-RPC automation, JSON-2 already requires a key, and private `_generate()` calls are not remotely callable. Instead, `setup_odoo.py` runs `odoo shell` inside the Docker container and calls `_generate()` directly. Key differences by version:
@@ -207,7 +269,10 @@ The test key is bound to the admin user (not `__system__`) through `with_user(ad
 
 ## Environment Files
 
-Each test run creates a `.env.test.<suffix>` file (gitignored):
+Each test run creates a private `.env.test.<suffix>` admin file and a separate
+`.env.test.<suffix>.service` credential file, both mode `0600` and Git-ignored.
+The metadata-only `.env.test.<suffix>.audit.json` is also Git-ignored. Keys are
+not printed. The admin file contains:
 
 ```
 ODOO_URL=http://localhost:19069

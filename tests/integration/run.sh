@@ -116,6 +116,7 @@ run_tests() {
       uv run python -m pytest \
         tests/integration/test_suite.py \
         tests/integration/test_async_suite.py \
+        tests/integration/test_field_access.py \
         -v --tb=short -x \
         --odoo-version "$ver"); then
     echo "✅ Odoo ${ver} ${edition}: Python tests passed"

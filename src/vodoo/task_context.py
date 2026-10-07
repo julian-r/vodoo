@@ -165,20 +165,24 @@ def _pages(
         pages += 1
 
 
-def _message_fields(result: dict[str, Any]) -> Generator[_Request, Any, list[str]]:
-    # Group-restricted fields are omitted by fields_get. Do not let one denied
-    # field discard otherwise readable chatter (or its attachment references).
+def _projection(
+    result: dict[str, Any],
+    section: str,
+    model: str,
+    requested: list[str],
+    *,
+    fallback: list[str] | None = None,
+) -> Generator[_Request, Any, tuple[list[str], dict[str, Any] | None]]:
+    """Negotiate a projection without confusing denied fields with empty values."""
     try:
-        definitions = yield _Request("fields_get", ("mail.message",), {"attributes": ["type"]})
-        _unsupported(
-            result, "messages", [name for name in MESSAGE_FIELDS if name not in definitions]
-        )
-        return [name for name in MESSAGE_FIELDS if name in definitions]
+        definitions = yield _Request("fields_get", (model,), {"attributes": ["type"]})
+        _unsupported(result, section, [name for name in requested if name not in definitions])
+        # Never send an empty projection: Odoo can interpret it as all fields.
+        selected = list(dict.fromkeys(["id", *(name for name in requested if name in definitions)]))
+        return selected, definitions
     except Exception as exc:
-        # Without metadata, keep the historically readable projection, but never
-        # guess that tracking is allowed. The metadata error prevents completeness.
-        _error(result, "messages", exc, operation="fields_get")
-        return [name for name in MESSAGE_FIELDS if name != "tracking_value_ids"]
+        _error(result, section, exc, operation="fields_get")
+        return list(requested if fallback is None else fallback), None
 
 
 def _context_plan(
@@ -202,14 +206,7 @@ def _context_plan(
         "complete": False,
     }
     requested = list(dict.fromkeys([*CORE_FIELDS, *(fields or []), *_RELATION_MODELS]))
-    selected = requested
-    definitions: dict[str, Any] | None = None
-    try:
-        definitions = yield _Request("fields_get", ("project.task",), {"attributes": ["type"]})
-        selected = [name for name in requested if name in definitions]
-        _unsupported(result, "task", [name for name in requested if name not in definitions])
-    except Exception as exc:
-        _error(result, "task", exc, operation="fields_get")
+    selected, definitions = yield from _projection(result, "task", "project.task", requested)
     task = None
     try:
         records = yield _Request("read", ("project.task", [task_id]), {"fields": selected})
@@ -239,7 +236,14 @@ def _context_plan(
             _error(result, "relations", exc)
     else:
         _error(result, "relations", ValueError("Task read failed; relations unavailable"))
-    message_fields = yield from _message_fields(result)
+    # Without metadata, never guess that raw administrator-only tracking is allowed.
+    message_fields, _ = yield from _projection(
+        result,
+        "messages",
+        "mail.message",
+        MESSAGE_FIELDS,
+        fallback=[name for name in MESSAGE_FIELDS if name != "tracking_value_ids"],
+    )
     yield from _pages(
         result,
         "messages",
@@ -259,12 +263,15 @@ def _context_plan(
     )
     if message_attachment_ids:
         attachment_domain = ["|", "&", *attachment_domain, ("id", "in", message_attachment_ids)]
+    attachment_fields, _ = yield from _projection(
+        result, "attachments", "ir.attachment", ATTACHMENT_FIELDS
+    )
     yield from _pages(
         result,
         "attachments",
         "ir.attachment",
         attachment_domain,
-        ATTACHMENT_FIELDS,
+        attachment_fields,
         page_size,
         max_pages,
     )
