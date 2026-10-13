@@ -84,9 +84,10 @@ def _relation_ids(field: str, value: Any, many2one: bool) -> list[int]:
 
 def _plan(
     task: Mapping[str, Any], fields_info: Mapping[str, Any] | None
-) -> tuple[dict[str, list[int]], dict[str, list[int]]]:
+) -> tuple[dict[str, list[int]], dict[str, list[int]], dict[str, dict[int, str]]]:
     relations: dict[str, list[int]] = {}
     batches: dict[str, set[int]] = {}
+    names: dict[str, dict[int, str]] = {}
     for field, (model, many2one) in _RELATIONS.items():
         if field not in task:
             continue
@@ -94,11 +95,21 @@ def _plan(
             raise UnsupportedTaskRelationError(
                 f"Task relation {field} is unsupported by this server"
             )
-        ids = _relation_ids(field, task[field], many2one)
+        value = task[field]
+        ids = _relation_ids(field, value, many2one)
         relations[field] = ids
         if ids:
             batches.setdefault(model, set()).update(ids)
-    return relations, {model: sorted(ids) for model, ids in batches.items()}
+            if many2one and isinstance(value, (list, tuple)):
+                # Odoo returns this display_name under the source record's rights.
+                # Reading the related record again would require extra permissions.
+                names.setdefault(model, {})[ids[0]] = value[1]
+    unresolved = {
+        model: sorted(ids - names.get(model, {}).keys())
+        for model, ids in batches.items()
+        if ids - names.get(model, {}).keys()
+    }
+    return relations, unresolved, names
 
 
 def _names(model: str, ids: list[int], records: list[dict[str, Any]]) -> dict[int, str]:
@@ -140,16 +151,17 @@ def resolve_task_relations(
 
     Values are lists even for many2one, unique and sorted by numeric ID. Present
     empty fields resolve to []; absent fields are omitted (not assumed empty).
-    Raw fields are untouched. Names always come from Odoo ``display_name``.
+    Raw fields are untouched. Names come from Odoo's many2one display labels or
+    ``display_name`` reads for unresolved IDs.
     Malformed values/responses raise TaskRelationError; supplied fields absent
     from optional metadata raise UnsupportedTaskRelationError. Missing records
     raise RecordNotFoundError; access/transport failures propagate unchanged.
     """
-    relations, batches = _plan(task, fields_info)
-    names = {
-        model: _names(model, ids, client.read(model, ids, fields=["id", "display_name"]))
-        for model, ids in batches.items()
-    }
+    relations, batches, names = _plan(task, fields_info)
+    for model, ids in batches.items():
+        names.setdefault(model, {}).update(
+            _names(model, ids, client.read(model, ids, fields=["id", "display_name"]))
+        )
     return _assemble(relations, names)
 
 
@@ -160,10 +172,9 @@ async def async_resolve_task_relations(
     fields_info: Mapping[str, Any] | None = None,
 ) -> dict[str, list[ResolvedRelation]]:
     """Async counterpart of resolve_task_relations, with identical schema/errors."""
-    relations, batches = _plan(task, fields_info)
-    names: dict[str, dict[int, str]] = {}
+    relations, batches, names = _plan(task, fields_info)
     for model, ids in batches.items():
-        names[model] = _names(
-            model, ids, await client.read(model, ids, fields=["id", "display_name"])
+        names.setdefault(model, {}).update(
+            _names(model, ids, await client.read(model, ids, fields=["id", "display_name"]))
         )
     return _assemble(relations, names)
