@@ -958,6 +958,54 @@ final class TimerFeatureTests: XCTestCase {
         XCTAssertTrue(calls.contains { $0.model == "hr.timesheet.stop.timer.confirmation.wizard" && $0.method == "action_stop_timer" })
     }
 
+    func testLegacyTimerLookupFailuresPropagate() async throws {
+        for error in [
+            VodooError.access(message: "Denied", code: 403, data: [:]),
+            VodooError.transport(message: "Offline", code: 500, data: [:]),
+        ] {
+            for operation in ["list", "active", "stopAll"] {
+                let transport = FeatureTransport(responses: [
+                    .value(rows([])), .value(rows([])), .failure(error),
+                ], dialect: .jsonrpc)
+                let timer = featureClient(transport).timer
+                do {
+                    switch operation {
+                    case "list": _ = try await timer.list()
+                    case "active": _ = try await timer.active()
+                    default: _ = try await timer.stopAll()
+                    }
+                    XCTFail("Required timer lookup must not hide failure")
+                } catch let actual as VodooError {
+                    XCTAssertEqual(actual, error)
+                }
+                let calls = await transport.recorded()
+                XCTAssertEqual(calls.last?.model, "timer.timer")
+                XCTAssertTrue(calls.allSatisfy { $0.method == "search_read" })
+            }
+        }
+    }
+
+    func testEmptyLegacyTimerLookupHasNoActiveTimers() async throws {
+        let transport = FeatureTransport([rows([]), rows([]), rows([])], dialect: .jsonrpc)
+        let values = try await featureClient(transport).timer.active()
+        XCTAssertEqual(values.count, 0)
+        let calls = await transport.recorded()
+        XCTAssertEqual(calls.last?.model, "timer.timer")
+    }
+
+    func testOptionalLegacyTimerLabelRemainsBestEffort() async throws {
+        let transport = FeatureTransport(responses: [
+            .value(rows([])), .value(rows([])),
+            .value(rows([["id": .integer(9), "timer_start": .string("2026-01-02 03:04:05"),
+                          "res_model": .string("project.task"), "res_id": .integer(4)]])),
+            .failure(.access(message: "No task label access", code: 403, data: [:])),
+        ], dialect: .jsonrpc)
+        let values = try await featureClient(transport).timer.active()
+        XCTAssertEqual(values.count, 1)
+        XCTAssertEqual(values.first?.source.name, "Task #4")
+        XCTAssertEqual(values.first?.state, .running)
+    }
+
     func testLegacyTimerListMergesTimerTimerRecords() async throws {
         let start = "2026-01-02 03:04:05"
         let transport = FeatureTransport([

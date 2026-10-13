@@ -298,15 +298,11 @@ class LegacyTimerBackend implements TimerBackend {
   }
 
   private async fetchRunningTimers(uid: number): Promise<Timesheet[]> {
-    let records: OdooRecord[];
-    try {
-      records = await this.client.searchRead("timer.timer", {
-        domain: [["user_id", "=", uid], ...TIMER_TIMER_DOMAIN],
-        fields: TIMER_TIMER_FIELDS,
-      });
-    } catch {
-      return [];
-    }
+    // This is authoritative running state, not optional label enrichment.
+    const records = await this.client.searchRead("timer.timer", {
+      domain: [["user_id", "=", uid], ...TIMER_TIMER_DOMAIN],
+      fields: TIMER_TIMER_FIELDS,
+    });
     const result: Timesheet[] = [];
     for (const record of records) {
       if (
