@@ -36,10 +36,10 @@ describe("authentication helpers", () => {
       undefined,
       [
         [{ partner_id: 8 }],
-        [{ res_id: 4 }],
+        ["mail.message.subtype", 4],
         91,
         [{ partner_id: 8 }],
-        [{ res_id: 5 }],
+        ["mail.message.subtype", 5],
         92,
       ],
       7,
@@ -65,26 +65,37 @@ describe("authentication helpers", () => {
       subtype_id: 5,
     });
     expect(client.calls[1]).toMatchObject({
-      method: "searchRead",
+      method: "execute",
       args: [
         "ir.model.data",
-        {
-          domain: [
-            ["module", "=", "mail"],
-            ["name", "=", "mt_comment"],
-          ],
-          fields: ["res_id"],
-          limit: 1,
-        },
+        "check_object_reference",
+        [],
+        { module: "mail", xml_id: "mt_comment", raise_on_access_error: true },
       ],
     });
+    expect(client.calls[4]).toMatchObject({
+      method: "execute",
+      args: [
+        "ir.model.data",
+        "check_object_reference",
+        [],
+        { module: "mail", xml_id: "mt_note", raise_on_access_error: true },
+      ],
+    });
+    expect(client.calls.some((call) => call.method === "searchRead")).toBe(
+      false,
+    );
   });
 
   it.each([
     { label: "missing", rows: [] },
-    { label: "zero", rows: [{ res_id: 0 }] },
-    { label: "negative", rows: [{ res_id: -1 }] },
-    { label: "boolean", rows: [{ res_id: false }] },
+    { label: "zero", rows: ["mail.message.subtype", 0] },
+    { label: "negative", rows: ["mail.message.subtype", -1] },
+    { label: "boolean", rows: ["mail.message.subtype", false] },
+    { label: "wrong model", rows: ["res.users", 1] },
+    { label: "short", rows: ["mail.message.subtype"] },
+    { label: "long", rows: ["mail.message.subtype", 1, 2] },
+    { label: "fractional", rows: ["mail.message.subtype", 1.5] },
   ])(
     "requires a positive stable message subtype external ID for $label",
     async ({ rows: subtypeRows }) => {
@@ -96,6 +107,7 @@ describe("authentication helpers", () => {
       await expect(
         messagePostSudo(client, "project.task", 2, "x"),
       ).rejects.toBeInstanceOf(RecordNotFoundError);
+      expect(client.calls.some((call) => call.method === "create")).toBe(false);
     },
   );
 

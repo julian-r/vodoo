@@ -201,7 +201,7 @@ Creating messages directly via the Odoo API requires:
 2. **Document access**: User must have access to the related document (e.g., be a follower for projects)
 3. **Subtype**: The `subtype_id` field must be provided. Vodoo resolves the stable XML IDs `mail.mt_comment` and `mail.mt_note` rather than translated subtype names.
 
-Without `subtype_id`, Odoo's security checks will reject the create operation. The API Base group therefore includes read-only access to `ir.model.data` for XML-ID resolution.
+Without `subtype_id`, Odoo's security checks will reject the create operation. Vodoo uses the public `ir.model.data.check_object_reference` resolver, which checks read access to the referenced subtype without requiring read access to `ir.model.data` itself. Comments and notes therefore work for ordinary document users without an extra metadata-access grant; document and message permissions still apply.
 
 ### Requested Author Attribution (`author_id`)
 

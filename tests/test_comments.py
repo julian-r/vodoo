@@ -22,7 +22,7 @@ from vodoo.aio.auth import (
 from vodoo.aio.project_tasks import AsyncTaskNamespace
 from vodoo.auth import message_post_sudo, message_post_sudo_with_id
 from vodoo.base import configure_output
-from vodoo.exceptions import RecordNotFoundError
+from vodoo.exceptions import OdooAccessError, RecordNotFoundError
 from vodoo.project_tasks import TaskNamespace
 
 
@@ -40,7 +40,8 @@ def reset_output_state() -> Iterator[None]:
 def _sync_client(message_id: int = 9766) -> MagicMock:
     client = MagicMock()
     client.read.return_value = [{"partner_id": [7, "Author"]}]
-    client.search_read.return_value = [{"res_id": 1}]
+    client.search_read.side_effect = OdooAccessError("No metadata read access")
+    client.execute.return_value = ["mail.message.subtype", 1]
     client.create.return_value = message_id
     return client
 
@@ -48,7 +49,8 @@ def _sync_client(message_id: int = 9766) -> MagicMock:
 def _async_client(message_id: int = 9766) -> MagicMock:
     client = MagicMock()
     client.read = AsyncMock(return_value=[{"partner_id": [7, "Author"]}])
-    client.search_read = AsyncMock(return_value=[{"res_id": 1}])
+    client.search_read = AsyncMock(side_effect=OdooAccessError("No metadata read access"))
+    client.execute = AsyncMock(return_value=["mail.message.subtype", 1])
     client.create = AsyncMock(return_value=message_id)
     return client
 
@@ -64,20 +66,83 @@ def test_message_post_sudo_preserves_bool_and_id_contracts() -> None:
     assert message_id == 9766
 
 
-def test_message_subtypes_use_stable_external_ids_and_are_required() -> None:
-    client = _sync_client()
-    message_post_sudo_with_id(client, "project.task", 189, "Done", user_id=3)
-    client.search_read.assert_called_once_with(
+@pytest.mark.parametrize("is_note", [False, True])
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_message_subtypes_resolve_without_metadata_read_access(
+    is_note: bool, asynchronous: bool
+) -> None:
+    client = _async_client() if asynchronous else _sync_client()
+    if asynchronous:
+        message_id = asyncio.run(
+            async_message_post_sudo_with_id(
+                client, "project.task", 189, "Done", user_id=3, is_note=is_note
+            )
+        )
+    else:
+        message_id = message_post_sudo_with_id(
+            client, "project.task", 189, "Done", user_id=3, is_note=is_note
+        )
+    assert message_id == 9766
+    client.search_read.assert_not_called()
+    client.execute.assert_called_once_with(
         "ir.model.data",
-        domain=[("module", "=", "mail"), ("name", "=", "mt_comment")],
-        fields=["res_id"],
-        limit=1,
+        "check_object_reference",
+        module="mail",
+        xml_id="mt_note" if is_note else "mt_comment",
+        raise_on_access_error=True,
     )
+    values = client.create.call_args.args[1]
+    assert values["subtype_id"] == 1
+    assert values["message_type"] == ("notification" if is_note else "comment")
+    assert values["author_id"] == 7
 
-    for invalid_rows in ([], [{"res_id": 0}], [{"res_id": -1}], [{"res_id": True}]):
-        client.search_read.return_value = invalid_rows
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        None,
+        [],
+        ["mail.message.subtype"],
+        ["mail.message.subtype", 0],
+        ["mail.message.subtype", -1],
+        ["mail.message.subtype", True],
+        ["mail.message.subtype", "1"],
+        ["mail.message.subtype", 1.5],
+        ["res.users", 1],
+        ["mail.message.subtype", 1, 2],
+    ],
+)
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_message_subtypes_require_a_valid_reference(reference: Any, asynchronous: bool) -> None:
+    client = _async_client() if asynchronous else _sync_client()
+    client.execute.return_value = reference
+    if asynchronous:
+        with pytest.raises(RecordNotFoundError):
+            asyncio.run(
+                async_message_post_sudo_with_id(
+                    client, "project.task", 189, "Note", user_id=3, is_note=True
+                )
+            )
+    else:
         with pytest.raises(RecordNotFoundError):
             message_post_sudo_with_id(client, "project.task", 189, "Note", user_id=3, is_note=True)
+    client.create.assert_not_called()
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_message_subtype_access_denial_stops_creation(asynchronous: bool) -> None:
+    client = _async_client() if asynchronous else _sync_client()
+    client.execute.side_effect = OdooAccessError("No subtype read access")
+    if asynchronous:
+        with pytest.raises(OdooAccessError, match="No subtype read access"):
+            asyncio.run(
+                async_message_post_sudo_with_id(client, "project.task", 189, "Done", user_id=3)
+            )
+    else:
+        with pytest.raises(OdooAccessError, match="No subtype read access"):
+            message_post_sudo_with_id(client, "project.task", 189, "Done", user_id=3)
+    client.create.assert_not_called()
+    client.search_read.assert_not_called()
 
 
 def test_async_message_post_sudo_preserves_bool_and_id_contracts() -> None:
