@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { ConfigurationError, VodooError } from "../src/errors.js";
+import {
+  ConfigurationError,
+  OdooAccessError,
+  TransportError,
+  VodooError,
+} from "../src/errors.js";
 import { ActivityNamespace } from "../src/namespaces/activities.js";
 import { HelpdeskNamespace } from "../src/namespaces/helpdesk.js";
 import { RecordingClient } from "../src/testing.js";
@@ -113,6 +118,60 @@ describe("DomainNamespace tags and binary attachments", () => {
     await expect(helpdesk.allAttachmentData(10)).resolves.toEqual([
       { id: 57, name: "empty.bin", data: new Uint8Array() },
     ]);
+  });
+
+  it.each([new OdooAccessError("Denied", 403), new TransportError("Offline")])(
+    "propagates bulk attachment failures after a successful read: %s",
+    async (error) => {
+      const client = new RecordingClient(undefined, [
+        [
+          { id: 1, name: "one.txt" },
+          { id: 2, name: "two.txt" },
+        ],
+        [{ id: 1, name: "one.txt", datas: "aGk=" }],
+        error,
+      ]);
+      await expect(
+        new HelpdeskNamespace(client).allAttachmentData(10),
+      ).rejects.toBe(error);
+    },
+  );
+
+  it("propagates malformed bulk attachment content", async () => {
+    const client = new RecordingClient(undefined, [
+      [{ id: 1, name: "bad.txt" }],
+      [{ id: 1, name: "bad.txt", datas: "!invalid!" }],
+    ]);
+    await expect(
+      new HelpdeskNamespace(client).allAttachmentData(10),
+    ).rejects.toThrow();
+  });
+
+  it("filters attachment metadata before reading content", async () => {
+    const client = new RecordingClient(undefined, [
+      [
+        { id: 1, name: "restricted.bin" },
+        { id: 2, name: "safe.TXT" },
+      ],
+      [{ id: 2, name: "safe.TXT", datas: "aGk=" }],
+    ]);
+    await expect(
+      new HelpdeskNamespace(client).download(10, ".txt"),
+    ).resolves.toEqual([
+      { id: 2, name: "safe.TXT", data: new Uint8Array([104, 105]) },
+    ]);
+    expect(client.calls[1]?.args[1]).toEqual([2]);
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it("returns an empty result for no matching attachments", async () => {
+    const client = new RecordingClient(undefined, [
+      [{ id: 1, name: "other.bin" }],
+    ]);
+    await expect(
+      new HelpdeskNamespace(client).download(10, "txt"),
+    ).resolves.toEqual([]);
+    expect(client.calls).toHaveLength(1);
   });
 
   it("uploads, lists, and downloads attachments entirely in memory", async () => {

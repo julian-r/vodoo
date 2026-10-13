@@ -215,35 +215,36 @@ open class DomainNamespace: @unchecked Sendable {
         throw VodooError.recordNotFound(model: "ir.attachment", id: attachmentID)
     }
 
+    /// Read/decode failures throw instead of hiding partial results.
     public func allAttachmentData(_ recordID: Int) async throws -> [AttachmentData] {
         let metadata = try await attachments(recordID)
+        return try await readAttachmentData(metadata)
+    }
+
+    private func readAttachmentData(_ metadata: [OdooRecord]) async throws -> [AttachmentData] {
         var result: [AttachmentData] = []
         for attachment in metadata {
             guard let id = attachment["id"]?.intValue else { continue }
-            do {
-                let records = try await client.read(
-                    model: "ir.attachment",
-                    ids: [id],
-                    fields: ["id", "name", "datas", "file_size"]
-                )
-                guard let record = records.first else { continue }
-                let data: Data
-                if let encoded = record["datas"]?.stringValue {
-                    data = try OdooBinaryCodec.decode(encoded)
-                } else if record["file_size"]?.intValue == 0 {
-                    data = Data()
-                } else {
-                    continue
-                }
-                result.append(AttachmentData(
-                    id: id,
-                    name: record["name"]?.stringValue ?? "attachment_\(id)",
-                    data: data,
-                    mimetype: attachment["mimetype"]?.stringValue
-                ))
-            } catch {
+            let records = try await client.read(
+                model: "ir.attachment",
+                ids: [id],
+                fields: ["id", "name", "datas", "file_size"]
+            )
+            guard let record = records.first else { continue }
+            let data: Data
+            if let encoded = record["datas"]?.stringValue {
+                data = try OdooBinaryCodec.decode(encoded)
+            } else if record["file_size"]?.intValue == 0 {
+                data = Data()
+            } else {
                 continue
             }
+            result.append(AttachmentData(
+                id: id,
+                name: record["name"]?.stringValue ?? "attachment_\(id)",
+                data: data,
+                mimetype: attachment["mimetype"]?.stringValue
+            ))
         }
         return result
     }
@@ -251,11 +252,14 @@ open class DomainNamespace: @unchecked Sendable {
     public func download(_ recordID: Int, extension requestedExtension: String? = nil) async throws
         -> [AttachmentData]
     {
-        let values = try await allAttachmentData(recordID)
-        guard let requestedExtension else { return values }
+        let metadata = try await attachments(recordID)
+        guard let requestedExtension, !requestedExtension.isEmpty else {
+            return try await readAttachmentData(metadata)
+        }
         let suffix = "." + requestedExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
             .lowercased()
-        return values.filter { $0.name.lowercased().hasSuffix(suffix) }
+        let matching = metadata.filter { $0["name"]?.stringValue?.lowercased().hasSuffix(suffix) == true }
+        return try await readAttachmentData(matching)
     }
 
     public func url(_ recordID: Int) -> URL {

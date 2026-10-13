@@ -266,26 +266,21 @@ class AsyncDomainNamespace(_NamespaceBase):
         self,
         record_id: int,
     ) -> builtins.list[tuple[int, str, bytes]]:
-        """Read all attachments for a record, returning in-memory data."""
+        """Read attachment bytes; propagate read and decode failures."""
         from vodoo.base import _decode_attachment_record
 
         att_list = await self.attachments(record_id)
         result: builtins.list[tuple[int, str, bytes]] = []
         for att_meta in att_list:
             att_id = att_meta["id"]
-            try:
-                att_data = await self._client.read(
-                    "ir.attachment",
-                    [att_id],
-                    ["id", *self._ATTACHMENT_READ_FIELDS],
-                )
-                if not att_data:
-                    continue
-                decoded = _decode_attachment_record(att_data[0], att_id)
-                if decoded is not None:
-                    result.append(decoded)
-            except Exception:
+            att_data = await self._client.read(
+                "ir.attachment", [att_id], ["id", *self._ATTACHMENT_READ_FIELDS]
+            )
+            if not att_data:
                 continue
+            decoded = _decode_attachment_record(att_data[0], att_id)
+            if decoded is not None:
+                result.append(decoded)
         return result
 
     # -- URL -----------------------------------------------------------------
