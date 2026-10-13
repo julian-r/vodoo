@@ -73,7 +73,7 @@ public func messagePostSudoWithID(
     )
     guard let pair = reference.arrayValue, pair.count == 2,
           pair[0] == .string("mail.message.subtype"),
-          case .integer(let subtypeID) = pair[1], subtypeID > 0 else {
+          let subtypeID = pair[1].intValue, subtypeID > 0 else {
         throw VodooError.recordNotFound(model: "mail.message.subtype", id: 0)
     }
     var values = options.extraValues

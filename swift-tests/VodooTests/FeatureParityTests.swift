@@ -286,6 +286,8 @@ final class DomainFeatureTests: XCTestCase {
             .array([.string("mail.message.subtype"), .integer(0)]),
             .array([.string("mail.message.subtype"), .integer(-1)]),
             .array([.string("mail.message.subtype"), .bool(false)]),
+            .array([.string("mail.message.subtype"), .number(1.5)]),
+            .array([.string("mail.message.subtype"), .string("1")]),
             .array([.string("res.users"), .integer(1)]),
             .array([.string("mail.message.subtype"), .integer(1), .integer(2)]),
         ]
