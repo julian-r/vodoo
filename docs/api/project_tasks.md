@@ -184,8 +184,10 @@ The async function has the same return type. Both accept a `Mapping[str, Any]`
 task and a sync/async client implementing `read(model, ids, fields=None)`.
 Optional `fields_info: Mapping[str, Any]` is task `fields_get` metadata already
 available to the caller; the resolver does not fetch metadata itself. Both are
-read-only, leave the task untouched, and batch **one read per related model**,
-including one shared `project.task` lookup for parent and both dependency fields.
+read-only and leave the task untouched. Valid many2one `[id, display_name]` pairs
+are reused without a related-record read. Numeric-only and many2many references
+not already named by those pairs are batched into **one read per related model**,
+including one shared `project.task` lookup for unresolved parent/dependency IDs.
 To produce additive library output, use
 `{**task, "relations": resolve_task_relations(client, task)}`; async callers await
 the corresponding resolver. Namespace `get` remains raw.
@@ -196,7 +198,8 @@ raises `UnsupportedTaskRelationError` (a `TaskRelationError` subclass). Both der
 from `RecordOperationError`/`VodooError`. Missing related records raise
 `RecordNotFoundError`, and access/transport errors propagate unchanged. CLI show
 exits with an error rather than returning silently incomplete names. This can
-require read access to related models that raw-ID-only output did not require.
+require read access to related models for unresolved IDs, but not for labels
+already supplied by Odoo under the source task's access rights.
 
 ::: vodoo.project_tasks
     options:

@@ -112,18 +112,63 @@ def test_all_relations_batch_order_and_raw_values(asynchronous: bool) -> None:
     }
     assert result == {
         field: [
-            {"id": record_id, "name": f"{expected_models[field]} #{record_id}"} for record_id in ids
+            {
+                "id": record_id,
+                "name": (
+                    "Original project"
+                    if field == "project_id"
+                    else "Original parent"
+                    if expected_models[field] == "project.task" and record_id == 11
+                    else f"{expected_models[field]} #{record_id}"
+                ),
+            }
+            for record_id in ids
         ]
         for field, ids in expected_ids.items()
     }
     assert reader.calls == [
         ("project.tags", [2, 7], ["id", "display_name"]),
         ("res.users", [3, 9], ["id", "display_name"]),
-        ("project.project", [10], ["id", "display_name"]),
         ("project.task.type", [5], ["id", "display_name"]),
-        ("project.task", [11, 15, 16], ["id", "display_name"]),
+        ("project.task", [15, 16], ["id", "display_name"]),
     ]
     assert task == original
+
+
+@pytest.mark.parametrize("field", ["project_id", "stage_id", "parent_id"])
+@pytest.mark.parametrize("pair", [[10, "Odoo label"], (10, "Odoo label")])
+def test_labeled_many2one_needs_no_related_access(
+    asynchronous: bool, field: str, pair: Any
+) -> None:
+    reader = Reader()
+    reader.error = OdooAccessError("No related-model access")
+    task = {field: pair}
+    original = copy.deepcopy(task)
+    assert resolve(reader, task, asynchronous) == {field: [{"id": 10, "name": "Odoo label"}]}
+    assert reader.calls == []
+    assert task == original
+
+
+def test_parent_label_also_resolves_matching_dependency_ids(asynchronous: bool) -> None:
+    reader = Reader()
+    reader.error = OdooAccessError("No related-task access")
+    result = resolve(
+        reader,
+        {"parent_id": [10, "Parent"], "depend_on_ids": [10], "dependent_ids": [10]},
+        asynchronous,
+    )
+    assert result == {
+        field: [{"id": 10, "name": "Parent"}]
+        for field in ["parent_id", "depend_on_ids", "dependent_ids"]
+    }
+    assert reader.calls == []
+
+
+def test_unlabeled_many2one_still_requires_related_access(asynchronous: bool) -> None:
+    reader = Reader()
+    reader.error = OdooAccessError("No related-model access")
+    with pytest.raises(OdooAccessError):
+        resolve(reader, {"stage_id": 10}, asynchronous)
 
 
 def test_empty_absent_and_metadata(asynchronous: bool) -> None:
@@ -255,6 +300,25 @@ def test_show_additive_and_preserves_projection(
     if fields == ["name"]:
         assert client.calls == []
         assert output["relations"] == {}
+
+
+@pytest.mark.parametrize("output_mode", ["--json", "--toon"])
+def test_show_labeled_relation_without_extra_permissions(
+    monkeypatch: pytest.MonkeyPatch, output_mode: str
+) -> None:
+    client = Client()
+    client.tasks.task = {"id": 42, "stage_id": [5, "Todo"]}
+    client.error = OdooAccessError("No stage access")
+    monkeypatch.setattr(main_module, "get_client", lambda: client)
+    result = CliRunner().invoke(app, [output_mode, "project-task", "show", "42", "-f", "stage_id"])
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output) if output_mode == "--json" else decode(result.output)
+    assert output == {
+        "id": 42,
+        "stage_id": [5, "Todo"],
+        "relations": {"stage_id": [{"id": 5, "name": "Todo"}]},
+    }
+    assert client.calls == []
 
 
 def test_show_lookup_failure_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None:

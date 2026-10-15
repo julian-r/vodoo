@@ -454,11 +454,33 @@ def test_shared_relation_reads_are_batched(run_context: Any) -> None:
         for method, args in client.calls
         if method == "read" and not (args[0] == "project.task" and args[1] == [42])
     ]
-    assert len(relation_reads) == 5
-    assert len({args[0] for args in relation_reads}) == 5
+    assert len(relation_reads) == 3
+    assert len({args[0] for args in relation_reads}) == 3
     task_reads = [args for args in relation_reads if args[0] == "project.task"]
-    assert task_reads == [("project.task", [6, 7, 8], ["id", "display_name"])]
+    assert task_reads == [("project.task", [7, 8], ["id", "display_name"])]
     assert all(args[2] == ["id", "display_name"] for args in relation_reads)
+
+
+def test_labeled_context_relations_need_no_related_read(
+    run_context: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _Client(True)
+    for field in ["tag_ids", "user_ids", "depend_on_ids", "dependent_ids"]:
+        client.task[field] = []
+    original_read = client.read
+
+    def task_only_read(model: str, ids: list[int], fields: list[str]) -> list[dict[str, Any]]:
+        if model != "project.task" or ids != [42]:
+            raise PermissionError("No related-record access")
+        return original_read(model, ids, fields)
+
+    monkeypatch.setattr(client, "read", task_only_read)
+    result = run_context(client)
+    assert result["complete"] is True
+    assert result["errors"] == []
+    for field in ["stage_id", "project_id", "parent_id"]:
+        record_id, label = client.task[field]
+        assert result["relations"][field] == [{"id": record_id, "name": label}]
 
 
 def test_shared_relation_errors_preserve_other_sections(run_context: Any) -> None:
