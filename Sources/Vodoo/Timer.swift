@@ -226,15 +226,13 @@ public final class TimerNamespace: @unchecked Sendable {
     }
 
     private func fetchRunningTimers(uid: Int) async throws -> [Timesheet] {
-        let records: [OdooRecord]
-        do {
-            records = try await client.searchRead(
-                model: "timer.timer",
-                domain: [.array([.string("user_id"), .string("="), .integer(uid)])] + timerTimerDomain,
-                fields: ["timer_start", "res_model", "res_id"],
-                limit: nil, offset: 0, order: nil
-            )
-        } catch { return [] }
+        // This is authoritative running state, not optional label enrichment.
+        let records = try await client.searchRead(
+            model: "timer.timer",
+            domain: [.array([.string("user_id"), .string("="), .integer(uid)])] + timerTimerDomain,
+            fields: ["timer_start", "res_model", "res_id"],
+            limit: nil, offset: 0, order: nil
+        )
         var result: [Timesheet] = []
         for record in records {
             guard let model = record["res_model"]?.stringValue,

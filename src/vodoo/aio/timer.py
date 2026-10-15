@@ -91,15 +91,12 @@ class AsyncLegacyTimerBackend(AsyncTimerBackend):
         return await client.execute(model, "action_timer_stop", [rec_id])
 
     async def _fetch_running_timers(self, client: AsyncOdooClient, uid: int) -> list[Timesheet]:
-        """Fetch running timers from timer.timer model."""
-        try:
-            records = await client.search_read(
-                "timer.timer",
-                domain=[["user_id", "=", uid], *TIMER_TIMER_DOMAIN],
-                fields=TIMER_TIMER_FIELDS,
-            )
-        except Exception:
-            return []
+        """Fetch authoritative running state; access/transport failures propagate."""
+        records = await client.search_read(
+            "timer.timer",
+            domain=[["user_id", "=", uid], *TIMER_TIMER_DOMAIN],
+            fields=TIMER_TIMER_FIELDS,
+        )
 
         timesheets: list[Timesheet] = []
         for record in records:

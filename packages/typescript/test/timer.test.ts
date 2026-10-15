@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { RecordingClient } from "../src/testing.js";
+import { OdooAccessError, TransportError } from "../src/errors.js";
 import {
   TimerHandle,
   TimerNamespace,
@@ -60,6 +61,48 @@ describe("timer value types", () => {
 });
 
 describe("TimerNamespace", () => {
+  it.each([new OdooAccessError("Denied", 403), new TransportError("Offline")])(
+    "propagates failure from the authoritative legacy timer lookup: %s",
+    async (error) => {
+      for (const operation of ["list", "active", "stop"] as const) {
+        const client = new RecordingClient(undefined, [7, [], [], error]);
+        const timer = new TimerNamespace(client);
+        await expect(timer[operation]()).rejects.toBe(error);
+        expect(client.calls.at(-1)?.args[0]).toBe("timer.timer");
+        expect(client.calls.every((call) => call.method !== "execute")).toBe(
+          true,
+        );
+      }
+    },
+  );
+
+  it("returns no active timers for a successful empty legacy lookup", async () => {
+    const client = new RecordingClient(undefined, [7, [], [], []]);
+    await expect(new TimerNamespace(client).active()).resolves.toEqual([]);
+    expect(client.calls.at(-1)?.args[0]).toBe("timer.timer");
+  });
+
+  it("keeps optional timer label enrichment best-effort", async () => {
+    const client = new RecordingClient(undefined, [
+      7,
+      [],
+      [],
+      [
+        {
+          id: 50,
+          timer_start: "2025-01-02 10:00:00",
+          res_model: "project.task",
+          res_id: 4,
+        },
+      ],
+      new OdooAccessError("No task label access", 403),
+    ]);
+    const result = await new TimerNamespace(client).active();
+    expect(result).toHaveLength(1);
+    expect(result[0]?.source.name).toBe("Task #4");
+    expect(result[0]?.state).toBe(TimerState.Running);
+  });
+
   it("uses analytic-line timer state on JSON-2", async () => {
     const client = new RecordingClient(
       "https://odoo.example.com",
