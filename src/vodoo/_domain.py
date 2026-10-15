@@ -399,7 +399,8 @@ class DomainNamespace(_NamespaceBase):
             record_id: Record ID.
 
         Returns:
-            List of ``(attachment_id, filename, raw_bytes)`` tuples.
+            List of ``(attachment_id, filename, raw_bytes)`` tuples. Read and
+            decode failures propagate rather than returning partial results.
         """
         from vodoo.base import _decode_attachment_record
 
@@ -407,19 +408,14 @@ class DomainNamespace(_NamespaceBase):
         result: builtins.list[tuple[int, str, bytes]] = []
         for att_meta in att_list:
             att_id = att_meta["id"]
-            try:
-                att_data = self._client.read(
-                    "ir.attachment",
-                    [att_id],
-                    ["id", *self._ATTACHMENT_READ_FIELDS],
-                )
-                if not att_data:
-                    continue
-                decoded = _decode_attachment_record(att_data[0], att_id)
-                if decoded is not None:
-                    result.append(decoded)
-            except Exception:
+            att_data = self._client.read(
+                "ir.attachment", [att_id], ["id", *self._ATTACHMENT_READ_FIELDS]
+            )
+            if not att_data:
                 continue
+            decoded = _decode_attachment_record(att_data[0], att_id)
+            if decoded is not None:
+                result.append(decoded)
         return result
 
     # -- URL -----------------------------------------------------------------

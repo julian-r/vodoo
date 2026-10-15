@@ -373,19 +373,66 @@ final class DomainFeatureTests: XCTestCase {
         XCTAssertEqual(downloaded, Data("Hi".utf8))
     }
 
-    func testAllAttachmentDataSkipsUnreadableRecordsAndFiltersExtensions() async throws {
+    func testBulkAttachmentReadFailuresPropagate() async throws {
+        for error in [
+            VodooError.access(message: "Denied", code: 403, data: [:]),
+            VodooError.transport(message: "Offline", code: 500, data: [:]),
+        ] {
+            let transport = FeatureTransport(responses: [
+                .value(rows([
+                    ["id": .integer(1), "name": .string("one.txt")],
+                    ["id": .integer(2), "name": .string("two.txt")],
+                ])),
+                .value(rows([["name": .string("one.txt"), "datas": .string("QQ==")]])),
+                .failure(error),
+            ])
+            do {
+                _ = try await featureClient(transport).tasks.allAttachmentData(4)
+                XCTFail("Bulk read must not hide a failed attachment")
+            } catch let actual as VodooError {
+                XCTAssertEqual(actual, error)
+            }
+        }
+    }
+
+    func testBulkAttachmentDecodeFailurePropagates() async throws {
+        let transport = FeatureTransport([
+            rows([["id": .integer(1), "name": .string("bad.txt")]]),
+            rows([["name": .string("bad.txt"), "datas": .string("!invalid!")]]),
+        ])
+        do {
+            _ = try await featureClient(transport).tasks.allAttachmentData(4)
+            XCTFail("Bulk read must not hide invalid content")
+        } catch VodooError.invalidResponse {
+            // The binary codec's failure must escape the bulk operation.
+        }
+    }
+
+    func testAttachmentDownloadReturnsEmptyForNoMatchingExtension() async throws {
+        let transport = FeatureTransport([
+            rows([["id": .integer(1), "name": .string("other.bin")]]),
+        ])
+        let values = try await featureClient(transport).tasks.download(4, extension: ".txt")
+        XCTAssertEqual(values, [])
+        let calls = await transport.recorded()
+        XCTAssertEqual(calls.count, 1)
+    }
+
+    func testAttachmentDownloadFiltersBeforeReadingContent() async throws {
         let transport = FeatureTransport([
             rows([
                 ["id": .integer(1), "name": .string("one.PDF"), "mimetype": .string("application/pdf")],
                 ["id": .integer(2), "name": .string("two.txt")],
             ]),
             rows([["name": .string("one.PDF"), "datas": .string("QQ==")]]),
-            rows([["name": .string("two.txt"), "datas": .bool(false), "file_size": .integer(9)]]),
         ])
         let values = try await featureClient(transport).tasks.download(4, extension: ".pdf")
         XCTAssertEqual(values, [AttachmentData(
             id: 1, name: "one.PDF", data: Data([65]), mimetype: "application/pdf"
         )])
+        let calls = await transport.recorded()
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls[1].args.first, .array([.integer(1)]))
     }
 }
 

@@ -288,7 +288,7 @@ async def download_record_attachments(
     output_dir: Path | None = None,
     extension: str | None = None,
 ) -> list[Path]:
-    """Download all attachments for a record."""
+    """Download attachments; propagate failures without rolling back written files."""
     if output_dir is None:
         output_dir = Path.cwd()
     elif not output_dir.exists():
@@ -305,27 +305,16 @@ async def download_record_attachments(
     downloaded_files: list[Path] = []
 
     for attachment in attachments:
-        filename = attachment.get("name", f"attachment_{attachment['id']}")
-        try:
-            att_data = await client.read(
-                "ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS
-            )
-            if not att_data:
-                continue
-
-            att = att_data[0]
-            filename = att.get("name", f"attachment_{attachment['id']}")
-            output_path = output_dir / filename
-
-            if att.get("datas"):
-                data = base64.b64decode(att["datas"])
-                output_path.write_bytes(data)
-                downloaded_files.append(output_path)
-        except Exception as e:
-            import logging
-
-            logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
+        att_id = attachment["id"]
+        att_data = await client.read("ir.attachment", [att_id], _ATTACHMENT_READ_FIELDS)
+        if not att_data:
             continue
+        decoded = _decode_attachment_record(att_data[0], att_id)
+        if decoded is not None:
+            _, filename, data = decoded
+            output_path = output_dir / filename
+            output_path.write_bytes(data)
+            downloaded_files.append(output_path)
 
     return downloaded_files
 
@@ -348,26 +337,18 @@ async def get_record_attachment_data(
     model: str,
     record_id: int,
 ) -> list[tuple[int, str, bytes]]:
-    """Read all attachments for a record and return their binary content in-memory."""
+    """Read attachment bytes; propagate read and decode failures."""
     attachments = await list_attachments(client, model, record_id)
 
     result: list[tuple[int, str, bytes]] = []
     for att_meta in attachments:
         att_id = att_meta["id"]
-        try:
-            att_data = await client.read(
-                "ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS]
-            )
-            if not att_data:
-                continue
-            decoded = _decode_attachment_record(att_data[0], att_id)
-            if decoded is not None:
-                result.append(decoded)
-        except Exception as e:
-            import logging
-
-            logging.getLogger("vodoo").warning("Failed to read attachment %s: %s", att_id, e)
+        att_data = await client.read("ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS])
+        if not att_data:
             continue
+        decoded = _decode_attachment_record(att_data[0], att_id)
+        if decoded is not None:
+            result.append(decoded)
 
     return result
 

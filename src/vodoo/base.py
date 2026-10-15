@@ -572,7 +572,8 @@ def download_record_attachments(
         extension: File extension filter (e.g., 'pdf', 'jpg')
 
     Returns:
-        List of paths to downloaded files
+        List of paths to downloaded files. Read, decode, and filesystem failures
+        propagate; files already written are not rolled back.
 
     """
     if output_dir is None:
@@ -592,25 +593,16 @@ def download_record_attachments(
     downloaded_files: list[Path] = []
 
     for attachment in attachments:
-        filename = attachment.get("name", f"attachment_{attachment['id']}")
-        try:
-            att_data = client.read("ir.attachment", [attachment["id"]], _ATTACHMENT_READ_FIELDS)
-            if not att_data:
-                continue
-
-            att = att_data[0]
-            filename = att.get("name", f"attachment_{attachment['id']}")
-            output_path = output_dir / filename
-
-            if att.get("datas"):
-                data = base64.b64decode(att["datas"])
-                output_path.write_bytes(data)
-                downloaded_files.append(output_path)
-        except Exception as e:
-            import logging
-
-            logging.getLogger("vodoo").warning("Failed to download %s: %s", filename, e)
+        att_id = attachment["id"]
+        att_data = client.read("ir.attachment", [att_id], _ATTACHMENT_READ_FIELDS)
+        if not att_data:
             continue
+        decoded = _decode_attachment_record(att_data[0], att_id)
+        if decoded is not None:
+            _, filename, data = decoded
+            output_path = output_dir / filename
+            output_path.write_bytes(data)
+            downloaded_files.append(output_path)
 
     return downloaded_files
 
@@ -705,7 +697,8 @@ def get_record_attachment_data(
 
     Returns:
         List of ``(attachment_id, filename, data)`` tuples.
-        Attachments with empty or missing ``datas`` are silently skipped.
+        Attachments with empty or missing ``datas`` are skipped. Read and decode
+        failures propagate rather than returning a silently incomplete result.
 
     """
     attachments = list_attachments(client, model, record_id)
@@ -713,15 +706,12 @@ def get_record_attachment_data(
     result: list[tuple[int, str, bytes]] = []
     for att_meta in attachments:
         att_id = att_meta["id"]
-        try:
-            att_data = client.read("ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS])
-            if not att_data:
-                continue
-            decoded = _decode_attachment_record(att_data[0], att_id)
-            if decoded is not None:
-                result.append(decoded)
-        except Exception:
+        att_data = client.read("ir.attachment", [att_id], ["id", *_ATTACHMENT_READ_FIELDS])
+        if not att_data:
             continue
+        decoded = _decode_attachment_record(att_data[0], att_id)
+        if decoded is not None:
+            result.append(decoded)
 
     return result
 

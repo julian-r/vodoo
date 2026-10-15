@@ -249,42 +249,44 @@ export class DomainNamespace {
     throw new RecordNotFoundError("ir.attachment", attachmentId);
   }
 
+  /** Read/decode failures reject the operation instead of hiding partial results. */
   async allAttachmentData(recordId: number): Promise<AttachmentData[]> {
-    const metadata = await this.attachments(recordId);
+    return this.readAttachmentData(await this.attachments(recordId));
+  }
+
+  private async readAttachmentData(
+    metadata: readonly OdooRecord[],
+  ): Promise<AttachmentData[]> {
     const result: AttachmentData[] = [];
     for (const attachment of metadata) {
       if (typeof attachment.id !== "number") continue;
-      try {
-        const records = await this.client.read(
-          "ir.attachment",
-          [attachment.id],
-          ["id", ...ATTACHMENT_READ_FIELDS],
-        );
-        const record = records[0];
-        if (record === undefined) continue;
-        let data: Uint8Array;
-        if (typeof record.datas === "string") {
-          data = decodeBase64(record.datas);
-        } else if (record.file_size === 0) {
-          data = new Uint8Array();
-        } else {
-          continue;
-        }
-        const item: AttachmentData = {
-          id: attachment.id,
-          name:
-            typeof record.name === "string"
-              ? record.name
-              : `attachment_${attachment.id}`,
-          data,
-        };
-        if (typeof attachment.mimetype === "string") {
-          result.push({ ...item, mimetype: attachment.mimetype });
-        } else {
-          result.push(item);
-        }
-      } catch {
-        // Match Python all_attachment_data: one unreadable attachment is skipped.
+      const records = await this.client.read(
+        "ir.attachment",
+        [attachment.id],
+        ["id", ...ATTACHMENT_READ_FIELDS],
+      );
+      const record = records[0];
+      if (record === undefined) continue;
+      let data: Uint8Array;
+      if (typeof record.datas === "string") {
+        data = decodeBase64(record.datas);
+      } else if (record.file_size === 0) {
+        data = new Uint8Array();
+      } else {
+        continue;
+      }
+      const item: AttachmentData = {
+        id: attachment.id,
+        name:
+          typeof record.name === "string"
+            ? record.name
+            : `attachment_${attachment.id}`,
+        data,
+      };
+      if (typeof attachment.mimetype === "string") {
+        result.push({ ...item, mimetype: attachment.mimetype });
+      } else {
+        result.push(item);
       }
     }
     return result;
@@ -295,11 +297,15 @@ export class DomainNamespace {
     recordId: number,
     extension?: string,
   ): Promise<AttachmentData[]> {
-    const attachments = await this.allAttachmentData(recordId);
-    if (extension === undefined) return attachments;
+    const metadata = await this.attachments(recordId);
+    if (!extension) return this.readAttachmentData(metadata);
     const suffix = `.${extension.replace(/^\./u, "").toLocaleLowerCase("und")}`;
-    return attachments.filter((attachment) =>
-      attachment.name.toLocaleLowerCase("und").endsWith(suffix),
+    return this.readAttachmentData(
+      metadata.filter(
+        (attachment) =>
+          typeof attachment.name === "string" &&
+          attachment.name.toLocaleLowerCase("und").endsWith(suffix),
+      ),
     );
   }
 
