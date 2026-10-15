@@ -140,17 +140,26 @@ def message_post_sudo_with_id(
     # Create the message directly in mail.message model
     # This avoids the RPC marshalling issue with message_post
 
-    # Resolve translated subtype labels through their stable external IDs.
+    # Resolve stable XML IDs through Odoo's public resolver. It checks access to
+    # the referenced subtype without requiring read access to ir.model.data.
     subtype_xmlid = "mt_note" if is_note else "mt_comment"
-    subtype_rows = client.search_read(
+    reference = client.execute(
         "ir.model.data",
-        domain=[("module", "=", "mail"), ("name", "=", subtype_xmlid)],
-        fields=["res_id"],
-        limit=1,
+        "check_object_reference",
+        module="mail",
+        xml_id=subtype_xmlid,
+        raise_on_access_error=True,
     )
-    subtype_id = subtype_rows[0].get("res_id") if subtype_rows else None
-    if not isinstance(subtype_id, int) or isinstance(subtype_id, bool) or subtype_id <= 0:
+    if (
+        not isinstance(reference, (list, tuple))
+        or len(reference) != 2
+        or reference[0] != "mail.message.subtype"
+        or not isinstance(reference[1], int)
+        or isinstance(reference[1], bool)
+        or reference[1] <= 0
+    ):
         raise RecordNotFoundError("mail.message.subtype", 0)
+    subtype_id = reference[1]
 
     # For non-internal users (share users), internal notes require message_type='notification'
     # because Odoo's mail.message._get_forbidden_access() blocks message_type='comment'

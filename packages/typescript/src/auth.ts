@@ -58,16 +58,24 @@ export async function messagePostSudoWithId(
     throw new ConfigurationError("No default user ID configured");
   const partnerId = await getPartnerIdFromUser(client, userId);
   const subtypeXmlId = options.isNote === true ? "mt_note" : "mt_comment";
-  const subtypeRows = await client.searchRead("ir.model.data", {
-    domain: [
-      ["module", "=", "mail"],
-      ["name", "=", subtypeXmlId],
-    ],
-    fields: ["res_id"],
-    limit: 1,
-  });
-  const subtypeId = subtypeRows[0]?.res_id;
+  // The public resolver checks subtype access, not metadata-table read access.
+  const reference = await client.execute(
+    "ir.model.data",
+    "check_object_reference",
+    [],
+    {
+      module: "mail",
+      xml_id: subtypeXmlId,
+      raise_on_access_error: true,
+    },
+  );
+  const subtypeId: unknown = Array.isArray(reference)
+    ? reference[1]
+    : undefined;
   if (
+    !Array.isArray(reference) ||
+    reference.length !== 2 ||
+    reference[0] !== "mail.message.subtype" ||
     typeof subtypeId !== "number" ||
     !Number.isInteger(subtypeId) ||
     subtypeId <= 0

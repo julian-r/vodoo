@@ -128,16 +128,26 @@ async def message_post_sudo_with_id(
 
     partner_id = await get_partner_id_from_user(client, user_id)
 
+    # Resolve stable XML IDs without requiring read access to ir.model.data;
+    # Odoo's public resolver checks access to the referenced subtype instead.
     subtype_xmlid = "mt_note" if is_note else "mt_comment"
-    subtype_rows = await client.search_read(
+    reference = await client.execute(
         "ir.model.data",
-        domain=[("module", "=", "mail"), ("name", "=", subtype_xmlid)],
-        fields=["res_id"],
-        limit=1,
+        "check_object_reference",
+        module="mail",
+        xml_id=subtype_xmlid,
+        raise_on_access_error=True,
     )
-    subtype_id = subtype_rows[0].get("res_id") if subtype_rows else None
-    if not isinstance(subtype_id, int) or isinstance(subtype_id, bool) or subtype_id <= 0:
+    if (
+        not isinstance(reference, (list, tuple))
+        or len(reference) != 2
+        or reference[0] != "mail.message.subtype"
+        or not isinstance(reference[1], int)
+        or isinstance(reference[1], bool)
+        or reference[1] <= 0
+    ):
         raise RecordNotFoundError("mail.message.subtype", 0)
+    subtype_id = reference[1]
 
     effective_message_type = "notification" if is_note else message_type
 

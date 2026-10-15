@@ -63,15 +63,17 @@ public func messagePostSudoWithID(
     }
     let partnerID = try await getPartnerIDFromUser(client: client, userID: userID)
     let subtypeXMLID = options.isNote ? "mt_note" : "mt_comment"
-    let subtypeRows = try await client.searchRead(
-        model: "ir.model.data",
-        domain: [
-            .array([.string("module"), .string("="), .string("mail")]),
-            .array([.string("name"), .string("="), .string(subtypeXMLID)]),
-        ],
-        fields: ["res_id"], limit: 1, offset: 0, order: nil
+    // The public resolver checks subtype access, not metadata-table read access.
+    let reference = try await client.execute(
+        model: "ir.model.data", method: "check_object_reference", args: [],
+        kwargs: [
+            "module": .string("mail"), "xml_id": .string(subtypeXMLID),
+            "raise_on_access_error": .bool(true),
+        ]
     )
-    guard let subtypeID = subtypeRows.first?["res_id"]?.intValue, subtypeID > 0 else {
+    guard let pair = reference.arrayValue, pair.count == 2,
+          pair[0] == .string("mail.message.subtype"),
+          let subtypeID = pair[1].intValue, subtypeID > 0 else {
         throw VodooError.recordNotFound(model: "mail.message.subtype", id: 0)
     }
     var values = options.extraValues
