@@ -63,4 +63,9 @@ pip install vodoo[dev]
 
 # Documentation (mkdocs-material)
 pip install vodoo[docs]
+
+# MCP server for Claude Desktop and other MCP clients
+pip install 'vodoo[mcp]'
 ```
+
+See [MCP Server](../guide/mcp-server.md) for the Claude Desktop setup.

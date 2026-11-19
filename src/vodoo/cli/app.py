@@ -402,6 +402,71 @@ def get_client() -> OdooClient:
         return OdooClient(config)
 
 
+@app.command("mcp")
+def mcp_command(
+    allow_write: Annotated[
+        bool,
+        typer.Option(
+            "--allow-write",
+            help="Enable tools that create or change Odoo data (records, accounting, "
+            "chatter, attachments, timers)",
+        ),
+    ] = False,
+    allow_delete: Annotated[
+        bool,
+        typer.Option(
+            "--allow-delete",
+            help="Enable deleting records (delete tool, unlink, x2many delete commands)",
+        ),
+    ] = False,
+    instance: Annotated[
+        str | None,
+        typer.Option("--instance", "-i", help="Instance/profile name to use"),
+    ] = None,
+    download_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--download-dir",
+            help="The only folder downloads may go to (default: ~/Downloads/vodoo)",
+        ),
+    ] = None,
+    upload_dirs: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--upload-dir",
+            help="Folder whose files may be attached; repeatable "
+            "(default: ~/Downloads, ~/Desktop, ~/Documents)",
+        ),
+    ] = None,
+) -> None:
+    """Run an MCP server over stdio (for Claude Desktop and other MCP clients).
+
+    Read-only by default. Needs the optional "mcp" extra (see the MCP server docs).
+    """
+    try:
+        from vodoo.mcp_server import run
+    except ImportError as exc:
+        typer.echo(
+            "The MCP server needs the 'mcp' extra: "
+            "uvx --from 'vodoo[mcp]' vodoo mcp  (or: pip install 'vodoo[mcp]')",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
+
+    selected_instance = instance if instance is not None else _instance_config["name"]
+    try:
+        run(
+            instance=selected_instance,
+            allow_write=allow_write,
+            allow_delete=allow_delete,
+            download_dir=download_dir,
+            upload_dirs=upload_dirs or None,
+        )
+    except VodooError as exc:
+        typer.echo(f"vodoo mcp: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
 def _instance_source_label(path: Path) -> str:
     project_instances = Path.cwd() / ".vodoo" / "instances"
     try:
