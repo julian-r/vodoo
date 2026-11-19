@@ -95,7 +95,7 @@ jobs:
 
   swift:
     name: Swift SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -154,7 +154,7 @@ jobs:
   integration-test:
     name: Community Integration – Odoo ${{ matrix.odoo-version }}
     needs: [codegen-check, typescript, swift, lint-and-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -266,7 +266,7 @@ jobs:
     if: github.event_name == 'push'
     environment: enterprise-ci
     needs: [codegen-check, typescript, swift, lint-and-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
