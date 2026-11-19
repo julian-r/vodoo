@@ -71,7 +71,7 @@ uv run mike serve            # serve versioned docs locally
 - **security.py** - `SecurityNamespace` (group creation, user management)
 - **main.py** - Typer CLI with subcommands: `helpdesk`, `project-task`, `project`, `crm`, `knowledge`, `model`, `security`, `timer`
 - **aio/** - Async mirrors: `AsyncOdooClient`, `AsyncDomainNamespace` subclasses
-- **mcp_server/** - MCP server (`vodoo mcp`, optional `mcp` extra, SDK 2.x `MCPServer`) built on `AsyncOdooClient`; read-only unless `--allow-write` / `--allow-delete`
+- **mcp_server/** - MCP server (`vodoo mcp`, optional `mcp` extra, SDK 2.x `MCPServer`) built on `AsyncOdooClient`; read-only unless `--allow-write` / `--allow-delete`. Claude Desktop extension bundle: `packages/mcpb/` (manifest + launcher), built with `uv run python scripts/build_mcpb.py` → `dist/vodoo-<version>.mcpb`
 
 ### Design Pattern
 Domain modules are `DomainNamespace` subclasses exposed as attributes on the client:

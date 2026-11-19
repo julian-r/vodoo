@@ -1,0 +1,143 @@
+{
+  "manifest_version": "0.4",
+  "name": "vodoo",
+  "display_name": "Odoo (Vodoo)",
+  "version": "0.0.0",
+  "description": "Odoo for Claude: records, accounting, chatter, attachments, and timers (Odoo 17-19).",
+  "long_description": "Search and read any Odoo model, work with invoices, bills, journal entries, and payments, post chatter notes, handle attachments, and track time. Read-only by default: turn on write access in the settings. Leave the connection fields empty to use your existing Vodoo configuration (~/.config/vodoo).",
+  "author": {
+    "name": "Julian Rath",
+    "url": "https://github.com/julian-r"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/julian-r/vodoo"
+  },
+  "homepage": "https://github.com/julian-r/vodoo",
+  "documentation": "https://julian-r.github.io/vodoo/guide/mcp-server/",
+  "support": "https://github.com/julian-r/vodoo/issues",
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": ["odoo", "erp", "accounting", "invoices", "helpdesk", "crm", "timesheets"],
+  "server": {
+    "type": "uv",
+    "entry_point": "src/vodoo_mcpb.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--no-dev",
+        "--directory",
+        "${__dirname}",
+        "src/vodoo_mcpb.py",
+        "${user_config.upload_dirs}"
+      ],
+      "env": {
+        "ODOO_URL": "${user_config.odoo_url}",
+        "ODOO_DATABASE": "${user_config.odoo_database}",
+        "ODOO_USERNAME": "${user_config.odoo_username}",
+        "ODOO_PASSWORD": "${user_config.odoo_api_key}",
+        "VODOO_MCP_INSTANCE": "${user_config.instance}",
+        "VODOO_MCP_ALLOW_WRITE": "${user_config.allow_write}",
+        "VODOO_MCP_ALLOW_DELETE": "${user_config.allow_delete}",
+        "VODOO_MCP_DOWNLOAD_DIR": "${user_config.download_dir}"
+      }
+    }
+  },
+  "user_config": {
+    "odoo_url": {
+      "type": "string",
+      "title": "Odoo URL",
+      "description": "For example https://yourcompany.odoo.com. Leave empty to use your Vodoo configuration (~/.config/vodoo).",
+      "required": false
+    },
+    "odoo_database": {
+      "type": "string",
+      "title": "Database",
+      "description": "Odoo database name.",
+      "required": false
+    },
+    "odoo_username": {
+      "type": "string",
+      "title": "Username",
+      "description": "Odoo login (usually your email).",
+      "required": false
+    },
+    "odoo_api_key": {
+      "type": "string",
+      "title": "API key or password",
+      "description": "Create an API key in Odoo: your avatar > My Profile > Account Security > New API Key. Stored in the system keychain.",
+      "sensitive": true,
+      "required": false
+    },
+    "instance": {
+      "type": "string",
+      "title": "Vodoo profile",
+      "description": "Optional: name of a Vodoo instance profile to use instead of the fields above.",
+      "required": false
+    },
+    "allow_write": {
+      "type": "boolean",
+      "title": "Allow changes",
+      "description": "Let Claude create and change data: records, invoices and bills, posting, payments, notes, attachments, timers.",
+      "default": false
+    },
+    "allow_delete": {
+      "type": "boolean",
+      "title": "Allow deleting",
+      "description": "Let Claude permanently delete records.",
+      "default": false
+    },
+    "upload_dirs": {
+      "type": "directory",
+      "title": "Folders Claude may attach files from",
+      "description": "Default: Downloads, Desktop, and Documents. Hidden files and folders are always refused.",
+      "multiple": true,
+      "required": false
+    },
+    "download_dir": {
+      "type": "directory",
+      "title": "Download folder",
+      "description": "The only folder attachments are downloaded to. Default: Downloads/vodoo.",
+      "required": false
+    }
+  },
+  "tools": [
+    {"name": "odoo_info", "description": "Connected Odoo instance, user, and enabled modes."},
+    {"name": "search_records", "description": "Search any Odoo model with a domain."},
+    {"name": "count_records", "description": "Count records matching a domain."},
+    {"name": "read_records", "description": "Read records by id."},
+    {"name": "get_fields", "description": "List the fields of a model."},
+    {"name": "name_search", "description": "Find record ids by name."},
+    {"name": "get_record_url", "description": "Odoo web URL of a record."},
+    {"name": "list_messages", "description": "Chatter messages and notes of a record."},
+    {"name": "list_attachments", "description": "Files attached to a record."},
+    {"name": "download_attachment", "description": "Download an attachment to the download folder."},
+    {"name": "list_account_moves", "description": "List invoices, bills, credit notes, and journal entries."},
+    {"name": "get_account_move", "description": "Show an invoice, bill, or entry with its lines."},
+    {"name": "list_timesheets", "description": "Your timesheet entries."},
+    {"name": "timer_status", "description": "Your running timers."},
+    {"name": "create_record", "description": "Create a record (needs Allow changes)."},
+    {"name": "update_records", "description": "Update records (needs Allow changes)."},
+    {"name": "call_method", "description": "Call a public model method (needs Allow changes)."},
+    {"name": "post_message", "description": "Post a note or comment (needs Allow changes)."},
+    {"name": "attach_file", "description": "Attach a local file (needs Allow changes)."},
+    {"name": "create_account_move", "description": "Create an invoice, bill, refund, or entry (needs Allow changes)."},
+    {"name": "post_account_moves", "description": "Post invoices, bills, or entries (needs Allow changes)."},
+    {"name": "reset_account_moves_to_draft", "description": "Reset to draft (needs Allow changes)."},
+    {"name": "cancel_account_moves", "description": "Cancel moves (needs Allow changes)."},
+    {"name": "register_payment", "description": "Register a payment (needs Allow changes)."},
+    {"name": "mark_activity_done", "description": "Mark an activity as done (needs Allow changes)."},
+    {"name": "timer_start", "description": "Start a timer (needs Allow changes)."},
+    {"name": "timer_stop", "description": "Stop timers (needs Allow changes)."},
+    {"name": "delete_records", "description": "Delete records (needs Allow deleting)."}
+  ],
+  "tools_generated": true,
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  }
+}

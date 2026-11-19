@@ -8,7 +8,29 @@ chatter, attachments, activities, and timers.
 The server runs locally over stdio and uses your normal Vodoo configuration,
 instance profiles, and keyring secrets. It works with Odoo 17, 18, and 19.
 
-## Install in Claude Desktop
+## Install as a Claude Desktop extension (one click)
+
+The extension bundle (`vodoo-<version>.mcpb`) needs no Python, `uv`, or JSON editing.
+Claude Desktop installs Python and the dependencies itself.
+
+1. Double-click the `.mcpb` file (or drag it into **Settings → Extensions**).
+2. Fill in the settings form:
+    - **Odoo URL**, **Database**, **Username**, **API key** (stored in the system keychain).
+      Leave them empty to use your Vodoo configuration (`~/.config/vodoo`), or enter a
+      **Vodoo profile** name.
+    - **Allow changes** / **Allow deleting**: off by default (read-only).
+    - Optional: the folders Claude may attach files from, and the download folder.
+3. Turn the extension on.
+
+Build the bundle from a checkout (needs `uv` and `npx`):
+
+```bash
+uv run python scripts/build_mcpb.py   # -> dist/vodoo-<version>.mcpb
+```
+
+The bundle contains the vodoo wheel built from the checkout, so it matches the source.
+
+## Install in Claude Desktop (manual config)
 
 1. Configure Vodoo once (see [Configuration](../getting-started/configuration.md)) and
    check that it works: `uvx vodoo config test`.
