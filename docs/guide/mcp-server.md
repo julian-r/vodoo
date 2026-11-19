@@ -18,16 +18,19 @@ instance profiles, and keyring secrets. It works with Odoo 17, 18, and 19.
 The extension bundle (`vodoo-<version>.mcpb`) needs no Python, `uv`, or JSON editing.
 Claude Desktop installs Python and the dependencies itself.
 
-1. Double-click the `.mcpb` file (or drag it into **Settings → Extensions**).
-2. Fill in the settings form:
+1. Download [`vodoo.mcpb`](https://github.com/julian-r/vodoo/releases/latest/download/vodoo.mcpb) from the latest
+   [GitHub release](https://github.com/julian-r/vodoo/releases/latest). Each release
+   also has a versioned copy (`vodoo-<version>.mcpb`).
+2. Double-click the file (or drag it into **Settings → Extensions**).
+3. Fill in the settings form:
     - **Odoo URL**, **Database**, **Username**, **API key** (stored in the system keychain).
       Leave them empty to use your Vodoo configuration (`~/.config/vodoo`), or enter a
       **Vodoo profile** name.
     - **Allow changes** / **Allow deleting**: off by default (read-only).
     - Optional: the folders Claude may attach files from, and the download folder.
-3. Turn the extension on.
+4. Turn the extension on.
 
-Build the bundle from a checkout (needs `uv` and `npx`):
+To update, install the file from a newer release. Build the bundle from a checkout (needs `uv` and `npx`):
 
 ```bash
 uv run python scripts/build_mcpb.py   # -> dist/vodoo-<version>.mcpb
