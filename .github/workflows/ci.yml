@@ -151,6 +151,9 @@ jobs:
       - name: Unit tests
         run: uv run pytest tests/ --ignore=tests/integration -v
 
+      - name: Build Claude Desktop extension (.mcpb)
+        run: uv run python scripts/build_mcpb.py --out-dir dist/mcpb
+
   integration-test:
     name: Community Integration – Odoo ${{ matrix.odoo-version }}
     needs: [codegen-check, typescript, swift, lint-and-test]

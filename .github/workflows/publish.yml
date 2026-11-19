@@ -11,7 +11,8 @@ permissions:
 jobs:
   validate-release:
     name: Validate release source
-    runs-on: ubuntu-latest
+    # setup-swift@v2 does not support Ubuntu 26.04 (the current ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
     - uses: actions/checkout@v4
@@ -109,6 +110,49 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+
+  mcpb-bundle:
+    name: Claude Desktop extension (.mcpb)
+    needs: validate-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # upload release assets
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0  # hatch-vcs needs the tag for the version
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Build bundle
+      run: |
+        uv sync --extra mcp
+        uv run python scripts/build_mcpb.py --out-dir dist/mcpb
+        # Stable name for https://github.com/<repo>/releases/latest/download/vodoo.mcpb
+        cp dist/mcpb/vodoo-*.mcpb dist/mcpb/vodoo.mcpb
+        ls -l dist/mcpb
+
+    - name: Attach to the GitHub release
+      if: github.event_name == 'release' && github.event.action == 'published'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: gh release upload "$RELEASE_TAG" dist/mcpb/*.mcpb --clobber
+
+    - name: Store the bundle (manual runs)
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: claude-desktop-extension
+        path: dist/mcpb/
 
   publish-to-pypi:
     name: Publish to PyPI

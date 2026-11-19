@@ -79,21 +79,6 @@ def tool_list() -> list[dict[str, str]]:
     return asyncio.run(collect())
 
 
-def _make_icon(source: Path, target: Path) -> None:
-    """512 px icon (the recommended size); the 1024 px logo is 1.5 MB."""
-    if shutil.which("sips"):  # macOS
-        _run("sips", "-Z", "512", str(source), "--out", str(target))
-        return
-    try:
-        from PIL import Image
-    except ImportError:
-        shutil.copy(source, target)
-        return
-    with Image.open(source) as image:
-        image.thumbnail((512, 512))
-        image.save(target)
-
-
 def build(output_dir: Path) -> Path:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -103,7 +88,6 @@ def build(output_dir: Path) -> Path:
 
         stage = tmp_path / "vodoo"
         shutil.copytree(SOURCE, stage, ignore=shutil.ignore_patterns("__pycache__", ".venv"))
-        _make_icon(ROOT / "docs" / "assets" / "logo.png", stage / "icon.png")
         (stage / "wheels").mkdir()
         shutil.copy(wheel, stage / "wheels" / wheel.name)
         (stage / "pyproject.toml").write_text(PYPROJECT.format(version=version, wheel=wheel.name))
