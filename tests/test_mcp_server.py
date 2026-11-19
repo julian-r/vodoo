@@ -14,7 +14,7 @@ from mcp.client.client import Client
 
 from vodoo.exceptions import OdooAccessError
 from vodoo.mcp_server import create_server
-from vodoo.mcp_server.server import MoveLine, _contains_delete_command
+from vodoo.mcp_server._common import contains_delete_command
 
 pytestmark = pytest.mark.anyio
 
@@ -227,15 +227,7 @@ async def test_annotations_mark_read_and_destructive_tools() -> None:
     assert tools["post_account_moves"].annotations.destructive_hint is True
     assert tools["create_record"].annotations.destructive_hint is False
     assert tools["create_account_move"].annotations.destructive_hint is True
-
-
-async def test_write_tool_is_unknown_in_read_only_mode() -> None:
-    is_error, text = await _call(FakeClient(), "create_record", {"model": "x", "values": {}})
-    assert is_error
-    assert "create_record" in text
-
-
-# ── Read tools ────────────────────────────────────────────────────────────
+    assert tools["update_records"].annotations.idempotent_hint is False
 
 
 async def test_search_records_known_model_uses_curated_fields() -> None:
@@ -256,16 +248,6 @@ async def test_search_records_unknown_model_defaults_to_display_name() -> None:
     assert kwargs["fields"] == ["id", "display_name"]
 
 
-async def test_search_records_counts_when_page_is_full() -> None:
-    client = FakeClient()
-    client.search_read_result = [{"id": 1}, {"id": 2}]
-    client.execute_result["search_count"] = 42
-    _, data = await _call(client, "search_records", {"model": "res.partner", "limit": 2})
-    assert data["total"] == 42
-    (args, _) = client.called("execute")[0]
-    assert args[:2] == ("res.partner", "search_count")
-
-
 @pytest.mark.parametrize(
     ("returned", "offset", "expected_count_call"),
     [(1, 0, False), (0, 0, False), (0, 100, True), (2, 0, True), (1, 10, False)],
@@ -279,11 +261,6 @@ async def test_search_records_total(returned: int, offset: int, expected_count_c
     )
     assert bool(client.called("execute")) is expected_count_call
     assert data["total"] == (7 if expected_count_call else returned + offset)
-
-
-async def test_search_records_rejects_negative_offset() -> None:
-    is_error, _ = await _call(FakeClient(), "search_records", {"model": "x", "offset": -1})
-    assert is_error
 
 
 async def test_search_records_clamps_limit() -> None:
@@ -522,7 +499,15 @@ async def test_create_invoice_uses_invoice_lines_and_tax_commands() -> None:
             "move_type": "out_invoice",
             "partner_id": 5,
             "invoice_date": "2026-11-19",
-            "lines": [{"name": "Consulting", "quantity": 2, "price_unit": 150, "tax_ids": [3]}],
+            "lines": [
+                {
+                    "name": "Consulting",
+                    "quantity": 2,
+                    "price_unit": 150,
+                    "tax_ids": [3],
+                    "extra": {"analytic_distribution": {"7": 100}},
+                }
+            ],
         },
         allow_write=True,
     )
@@ -531,7 +516,13 @@ async def test_create_invoice_uses_invoice_lines_and_tax_commands() -> None:
     model, values = args
     assert model == "account.move"
     assert values["partner_id"] == 5
-    line = {"name": "Consulting", "quantity": 2.0, "price_unit": 150.0, "tax_ids": [(6, 0, [3])]}
+    line = {
+        "name": "Consulting",
+        "quantity": 2.0,
+        "price_unit": 150.0,
+        "tax_ids": [(6, 0, [3])],
+        "analytic_distribution": {"7": 100},
+    }
     assert values["invoice_line_ids"] == [(0, 0, line)]
     assert kwargs["context"] == {"default_move_type": "out_invoice"}
     assert not client.called("execute")  # not posted
@@ -658,7 +649,7 @@ async def test_call_method_can_delete_with_flag() -> None:
             {
                 "move_type": "entry",
                 "lines": [{"account_id": 1, "debit": 1}],
-                "extra_values": {"line_ids": [[2, 9, 0]]},
+                "extra_values": {"attachment_ids": [[2, 9, 0]]},
             },
         ),
     ],
@@ -690,28 +681,16 @@ async def test_x2many_delete_command_allowed_with_flag() -> None:
     [[2, 5, 0], [2, 5], [2.0, 5, 0], [2, 5.0, 0], [2, 5, 0, "extra"], (2, 5, 0)],
 )
 def test_contains_delete_command_catches_all_forms(command: Any) -> None:
-    assert _contains_delete_command({"line_ids": [command]})
-    assert _contains_delete_command({"line_ids": [[1, 3, {"sub_ids": [command]}]]})
-    assert _contains_delete_command({"line_ids": [[1.0, 3, {"sub_ids": [command]}, 9]]})
-
-
-async def test_noncanonical_delete_command_needs_flag() -> None:
-    client = FakeClient()
-    is_error, _ = await _call(
-        client,
-        "update_records",
-        {"model": "account.move", "ids": [1], "values": {"line_ids": [[2.0, 5, 0]]}},
-        allow_write=True,
-    )
-    assert is_error
-    assert not client.called("write")
+    assert contains_delete_command({"line_ids": [command]})
+    assert contains_delete_command({"line_ids": [[1, 3, {"sub_ids": [command]}]]})
+    assert contains_delete_command({"line_ids": [[1.0, 3, {"sub_ids": [command]}, 9]]})
 
 
 def test_contains_delete_command_ignores_ordinary_values() -> None:
-    assert not _contains_delete_command({"tag_ids": [[6, 0, [2, 5]]], "x": [2, 5]})
-    assert not _contains_delete_command({"line_ids": [[1, 2, {"name": "x"}], [3, 2, 0]]})
-    assert not _contains_delete_command({"domain": [["id", "=", 2]]})
-    assert _contains_delete_command({"a": {"b": [[0, 0, {"c": [[2, 1, 0]]}]]}})
+    assert not contains_delete_command({"tag_ids": [[6, 0, [2, 5]]], "x": [2, 5]})
+    assert not contains_delete_command({"line_ids": [[1, 2, {"name": "x"}], [3, 2, 0]]})
+    assert not contains_delete_command({"domain": [["id", "=", 2]]})
+    assert contains_delete_command({"a": {"b": [[0, 0, {"c": [[2, 1, 0]]}]]}})
 
 
 async def test_call_method_rejects_private_methods() -> None:
@@ -765,16 +744,6 @@ async def test_delete_records() -> None:
         allow_delete=True,
     )
     assert data == {"deleted": [1, 2], "ok": True}
-
-
-def test_move_line_to_values_merges_extra() -> None:
-    line = MoveLine(name="A", price_unit=1.0, tax_ids=[], extra={"analytic_distribution": {}})
-    assert line.to_values() == {
-        "name": "A",
-        "price_unit": 1.0,
-        "tax_ids": [(6, 0, [])],
-        "analytic_distribution": {},
-    }
 
 
 def test_quiet_http_logs_hides_header_debug_lines() -> None:

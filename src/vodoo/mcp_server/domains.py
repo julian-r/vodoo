@@ -24,13 +24,14 @@ from vodoo.generated.helpdesk import _GeneratedHelpdeskAttrs
 from vodoo.generated.knowledge import _GeneratedKnowledgeAttrs
 from vodoo.generated.project_tasks import _GeneratedTaskAttrs
 from vodoo.generated.projects import _GeneratedProjectAttrs
-from vodoo.mcp_server.server import (
-    _clamp_limit,
-    _ClientHolder,
-    _FilePolicy,
-    _guard_delete,
-    _readable,
-    _write_new_file,
+from vodoo.mcp_server._common import (
+    ClientHolder,
+    FilePolicy,
+    check_extra,
+    clamp_limit,
+    guard_delete,
+    search_page,
+    write_new_file,
 )
 
 TagKind = Literal["task", "ticket", "lead"]
@@ -70,39 +71,10 @@ def _or_ilike(domain: list[Any], fields: list[str], value: str | None) -> None:
     domain.extend((field, "ilike", value) for field in fields)
 
 
-def _check_extra(extra: dict[str, Any] | None, named: dict[str, str]) -> None:
-    """Refuse extra_values keys that have their own parameter (field -> parameter)."""
-    clashes = sorted(set(extra or {}) & set(named))
-    if clashes:
-        hint = ", ".join(f"'{field}' -> use '{named[field]}'" for field in clashes)
-        raise ToolError(f"Set these with their own parameter, not extra_values: {hint}")
-
-
-async def _page(
-    odoo: AsyncOdooClient,
-    model: str,
-    domain: list[Any],
-    fields: list[str],
-    limit: int,
-    offset: int = 0,
-    order: str | None = None,
-) -> dict[str, Any]:
-    """search_read with a total count, like the generic search_records tool."""
-    limit = _clamp_limit(limit)
-    records = await odoo.search_read(
-        model, domain=domain, fields=fields, limit=limit, offset=offset, order=order
-    )
-    if 0 < len(records) < limit or (not records and offset == 0):
-        total = len(records) + offset
-    else:
-        total = await odoo.execute(model, "search_count", domain=domain)
-    return {"model": model, "total": total, "count": len(records), "records": _readable(records)}
-
-
 def register_domain_tools(  # noqa: PLR0915
     register: Register,
-    holder: _ClientHolder,
-    files: _FilePolicy,
+    holder: ClientHolder,
+    files: FilePolicy,
     *,
     allow_write: bool,
     allow_delete: bool,
@@ -155,7 +127,7 @@ def register_domain_tools(  # noqa: PLR0915
             domain.append(("date_deadline", "<", deadline_before))
         if not include_closed and "state" in await _field_names(odoo, "project.task"):
             domain.append(("state", "not in", ["1_done", "1_canceled"]))
-        return await _page(
+        return await search_page(
             odoo,
             "project.task",
             domain,
@@ -200,7 +172,7 @@ def register_domain_tools(  # noqa: PLR0915
         _ilike(domain, "name", name)
         _ilike(domain, "user_id.name", manager)
         _ilike(domain, "partner_id.name", partner)
-        return await _page(
+        return await search_page(
             odoo,
             "project.project",
             domain,
@@ -264,7 +236,7 @@ def register_domain_tools(  # noqa: PLR0915
         _or_ilike(domain, search_fields, search)
         if not include_closed:
             domain.append(("stage_id.fold", "=", False))
-        return await _page(
+        return await search_page(
             odoo,
             "helpdesk.ticket",
             domain,
@@ -305,7 +277,7 @@ def register_domain_tools(  # noqa: PLR0915
             domain.append(("user_id", "=", await odoo.get_uid()))
         if lead_type:
             domain.append(("type", "=", lead_type))
-        return await _page(
+        return await search_page(
             odoo,
             "crm.lead",
             domain,
@@ -356,7 +328,7 @@ def register_domain_tools(  # noqa: PLR0915
         _ilike(domain, "body", search)
         if category:
             domain.append(("category", "=", category))
-        return await _page(
+        return await search_page(
             odoo,
             "knowledge.article",
             domain,
@@ -382,7 +354,7 @@ def register_domain_tools(  # noqa: PLR0915
         if folder is not None:
             domain.append(("folder_id", "=", await odoo.documents.resolve_folder(folder)))
         _ilike(domain, "name", search)
-        return await _page(
+        return await search_page(
             odoo,
             "documents.document",
             domain,
@@ -396,7 +368,7 @@ def register_domain_tools(  # noqa: PLR0915
         """List Odoo Documents folders (with path and depth)."""
         odoo = await holder.get()
         rows: list[dict[str, Any]] = await odoo.documents.folders(
-            limit=_clamp_limit(limit), tree=True
+            limit=clamp_limit(limit), tree=True
         )
         return rows
 
@@ -417,7 +389,7 @@ def register_domain_tools(  # noqa: PLR0915
         filename = _safe_document_filename(rows[0].get("name"), document_id)
         if filename.startswith("."):
             filename = f"document_{document_id}{filename}"
-        path = _write_new_file(files.download_target(output_dir), filename, data)
+        path = write_new_file(files.download_target(output_dir), filename, data)
         return {"path": str(path), "bytes": len(data), "mimetype": rows[0].get("mimetype")}
 
     # -- Activities & tags (read) --------------------------------------------
@@ -450,7 +422,7 @@ def register_domain_tools(  # noqa: PLR0915
             domain.append(("date_deadline", "<", date.today().isoformat()))  # noqa: DTZ011
         if due_before:
             domain.append(("date_deadline", "<", due_before))
-        return await _page(
+        return await search_page(
             odoo,
             "mail.activity",
             domain,
@@ -494,13 +466,13 @@ def register_domain_tools(  # noqa: PLR0915
 
 def _register_domain_write_tools(  # noqa: PLR0915
     register: Register,
-    holder: _ClientHolder,
-    files: _FilePolicy,
+    holder: ClientHolder,
+    files: FilePolicy,
     allow_delete: bool,
     record_url: RecordUrl,
 ) -> None:
     def guard(*payloads: Any) -> None:
-        _guard_delete(allow_delete, *payloads)
+        guard_delete(allow_delete, *payloads)
 
     async def created(odoo: AsyncOdooClient, model: str, record_id: int) -> dict[str, Any]:
         return {"id": record_id, "url": await record_url(odoo, model, record_id)}
@@ -525,7 +497,7 @@ def _register_domain_write_tools(  # noqa: PLR0915
     ) -> dict[str, Any]:
         """Create a project task (or subtask) and return its id and URL."""
         guard(extra_values)
-        _check_extra(
+        check_extra(
             extra_values,
             {
                 "name": "name",
@@ -536,6 +508,9 @@ def _register_domain_write_tools(  # noqa: PLR0915
                 "parent_id": "parent_id",
                 "stage_id": "stage_id",
                 "depend_on_ids": "depends_on_ids",
+                "milestone_id": "milestone_id",
+                "date_deadline": "deadline",
+                "priority": "priority",
             },
         )
         odoo = await holder.get()
@@ -621,7 +596,7 @@ def _register_domain_write_tools(  # noqa: PLR0915
     ) -> dict[str, Any]:
         """Create a helpdesk ticket."""
         guard(extra_values)
-        _check_extra(
+        check_extra(
             extra_values,
             {
                 "name": "name",
@@ -629,6 +604,8 @@ def _register_domain_write_tools(  # noqa: PLR0915
                 "partner_id": "partner_id",
                 "tag_ids": "tag_ids",
                 "team_id": "team_id",
+                "user_id": "assignee_id",
+                "priority": "priority",
             },
         )
         odoo = await holder.get()
@@ -663,7 +640,7 @@ def _register_domain_write_tools(  # noqa: PLR0915
     ) -> dict[str, Any]:
         """Create a CRM lead or opportunity."""
         guard(extra_values)
-        _check_extra(
+        check_extra(
             extra_values,
             {
                 "name": "name",
@@ -674,6 +651,12 @@ def _register_domain_write_tools(  # noqa: PLR0915
                 "user_id": "salesperson_id",
                 "team_id": "team_id",
                 "tag_ids": "tag_ids",
+                "probability": "probability",
+                "email_from": "email",
+                "phone": "phone",
+                "contact_name": "contact_name",
+                "description": "description",
+                "date_deadline": "deadline",
             },
         )
         odoo = await holder.get()

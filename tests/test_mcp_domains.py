@@ -352,6 +352,37 @@ async def test_domain_create_tools_cannot_delete(tool: str, args: dict[str, Any]
             {"name": "x", "project": 1, "extra_values": {"user_ids": []}},
             "'assignee_ids'",
         ),
+        (
+            "create_task",
+            {"name": "x", "project": 1, "extra_values": {"priority": "1"}},
+            "'priority'",
+        ),
+        ("create_ticket", {"name": "x", "extra_values": {"user_id": 3}}, "'assignee_id'"),
+        ("create_lead", {"name": "x", "extra_values": {"email_from": "a@b.c"}}, "'email'"),
+        (
+            "create_account_move",
+            {
+                "move_type": "in_invoice",
+                "partner_id": 1,
+                "lines": [{"name": "x"}],
+                "extra_values": {"invoice_date": "2026-01-01"},
+            },
+            "'invoice_date'",
+        ),
+        (
+            "create_account_move",
+            {
+                "move_type": "entry",
+                "lines": [{"account_id": 1, "debit": 1}],
+                "extra_values": {"line_ids": []},
+            },
+            "'lines'",
+        ),
+        (
+            "create_account_move",
+            {"move_type": "entry", "lines": [{"account_id": 1, "debit": 1, "extra": {"debit": 5}}]},
+            "'debit'",
+        ),
     ],
 )
 async def test_extra_values_cannot_shadow_parameters(
