@@ -10,10 +10,6 @@ import pytest
 
 pytest.importorskip("mcp")
 
-from mcp.client.client import Client
-
-from vodoo.mcp_server import create_server
-
 BUNDLE = Path(__file__).resolve().parent.parent / "packages" / "mcpb"
 MANIFEST = json.loads((BUNDLE / "manifest.json").read_text())
 
@@ -27,17 +23,15 @@ def _load_launcher() -> Any:
     return module
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
+def test_build_lists_every_server_tool() -> None:
+    from scripts.build_mcpb import tool_list
 
-
-@pytest.mark.anyio
-async def test_manifest_lists_every_server_tool() -> None:
-    server = create_server(client=object(), allow_write=True, allow_delete=True)  # type: ignore[arg-type]
-    async with Client(server) as session:
-        names = {tool.name for tool in (await session.list_tools()).tools}
-    assert {tool["name"] for tool in MANIFEST["tools"]} == names
+    tools = tool_list()
+    names = {tool["name"] for tool in tools}
+    assert {"list_tasks", "create_account_move", "delete_records"} <= names
+    assert len(names) == len(tools)
+    assert all(tool["description"] for tool in tools)
+    assert "tools" not in MANIFEST  # generated at build time
 
 
 def test_manifest_env_uses_declared_settings() -> None:

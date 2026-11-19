@@ -258,6 +258,15 @@ def _contains_delete_command(value: Any) -> bool:
     return False
 
 
+def _guard_delete(allow_delete: bool, *payloads: Any) -> None:
+    """Keep deletion behind --allow-delete, also inside x2many commands."""
+    if not allow_delete and any(_contains_delete_command(p) for p in payloads):
+        raise ToolError(
+            "The x2many command [2, id, 0] deletes records and needs a server started "
+            "with --allow-delete. Use [3, id, 0] to unlink without deleting."
+        )
+
+
 class _FilePolicy:
     """Local folders the server may write downloads to or read uploads from."""
 
@@ -401,6 +410,33 @@ class _ClientHolder:
             await self._client.close()
 
 
+async def _hide_unavailable_tools(
+    server: MCPServer[Any], holder: _ClientHolder, tool_models: dict[str, str]
+) -> list[str]:
+    """Remove tools whose Odoo model does not exist; return their names.
+
+    Any failure (no connection yet, no access to ``ir.model``) keeps every tool.
+    """
+    models = sorted({*tool_models.values(), "res.partner"})
+    try:
+        odoo = await holder.get()
+        rows = await odoo.search_read(
+            "ir.model", domain=[("model", "in", models)], fields=["model"]
+        )
+    except Exception as exc:
+        logger.warning(
+            "Could not check installed Odoo apps (%s); showing all tools", type(exc).__name__
+        )
+        return []
+    found = {row.get("model") for row in rows}
+    if "res.partner" not in found:  # an unusable answer: keep everything
+        return []
+    hidden = sorted(name for name, model in tool_models.items() if model not in found)
+    for name in hidden:
+        server.remove_tool(name)
+    return hidden
+
+
 # ---------------------------------------------------------------------------
 # Server factory
 # ---------------------------------------------------------------------------
@@ -415,6 +451,7 @@ def create_server(  # noqa: PLR0915
     client: AsyncOdooClient | None = None,
     download_dir: Path | None = None,
     upload_dirs: list[Path] | None = None,
+    hide_unavailable: bool = True,
 ) -> MCPServer[Any]:
     """Build the Vodoo MCP server.
 
@@ -427,6 +464,8 @@ def create_server(  # noqa: PLR0915
         download_dir: The only folder (with subfolders) that downloads may go to.
         upload_dirs: Folders whose files may be attached (default: Downloads,
             Desktop, Documents). The download folder is always allowed.
+        hide_unavailable: At startup, hide tools for Odoo apps that are not installed
+            (for example Helpdesk or Knowledge on Community).
     """
     holder = _ClientHolder(config=config, instance=instance, client=client)
     files = _FilePolicy(
@@ -434,8 +473,13 @@ def create_server(  # noqa: PLR0915
         list(upload_dirs) if upload_dirs is not None else list(DEFAULT_UPLOAD_DIRS),
     )
 
+    tool_models: dict[str, str] = {}  # tool name -> Odoo model it needs
+    hidden: list[str] = []
+
     @asynccontextmanager
-    async def lifespan(_server: MCPServer[Any]) -> AsyncIterator[None]:
+    async def lifespan(app: MCPServer[Any]) -> AsyncIterator[None]:
+        if hide_unavailable:
+            hidden.extend(await _hide_unavailable_tools(app, holder, tool_models))
         try:
             yield None
         finally:
@@ -459,7 +503,10 @@ def create_server(  # noqa: PLR0915
         read_only: bool,
         destructive: bool = False,
         idempotent: bool = False,
+        requires: str | None = None,
     ) -> None:
+        if requires is not None:
+            tool_models[fn.__name__] = requires
         annotations = ToolAnnotations(
             title=title,
             read_only_hint=read_only,
@@ -507,6 +554,7 @@ def create_server(  # noqa: PLR0915
             "api": "json2 (Odoo 19+)" if odoo.is_json2 else "jsonrpc (Odoo 17/18)",
             "write_enabled": allow_write,
             "delete_enabled": allow_delete,
+            "hidden_tools": sorted(hidden),
         }
 
     async def search_records(
@@ -751,7 +799,7 @@ def create_server(  # noqa: PLR0915
         odoo = await holder.get()
         return [_timesheet_dict(ts) for ts in await odoo.timer.active()]
 
-    for read_tool, title in (
+    for read_tool, title, *needs in (
         (odoo_info, "Odoo connection info"),
         (search_records, "Search records"),
         (count_records, "Count records"),
@@ -762,12 +810,23 @@ def create_server(  # noqa: PLR0915
         (list_messages, "List chatter messages"),
         (list_attachments, "List attachments"),
         (download_attachment, "Download attachment"),
-        (list_account_moves, "List invoices / bills / entries"),
-        (get_account_move, "Show invoice / bill / entry"),
-        (list_timesheets, "List timesheets"),
-        (timer_status, "Running timers"),
+        (list_account_moves, "List invoices / bills / entries", "account.move"),
+        (get_account_move, "Show invoice / bill / entry", "account.move"),
+        (list_timesheets, "List timesheets", "account.analytic.line"),
+        (timer_status, "Running timers", "account.analytic.line"),
     ):
-        register(read_tool, title=title, read_only=True)
+        register(read_tool, title=title, read_only=True, requires=needs[0] if needs else None)
+
+    from vodoo.mcp_server.domains import register_domain_tools
+
+    register_domain_tools(
+        register,
+        holder,
+        files,
+        allow_write=allow_write,
+        allow_delete=allow_delete,
+        record_url=record_url,
+    )
 
     if allow_write:
         _register_write_tools(
@@ -791,12 +850,7 @@ def _register_write_tools(  # noqa: PLR0915
     """Register tools that create or modify Odoo data."""
 
     def guard_delete(*payloads: Any) -> None:
-        """Keep deletion behind --allow-delete, also inside x2many commands."""
-        if not allow_delete and any(_contains_delete_command(p) for p in payloads):
-            raise ToolError(
-                "The x2many command [2, id, 0] deletes records and needs a server started "
-                "with --allow-delete. Use [3, id, 0] to unlink without deleting."
-            )
+        _guard_delete(allow_delete, *payloads)
 
     async def create_record(
         model: str,
@@ -1106,6 +1160,13 @@ def _register_write_tools(  # noqa: PLR0915
         stopped = await odoo.timer.stop()
         return {"stopped": [_timesheet_dict(ts) for ts in stopped]}
 
+    accounting = {
+        "create_account_move",
+        "post_account_moves",
+        "reset_account_moves_to_draft",
+        "cancel_account_moves",
+        "register_payment",
+    }
     tools: list[tuple[Callable[..., Awaitable[Any]], str, bool, bool]] = [
         # (tool, title, destructive, idempotent)
         (create_record, "Create record", False, False),
@@ -1124,7 +1185,20 @@ def _register_write_tools(  # noqa: PLR0915
         (timer_stop, "Stop timer", False, False),
     ]
     for tool, title, destructive, idempotent in tools:
-        register(tool, title=title, read_only=False, destructive=destructive, idempotent=idempotent)
+        name = tool.__name__
+        requires = None
+        if name in accounting:
+            requires = "account.move"
+        elif name.startswith("timer_"):
+            requires = "account.analytic.line"
+        register(
+            tool,
+            title=title,
+            read_only=False,
+            destructive=destructive,
+            idempotent=idempotent,
+            requires=requires,
+        )
 
 
 def _register_delete_tools(register: Callable[..., None], holder: _ClientHolder) -> None:

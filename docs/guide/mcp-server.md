@@ -2,8 +2,13 @@
 
 Vodoo includes an [MCP](https://modelcontextprotocol.io) server. It gives Claude Desktop
 (and other MCP clients such as Claude Code or Cursor) direct tools for your Odoo:
-search and read any model, accounting (invoices, bills, journal entries, payments),
-chatter, attachments, activities, and timers.
+projects and tasks, helpdesk, CRM, knowledge, documents, accounting (invoices, bills,
+journal entries, payments), activities, timers, chatter, attachments, and any other
+model.
+
+At startup the server checks which Odoo apps are installed and hides the tools of
+missing apps (for example Helpdesk, Knowledge, and Documents on Community). The
+`odoo_info` tool lists the hidden tools.
 
 The server runs locally over stdio and uses your normal Vodoo configuration,
 instance profiles, and keyring secrets. It works with Odoo 17, 18, and 19.
@@ -114,6 +119,17 @@ claude mcp add odoo -- uvx --from 'vodoo[mcp]' vodoo mcp --allow-write
 | `list_account_moves` | Invoices, bills, refunds, entries; filter by type, state, payment state, partner, dates, overdue. |
 | `get_account_move` | One move with totals, status, and lines. |
 | `list_timesheets` / `timer_status` | Your timesheets and running timers. |
+| `list_tasks` | Tasks by project, stage, assignee (or `mine`), tag, milestone, parent, deadline; open only by default. |
+| `get_task_context` | One task with project, stage, people, tags, subtasks, dependencies, milestone, chatter, attachments. |
+| `list_projects` / `list_project_stages` | Projects; task stages (columns). |
+| `list_milestones` / `list_milestone_tasks` | A project's milestones; the tasks of a milestone. |
+| `list_tickets` | Helpdesk tickets by stage, team, customer, assignee, text; open only by default. |
+| `list_leads` / `list_crm_stages` | CRM leads and opportunities; pipeline stages. |
+| `crm_pipeline` | Deals and (weighted) revenue per stage, with health flags. |
+| `list_articles` | Knowledge articles by title, parent, category, or body text. |
+| `list_documents` / `list_document_folders` / `download_document` | Odoo Documents. |
+| `list_activities` | Scheduled activities by record, user (or `mine`), type, overdue. |
+| `list_tags` | Tags of tasks, tickets, or leads. |
 
 ### Write (`--allow-write`)
 
@@ -129,6 +145,22 @@ claude mcp add odoo -- uvx --from 'vodoo[mcp]' vodoo mcp --allow-write
 | `register_payment` | Odoo's *Register Payment* for posted invoices/bills (full or partial). |
 | `mark_activity_done` | Mark an activity as done. |
 | `timer_start` / `timer_stop` | Timers on tasks, tickets, or timesheets. |
+| `create_task` | Task or subtask (project by id or name, assignees, tags, stage, deadline, blockers). |
+| `set_task_milestone` / `set_task_dependencies` / `schedule_task` | Milestone; "blocked by" tasks; Gantt dates (Enterprise). |
+| `create_milestone` / `reach_milestone` | Project milestones. |
+| `create_ticket` | Helpdesk ticket. |
+| `create_lead` | CRM lead or opportunity. |
+| `create_article` | Knowledge article, workspace or private (Markdown body). |
+| `upload_document` | Upload a local file (from an allowed folder) to Odoo Documents. |
+| `create_tag` / `add_tag` | Tags for tasks, tickets, or leads. |
+| `schedule_activity` | To-do, call, or other activity on any record. |
+
+Moving a task or ticket to another stage, changing assignees, and other field changes
+use `update_records` (find ids with `list_project_stages`, `list_crm_stages`, or
+`name_search`). Chatter, attachments, and URLs use the generic tools for every model.
+
+The CLI's `security` commands (create users, set passwords, groups) are not exposed:
+they are admin operations that an assistant should not run.
 
 ### Delete (`--allow-delete`)
 
@@ -164,6 +196,12 @@ from a record you may edit.
 ## Example prompts
 
 ```
+What are my open tasks in the "Website" project, by deadline?
+
+Create a task "Migrate DNS" in Website, assign it to me, due Friday, blocked by task 412.
+
+Which opportunities are stale? Schedule a call activity for each salesperson.
+
 Which customer invoices are overdue? Group them by customer with the open amounts.
 
 Create a draft bill from Hetzner for 49.90 EUR, dated today, on account 6810,

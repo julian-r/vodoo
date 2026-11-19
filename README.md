@@ -108,8 +108,8 @@ Works well with AI assistants like Claude Code — natural language in, structur
 
 ## Quick Start — MCP Server (Claude Desktop)
 
-Give Claude Desktop direct Odoo tools, including accounting (invoices, bills, journal
-entries, payments). Add this to `claude_desktop_config.json`
+Give Claude Desktop direct Odoo tools: projects and tasks, helpdesk, CRM, knowledge,
+documents, activities, timers, and accounting (invoices, bills, journal entries, payments). Add this to `claude_desktop_config.json`
 (Settings → Developer → Edit Config) and restart Claude Desktop:
 
 ```json

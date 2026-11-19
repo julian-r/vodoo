@@ -33,6 +33,22 @@ READ_TOOLS = {
     "get_account_move",
     "list_timesheets",
     "timer_status",
+    "list_tasks",
+    "get_task_context",
+    "list_projects",
+    "list_project_stages",
+    "list_milestones",
+    "list_milestone_tasks",
+    "list_tickets",
+    "list_leads",
+    "list_crm_stages",
+    "crm_pipeline",
+    "list_articles",
+    "list_documents",
+    "list_document_folders",
+    "download_document",
+    "list_activities",
+    "list_tags",
 }
 WRITE_TOOLS = {
     "create_record",
@@ -48,6 +64,19 @@ WRITE_TOOLS = {
     "mark_activity_done",
     "timer_start",
     "timer_stop",
+    "create_task",
+    "set_task_milestone",
+    "set_task_dependencies",
+    "schedule_task",
+    "create_milestone",
+    "reach_milestone",
+    "create_ticket",
+    "create_lead",
+    "create_article",
+    "upload_document",
+    "add_tag",
+    "create_tag",
+    "schedule_activity",
 }
 
 
@@ -79,6 +108,26 @@ class FakeClient:
         self.execute_result: dict[str, Any] = {}
         self.next_id = 100
         self.fail_with: Exception | None = None
+        self.search_read_by_model: dict[str, list[dict[str, Any]]] = {}
+        self.fields_result: dict[str, Any] = {
+            "name": {"type": "char"},
+            "image_1920": {"type": "binary"},
+        }
+        # Real Vodoo namespaces on top of this fake transport.
+        from vodoo.aio import client as aio_client
+
+        for name in (
+            "tasks",
+            "projects",
+            "helpdesk",
+            "crm",
+            "knowledge",
+            "documents",
+            "activities",
+            "timer",
+        ):
+            factory = getattr(aio_client, f"_make_{name}")
+            setattr(self, name, factory(self))
 
     def _log(self, name: str, *args: Any, **kwargs: Any) -> None:
         if self.fail_with is not None:
@@ -93,7 +142,8 @@ class FakeClient:
 
     async def search_read(self, model: str, **kwargs: Any) -> list[dict[str, Any]]:
         self._log("search_read", model, **kwargs)
-        return [dict(r) for r in self.search_read_result]
+        rows = self.search_read_by_model.get(model, self.search_read_result)
+        return [dict(r) for r in rows]
 
     async def read(self, model: str, ids: list[int], fields: Any = None) -> list[dict[str, Any]]:
         self._log("read", model, ids, fields)
@@ -122,7 +172,7 @@ class FakeClient:
 
     async def fields_get(self, model: str, **kwargs: Any) -> dict[str, Any]:
         self._log("fields_get", model, **kwargs)
-        return {"name": {"type": "char"}, "image_1920": {"type": "binary"}}
+        return dict(self.fields_result)
 
     async def name_search(self, model: str, name: str, **kwargs: Any) -> list[tuple[int, str]]:
         self._log("name_search", model, name, **kwargs)
@@ -135,6 +185,7 @@ class FakeClient:
 async def _call(
     client: FakeClient, tool: str, args: dict[str, Any] | None = None, **server_kw: Any
 ) -> tuple[bool, Any]:
+    server_kw.setdefault("hide_unavailable", False)
     server = create_server(client=client, **server_kw)  # type: ignore[arg-type]
     async with Client(server) as session:
         result = await session.call_tool(tool, args or {})
@@ -145,6 +196,7 @@ async def _call(
 
 
 async def _tool_names(**server_kw: Any) -> set[str]:
+    server_kw.setdefault("hide_unavailable", False)
     server = create_server(client=FakeClient(), **server_kw)  # type: ignore[arg-type]
     async with Client(server) as session:
         return {t.name for t in (await session.list_tools()).tools}

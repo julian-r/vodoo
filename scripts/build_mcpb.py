@@ -55,6 +55,30 @@ def _semver(version: str) -> str:
     return result + (f"+{local}" if local else "")
 
 
+def tool_list() -> list[dict[str, str]]:
+    """Every server tool (all modes) with the first line of its description."""
+    import asyncio
+
+    from mcp.client.client import Client
+
+    from vodoo.mcp_server import create_server
+
+    async def collect() -> list[dict[str, str]]:
+        server = create_server(
+            client=object(),  # type: ignore[arg-type]
+            allow_write=True,
+            allow_delete=True,
+            hide_unavailable=False,
+        )
+        async with Client(server) as session:
+            tools = (await session.list_tools()).tools
+        return [
+            {"name": t.name, "description": (t.description or "").splitlines()[0]} for t in tools
+        ]
+
+    return asyncio.run(collect())
+
+
 def _make_icon(source: Path, target: Path) -> None:
     """512 px icon (the recommended size); the 1024 px logo is 1.5 MB."""
     if shutil.which("sips"):  # macOS
@@ -87,6 +111,7 @@ def build(output_dir: Path) -> Path:
         manifest_path = stage / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["version"] = _semver(version)
+        manifest["tools"] = tool_list()
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
         _run("uv", "lock", "--directory", str(stage))
