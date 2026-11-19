@@ -2,6 +2,10 @@
 
 Vodoo is designed with an **AI-first** approach — its clear, consistent CLI structure makes it ideal for use with Claude Code, GitHub Copilot, and similar AI coding assistants.
 
+!!! tip "Claude Desktop"
+    Claude Desktop cannot run CLI commands. Use the [MCP server](mcp-server.md)
+    (`vodoo mcp`) instead: it gives Claude direct Odoo tools.
+
 ## Why It Works
 
 1. **Consistent command patterns** — every domain uses the same verbs (`list`, `show`, `comment`, `note`, `set`, `tag`, `attach`)

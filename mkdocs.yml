@@ -127,6 +127,7 @@ nav:
       - Using as a Library: guide/library.md
       - Cloudflare Workers: guide/cloudflare-workers.md
       - AI Assistant Integration: guide/ai-assistants.md
+      - MCP Server (Claude Desktop): guide/mcp-server.md
   - API Reference:
       - Overview: api/index.md
       - OdooClient: api/client.md

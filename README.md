@@ -106,6 +106,27 @@ vodoo timer start 42
 
 Works well with AI assistants like Claude Code — natural language in, structured Odoo operations out.
 
+## Quick Start — MCP Server (Claude Desktop)
+
+Give Claude Desktop direct Odoo tools, including accounting (invoices, bills, journal
+entries, payments). Add this to `claude_desktop_config.json`
+(Settings → Developer → Edit Config) and restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["--from", "vodoo[mcp]", "vodoo", "mcp", "--allow-write"]
+    }
+  }
+}
+```
+
+It uses your normal Vodoo configuration. Without `--allow-write` the server is
+read-only; `--allow-delete` enables deletion. See the
+[MCP server guide](https://julian-r.github.io/vodoo/guide/mcp-server/) for all tools.
+
 ## Odoo Version Support
 
 | Version | Protocol | Status |
@@ -136,6 +157,7 @@ Auto-detects the Odoo version and selects the appropriate transport. Odoo 19's J
 - 🔍 Search across text fields (name, email, phone, description)
 - 🧰 Generic CRUD for any Odoo model
 - 🎨 Rich terminal output with tables
+- 🤖 MCP server for Claude Desktop and other MCP clients (`vodoo mcp`)
 
 ### Shared
 
